@@ -1,0 +1,114 @@
+
+🔍 COMPRENDRE VOTRE CONNEXION MONGODB
+
+Ce script analyse votre connexion MongoDB Atlas actuelle. Voici ce que vous devez savoir:
+
+1. Votre application est connectée à MongoDB Atlas (service cloud) et non à une instance locale
+2. Les connexions réseau montrent des connexions aux adresses MongoDB Atlas:
+   - 13.36.193.74:27017
+   - 13.37.253.144:27017
+   - 15.236.189.229:27017
+
+3. Ces adresses correspondent aux serveurs de votre cluster MongoDB Atlas "lieuxrestauration"
+
+4. Pour se connecter localement à cette base de données, vous devez:
+   - Avoir un client MongoDB installé (comme MongoDB Compass)
+   - Utiliser la même chaîne de connexion que celle dans votre fichier .env
+   - Avoir accès à Internet pour atteindre les serveurs MongoDB Atlas
+
+5. Si vous souhaitez utiliser une base MongoDB locale à la place:
+   - Installez MongoDB sur votre machine
+   - Créez une base de données locale
+   - Modifiez votre fichier .env pour utiliser "mongodb://localhost:27017/nom_de_votre_base"
+
+Lancement de l'analyse de votre connexion actuelle...
+
+🔍 TEST DE CONNEXION MONGODB ATLAS
+================================
+
+🔌 URI de connexion: mongodb+srv://******:******@lieuxrestauration.szq31.mongodb.net/?retryWrites=true&w=majority&appName=lieuxrestauration
+
+🔄 Tentative de connexion à MongoDB Atlas...
+[ERROR] (node:23852) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+(Use `node --trace-warnings ...` to show where the warning was created)
+[ERROR] (node:23852) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+✅ CONNEXION RÉUSSIE à MongoDB Atlas !
+
+📊 INFORMATIONS DE CONNEXION:
+- Host: lieuxrestauration-shard-00-01.szq31.mongodb.net
+- Port: 27017
+
+📂 BASES DE DONNÉES DISPONIBLES:
+- Beauty_Wellness (0.08 MB)
+- Loisir&Culture (15.70 MB)
+- Nightclub (0.23 MB)
+- Restauration_Officielle (50.33 MB)
+- choice_app (0.71 MB)
+- restauration_paris (0.45 MB)
+- test (0.09 MB)
+- admin (0.35 MB)
+- local (8498.83 MB)
+
+📊 ANALYSE DE LA BASE DE DONNÉES "test":
+- 3 collections trouvées:
+  • conversations: 12 documents, 0.01 MB, 1 index(es)
+    - Structure du document: _id, participants, messages, lastUpdated, __v
+    - Index: _id_
+  • users: 0 documents, 0.00 MB, 2 index(es)
+    - Collection vide
+    - Index: _id_, email_1
+  • Users: 0 documents, 0.00 MB, 1 index(es)
+    - Collection vide
+    - Index: _id_
+
+📊 ANALYSE DE LA BASE DE DONNÉES "choice_app":
+- 6 collections trouvées:
+  • posts: 0 documents, 0.00 MB, 1 index(es)
+    - Collection vide
+    - Index: _id_
+  • Posts: 75 documents, 0.13 MB, 1 index(es)
+    - Structure du document: _id, event_id, producer_id, title, content, media, tags, location, posted_at
+    - Index: _id_
+  • users: 3 documents, 0.00 MB, 2 index(es)
+    - Structure du document: _id, name, email, password, photo_url, conversations, liked_tags, trusted_circle, posts, followers_count, __v
+    - Index: _id_, email_1
+  • chat_messages: 48 documents, 0.03 MB, 1 index(es)
+    - Structure du document: _id, userId, role, text, timestamp, __v
+    - Index: _id_
+  • Users: 32 documents, 0.03 MB, 1 index(es)
+    - Structure du document: _id, name, age, gender, photo_url, bio, location, preferred_content_format, liked_tags, trusted_circle, sector_preferences, interaction_metrics, consumption_behavior, frequent_locations, affinity_producers, search_keywords, is_star, followers_count, influence_score, posts, __v, comments, choices, liked_posts, conversations, email, password, following, followingProducers, interests, followers
+    - Index: _id_
+  • Producers: 1000 documents, 0.58 MB, 1 index(es)
+    - Structure du document: _id, name, category, tags, location, avg_price_range, sustainability_score, specialty, interactions, exclusive_offers, average_rating, photo_url, website, description
+    - Index: _id_
+
+📊 ANALYSE DE LA BASE DE DONNÉES "Restauration_Officielle":
+- 7 collections trouvées:
+  • producers: 5082 documents, 26.80 MB, 4 index(es)
+    - Structure du document: _id, place_id, name, verified, photo, description, menu, address, gps_coordinates, category, opening_hours, phone_number, website, notes_globales, abonnés, photos, __v, business_status, international_phone_number, maps_url, popular_times, price_level, rating, serves_vegetarian_food, service_options, structured_data, user_ratings_total, posts, choice, conversations, followers, following
+    - Index: _id_, place_id_1, email_1, gps_coordinates_2dsphere
+  • Users: 20 documents, 0.01 MB, 1 index(es)
+    - Structure du document: _id, name, location, liked_tags, trusted_circle, preferred_content_format, sector_preferences, consumption_behavior, interaction_metrics, followers_count, influence_score, is_star
+    - Index: _id_
+  • conversations: 0 documents, 0.00 MB, 1 index(es)
+    - Collection vide
+    - Index: _id_
+  • users: 0 documents, 0.00 MB, 2 index(es)
+    - Collection vide
+    - Index: _id_, email_1
+  • chat_messages: 162 documents, 0.14 MB, 1 index(es)
+    - Structure du document: _id, producerId, role, text, timestamp, __v
+    - Index: _id_
+  • RestaurationParis: 5333 documents, 48.39 MB, 2 index(es)
+    - Structure du document: _id, place_id, address, business_status, category, cuisine_type, dine_in, gps_coordinates, international_phone_number, maps_url, name, opening_hours, payment_methods, phone_number, photos, popular_times, price_level, rating, reviews, serves_vegetarian_food, service_options, user_ratings_total, website, menus_structures, menu, notes_globales, last_updated, restaurant_name, structured_data
+    - Index: _id_, gps_coordinates_2dsphere
+  • Posts: 0 documents, 0.00 MB, 1 index(es)
+    - Collection vide
+    - Index: _id_
+
+👤 UTILISATEURS: Impossible de récupérer les informations (droits insuffisants)
+
+🔄 CONNEXIONS ACTIVES:
+- Total connexions actives: 0
+
+🔒 Connexion fermée

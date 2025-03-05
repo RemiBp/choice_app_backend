@@ -84,6 +84,48 @@ const User = postsDbChoice.model(
   'Users'
 );
 
+// Route pour générer le feed - DÉPLACER CETTE ROUTE EN PREMIER
+router.get('/feed', async (req, res) => {
+  const { userId, limit = 10, query } = req.query;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID est requis.' });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé.' });
+    }
+
+    let [postsChoice, postsRest] = await Promise.all([
+      PostChoice.find().lean(),
+      PostRest.find().lean(),
+    ]);
+
+    let posts = [...postsChoice, ...postsRest];
+
+    if (query) {
+      const queryRegex = new RegExp(query, 'i');
+      posts = posts.filter(
+        (post) =>
+          queryRegex.test(post.content) ||
+          post.tags.some((tag) => queryRegex.test(tag))
+      );
+    }
+
+    const normalizedPosts = posts.map((post) => normalizePost(post, user));
+    const sortedFeed = normalizedPosts
+      .sort((a, b) => b.relevance_score - a.relevance_score)
+      .slice(0, limit);
+
+    res.json(sortedFeed);
+  } catch (error) {
+    console.error('Erreur lors de la génération du feed :', error.message);
+    res.status(500).json({ error: 'Erreur interne du serveur.' });
+  }
+});
+
 // Route pour liker un post
 router.post('/:id/like', async (req, res) => {
   const { id } = req.params;
@@ -209,20 +251,44 @@ function normalizePost(post, user) {
 
 // Route pour récupérer tous les posts
 router.get('/', async (req, res) => {
+  const { userId, page = 1, limit = 10 } = req.query;
+
   try {
+    console.log('🔍 GET /api/posts');
+    console.log('Query params:', { userId, page, limit });
+
     const [postsChoice, postsRest] = await Promise.all([
-      PostChoice.find().sort({ posted_at: -1 }),
-      PostRest.find().sort({ posted_at: -1 }),
+      PostChoice.find()
+        .sort({ posted_at: -1 })
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .lean(),
+      PostRest.find()
+        .sort({ posted_at: -1 })
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .lean(),
     ]);
 
-    res.json([...postsChoice, ...postsRest]);
+    console.log(`📦 Found ${postsChoice.length} choice posts and ${postsRest.length} rest posts`);
+
+    const posts = [...postsChoice, ...postsRest]
+      .sort((a, b) => new Date(b.posted_at) - new Date(a.posted_at))
+      .slice(0, limit);
+
+    console.log(`🔄 Returning ${posts.length} normalized posts`);
+
+    res.json(posts);
   } catch (error) {
-    console.error('Erreur lors de la récupération des posts :', error.message);
-    res.status(500).json({ message: 'Erreur serveur.' });
+    console.error('❌ Error in GET /api/posts:', error);
+    res.status(500).json({ 
+      error: 'Erreur interne du serveur.',
+      details: error.message 
+    });
   }
 });
 
-// Route pour récupérer un post spécifique par ID
+// Route pour récupérer un post spécifique par ID - GARDER CETTE ROUTE APRÈS /feed
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
 
@@ -280,48 +346,6 @@ router.post('/:id/comments', async (req, res) => {
     res.status(201).json({ message: 'Commentaire ajouté avec succès.', post });
   } catch (error) {
     console.error('Erreur lors de l\'ajout du commentaire :', error.message);
-    res.status(500).json({ error: 'Erreur interne du serveur.' });
-  }
-});
-
-// Route pour générer le feed
-router.get('/feed', async (req, res) => {
-  const { userId, limit = 10, query } = req.query;
-
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID est requis.' });
-  }
-
-  try {
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'Utilisateur non trouvé.' });
-    }
-
-    let [postsChoice, postsRest] = await Promise.all([
-      PostChoice.find().lean(),
-      PostRest.find().lean(),
-    ]);
-
-    let posts = [...postsChoice, ...postsRest];
-
-    if (query) {
-      const queryRegex = new RegExp(query, 'i');
-      posts = posts.filter(
-        (post) =>
-          queryRegex.test(post.content) ||
-          post.tags.some((tag) => queryRegex.test(tag))
-      );
-    }
-
-    const normalizedPosts = posts.map((post) => normalizePost(post, user));
-    const sortedFeed = normalizedPosts
-      .sort((a, b) => b.relevance_score - a.relevance_score)
-      .slice(0, limit);
-
-    res.json(sortedFeed);
-  } catch (error) {
-    console.error('Erreur lors de la génération du feed :', error.message);
     res.status(500).json({ error: 'Erreur interne du serveur.' });
   }
 });

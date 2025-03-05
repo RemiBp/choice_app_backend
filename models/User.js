@@ -10,7 +10,18 @@ const UserSchema = new mongoose.Schema({
   trusted_circle: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] },
   posts: { type: [mongoose.Schema.Types.ObjectId], ref: 'Post', default: [] },
   followers_count: { type: Number, default: 0 },
+  saved_posts: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Post'
+  }],
 });
+
+// Ajouter une méthode pour récupérer les posts sauvegardés
+UserSchema.methods.getSavedPosts = async function() {
+  return await mongoose.model('Post').find({
+    '_id': { $in: this.saved_posts }
+  }).sort({ posted_at: -1 });
+};
 
 module.exports = mongoose.model('User', UserSchema);
 

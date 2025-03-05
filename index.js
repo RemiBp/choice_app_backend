@@ -47,33 +47,38 @@ const testDb = mongoose.connection.useDb('test'); // Ajout de la connexion à la
 // Exporter les connexions pour utilisation dans d'autres fichiers
 module.exports = { choiceAppDb, testDb };
 
-// Importation des routes
-const leisureProducerRoutes = require('./routes/leisureProducers');
-const eventRoutes = require('./routes/events');
-const unifiedRoutes = require('./routes/unified');
-const postRoutes = require('./routes/posts');
-const userRoutes = require('./routes/users');
-const producerRoutes = require('./routes/producers');
-const conversationRoutes = require('./routes/conversations'); // Ajout de la route des conversations
-const newUserRoutes = require('./routes/newuser');
-const linkedRoutes = require('./routes/linked');
-const choicexinterestRoutes = require('./routes/choicexinterest');
-const subscriptionRoutes = require('./routes/subscription');
-const chatRoutes = require("./routes/chat");
+  const leisureProducerRoutes = require('./routes/leisureProducers');
+  const eventRoutes = require('./routes/events');
+  const unifiedRoutes = require('./routes/unified');
+  const postRoutes = require('./routes/posts');
+  const userRoutes = require('./routes/users');
+  const producerRoutes = require('./routes/producers');
+  const conversationRoutes = require('./routes/conversations');
+  const newUserRoutes = require('./routes/newuser');
+  const linkedRoutes = require('./routes/linked');
+  const choicexinterestRoutes = require('./routes/choicexinterest');
+  const subscriptionRoutes = require('./routes/subscription');
+  const chatRoutes = require("./routes/chat");
+  const shareRoutes = require('./routes/share');
+  const interactionsRoutes = require('./routes/interactions');
+  const aiRoutes = require('./routes/ai'); // Nouvelles routes pour l'IA avec accès MongoDB en temps réel
 
-// Déclaration des routes
-app.use('/api/leisureProducers', leisureProducerRoutes);
-app.use('/api/events', eventRoutes);
-app.use('/api/unified', unifiedRoutes);
-app.use('/api/posts', postRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/producers', producerRoutes);
-app.use('/api/conversations', conversationRoutes);
-app.use('/api/newuser', newUserRoutes);
-app.use('/api/linked', linkedRoutes);
-app.use('/api/choicexinterest', choicexinterestRoutes);
-app.use('/api/subscription', subscriptionRoutes);
-app.use('/api/chat', chatRoutes); 
+  // Configuration des routes
+  app.use('/api/leisureProducers', leisureProducerRoutes);
+  app.use('/api/events', eventRoutes);
+  app.use('/api/unified', unifiedRoutes);
+  app.use('/api/posts', postRoutes);
+  app.use('/api/users', userRoutes);
+  app.use('/api/producers', producerRoutes);
+  app.use('/api/conversations', conversationRoutes);
+  app.use('/api/newuser', newUserRoutes);
+  app.use('/api/linked', linkedRoutes);
+  app.use('/api/choicexinterest', choicexinterestRoutes);
+  app.use('/api/subscription', subscriptionRoutes);
+  app.use('/api/chat', chatRoutes);
+  app.use('/api/share', shareRoutes);
+  app.use('/api/interactions', interactionsRoutes);
+  app.use('/api/ai', aiRoutes); // Intégration des routes IA avec accès MongoDB en temps réel
 
 
 // Planification Cron : Mise à jour des producteurs
