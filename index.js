@@ -24,9 +24,30 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  console.log('Headers:', req.headers);
-  console.log('Body:', req.body);
+  console.log(`\n🔍 REQUÊTE REÇUE [${new Date().toISOString()}]`);
+  console.log(`📌 ${req.method} ${req.url}`);
+  console.log('📋 Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('📦 Body:', JSON.stringify(req.body, null, 2));
+  
+  // Tracer spécifiquement les requêtes aux endpoints AI
+  if (req.url.includes('/api/ai/')) {
+    console.log('🤖 REQUÊTE AI DÉTECTÉE! ');
+    console.log(`🔍 Path: ${req.url}`);
+    console.log(`📦 Payload:`, req.body);
+  }
+  
+  // Capturer également la réponse
+  const originalSend = res.send;
+  res.send = function(body) {
+    console.log(`📤 RÉPONSE [${res.statusCode}]`);
+    if (res.statusCode >= 400) {
+      console.log('❌ Erreur:', body);
+    } else if (req.url.includes('/api/ai/')) {
+      console.log('🤖 Réponse AI:', typeof body === 'string' ? body.substring(0, 150) + '...' : 'Objet non-string');
+    }
+    originalSend.apply(res, arguments);
+  };
+  
   next();
 });
 

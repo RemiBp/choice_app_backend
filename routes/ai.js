@@ -167,6 +167,7 @@ router.post('/producer/query', async (req, res) => {
   }
 });
 
+
 /**
  * @route GET /api/ai/insights/user/:userId
  * @description Obtient des insights personnalisés pour un utilisateur
@@ -259,10 +260,12 @@ router.get('/insights/producer/:producerId', async (req, res) => {
 router.get('/health', async (req, res) => {
   try {
     // Vérification simple de l'état du service
+    console.log('🔍 Route /api/ai/health appelée');
     res.json({
       success: true,
       status: 'operational',
-      message: 'Le service IA est opérationnel'
+      message: 'Le service IA est opérationnel',
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('❌ Erreur lors de la vérification de l\'état du service IA:', error);
@@ -273,6 +276,20 @@ router.get('/health', async (req, res) => {
       error: error.message
     });
   }
+});
+
+/**
+ * @route GET /api/ai/test
+ * @description Route de test simple pour vérifier la connectivité
+ */
+router.get('/test', (req, res) => {
+  console.log('🧪 Route /api/ai/test appelée');
+  return res.json({
+    success: true,
+    message: 'Connexion au service IA réussie !',
+    timestamp: new Date().toISOString(),
+    info: 'Cette route peut être utilisée pour tester la connectivité entre le frontend et le backend.'
+  });
 });
 
 module.exports = router;
