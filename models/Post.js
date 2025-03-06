@@ -20,4 +20,5 @@ const PostSchema = new mongoose.Schema({
 // Si vous utilisez spécifiquement `choice_app` :
 const choiceAppDb = mongoose.connection.useDb('choice_app');
 
+// Export directly for case-sensitivity compatibility
 module.exports = choiceAppDb.model('Post', PostSchema);
