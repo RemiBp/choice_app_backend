@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
 
-const PostChoice = require('./post').PostChoice;
-const User = require('./user').UserChoice;
+// Import from capitalized files to handle case sensitivity
+const Post = require('./Post');
+const { UserChoice } = require('./User');
 
 module.exports = {
-  PostChoice,
-  User,
+  PostChoice: Post,  // Maintain backward compatibility with existing code
+  User: UserChoice,  // Maintain backward compatibility with existing code
 };
