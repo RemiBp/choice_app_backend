@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Post = require('../models/Post');
-const User = require('../models/user').UserChoice;
+const User = require('../models/User').UserChoice;
 
 // Sauvegarder un post
 router.post('/save', async (req, res) => {
