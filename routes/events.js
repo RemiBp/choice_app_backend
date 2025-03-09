@@ -140,6 +140,51 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// **Recherche par artiste dans le lineup**
+router.get('/search-by-artist', async (req, res) => {
+  try {
+    const { artistName } = req.query;
+
+    if (!artistName || artistName.trim() === '') {
+      return res.status(400).json({ message: 'Veuillez fournir un nom d\'artiste pour la recherche.' });
+    }
+
+    console.log('🔍 Recherche d\'événements avec l\'artiste :', artistName);
+
+    // Recherche dans la collection avec un artiste correspondant dans le lineup
+    const events = await Event.find({
+      'lineup': {
+        $elemMatch: {
+          'nom': { $regex: artistName, $options: 'i' }
+        }
+      }
+    });
+
+    console.log(`🔍 ${events.length} événement(s) trouvé(s) avec l'artiste ${artistName}`);
+
+    if (events.length === 0) {
+      return res.status(404).json([]);
+    }
+
+    // Formater les résultats
+    const formattedEvents = events.map(event => ({
+      _id: event._id,
+      intitulé: event.intitulé || 'Intitulé non disponible',
+      catégorie: event.catégorie || 'Catégorie non disponible',
+      lieu: event.lieu || 'Lieu non disponible',
+      image: event.image || null,
+      prochaines_dates: event.prochaines_dates || 'Dates non disponibles',
+      purchase_url: event.purchase_url || '',
+      prix_reduit: event.prix_reduit || 'Prix non disponible',
+    }));
+
+    res.json(formattedEvents);
+  } catch (err) {
+    console.error('❌ Erreur lors de la recherche des événements par artiste :', err);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
+
 // **Recherche par ID**
 router.get('/:id', async (req, res) => {
   const { id } = req.params;

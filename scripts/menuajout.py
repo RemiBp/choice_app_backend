@@ -17,6 +17,9 @@ from google.cloud import vision
 from google.oauth2 import service_account
 import asyncio
 
+# --- Toggle pour activer/désactiver la fonctionnalité IA ---
+AI_ENABLED = False  # Mettre à True pour réactiver l'IA
+
 # --- Configuration MongoDB ---
 MONGO_URI = "mongodb+srv://remibarbier:Calvi8Pierc2@lieuxrestauration.szq31.mongodb.net/?retryWrites=true&w=majority&appName=lieuxrestauration"
 DB_NAME = "Restauration_Officielle"

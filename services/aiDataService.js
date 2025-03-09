@@ -9,6 +9,9 @@ const mongoose = require('mongoose');
 const OpenAI = require('openai');
 require('dotenv').config();
 
+// Toggle pour activer/désactiver la fonctionnalité IA
+const AI_ENABLED = false; // Mettre à True pour réactiver l'IA
+
 // Configuration OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -63,6 +66,21 @@ const AIQuery = usersDb.model(
  * @returns {Promise<Object>} - L'intention et les entités identifiées
  */
 async function analyzeQuery(query) {
+  // Vérifier si la fonctionnalité IA est activée
+  if (!AI_ENABLED) {
+    console.log("ℹ️ Fonctionnalité IA désactivée: retour d'une analyse simplifiée pour la requête.");
+    // Analyse simplifiée sans appel à l'API OpenAI
+    return {
+      intent: "restaurant_search", // Intention par défaut
+      entities: {
+        cuisine_type: query.includes("saumon") ? "saumon" : 
+                      query.includes("italien") ? "italien" : 
+                      query.includes("japonais") ? "japonais" : "général",
+        location: query.includes("autour de moi") ? "proximité" : null
+      }
+    };
+  }
+  
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -554,6 +572,43 @@ async function executeAIQuery(queryAnalysis, userQuery, userId = null, producerI
 async function generateQueryPlan(userQuery, queryAnalysis, userId, producerId) {
   const { intent, entities } = queryAnalysis;
   
+  // Vérifier si la fonctionnalité IA est activée
+  if (!AI_ENABLED) {
+    console.log("ℹ️ Fonctionnalité IA désactivée: utilisation d'un plan de requête simplifié.");
+    // Plan de requête simplifié sans appel à l'API OpenAI
+    if (producerId) {
+      // Pour un producteur, plan simplifié
+      const cleanProducerId = String(producerId).replace(/[{}"'$]/g, '').replace(/oid:/i, '').trim();
+      return {
+        description: "Plan de requête simplifié (IA désactivée) pour producteur",
+        collections: ["Producer"],
+        queries: [
+          {
+            collection: "Producer", 
+            query: { "_id": cleanProducerId },
+            limit: 1
+          }
+        ],
+        postProcessing: []
+      };
+    } else {
+      // Pour un utilisateur, plan simplifié
+      return {
+        description: "Plan de requête simplifié (IA désactivée)",
+        collections: ["Producer"],
+        queries: [
+          {
+            collection: "Producer",
+            query: {},
+            limit: 5,
+            sort: { "rating": -1 }
+          }
+        ],
+        postProcessing: []
+      };
+    }
+  }
+  
   // Préparation des données de marché pour enrichir l'analyse
   let marketContext = '';
   if (entities.market_insights) {
@@ -947,6 +1002,39 @@ async function generateResponseFromResults(userQuery, queryAnalysis, processedRe
   const { intent, entities } = queryAnalysis;
   const contextData = formatResultsForLLM(processedResults);
   const extractedProfiles = extractProfilesFromResults(processedResults);
+  
+  // Vérifier si la fonctionnalité IA est activée
+  if (!AI_ENABLED) {
+    console.log("ℹ️ Fonctionnalité IA désactivée: génération d'une réponse simplifiée.");
+    // Générer une réponse simplifiée sans appel à l'API OpenAI
+    const resultCount = processedResults.totalResults || 0;
+    
+    if (resultCount === 0) {
+      return {
+        text: "Aucun résultat trouvé pour votre recherche. La fonctionnalité IA est actuellement désactivée.",
+        profiles: extractedProfiles
+      };
+    }
+    
+    // Réponse simplifiée basée sur le type de requête
+    let simplifiedResponse = "";
+    if (intent.includes("restaurant") || intent.includes("dish") || intent.includes("ingredient")) {
+      simplifiedResponse = `J'ai trouvé ${resultCount} restaurant(s) qui pourraient vous intéresser. Pour des résultats plus détaillés, veuillez réactiver la fonctionnalité IA.`;
+    } else if (intent.includes("event")) {
+      simplifiedResponse = `J'ai trouvé ${resultCount} événement(s) qui pourraient vous intéresser. Pour des résultats plus détaillés, veuillez réactiver la fonctionnalité IA.`;
+    } else if (intent.includes("leisure")) {
+      simplifiedResponse = `J'ai trouvé ${resultCount} lieu(x) de loisir qui pourraient vous intéresser. Pour des résultats plus détaillés, veuillez réactiver la fonctionnalité IA.`;
+    } else if (intent.includes("producer")) {
+      simplifiedResponse = `Voici quelques informations sur votre établissement. Pour une analyse détaillée, veuillez réactiver la fonctionnalité IA.`;
+    } else {
+      simplifiedResponse = `J'ai trouvé ${resultCount} résultat(s) pour votre recherche. Pour des réponses plus détaillées, veuillez réactiver la fonctionnalité IA.`;
+    }
+    
+    return {
+      text: simplifiedResponse,
+      profiles: extractedProfiles
+    };
+  }
   
   // Utiliser OpenAI pour générer une réponse en langage naturel basée sur les résultats
   try {
@@ -2566,6 +2654,20 @@ async function processUserQuery(query, userId = null) {
   try {
     console.log(`🔍 Traitement de la requête utilisateur: "${query}" (userId: ${userId})`);
     
+    // Vérifier si la fonctionnalité IA est activée
+    if (!AI_ENABLED) {
+      console.log("ℹ️ Fonctionnalité IA désactivée: retour d'une réponse simplifiée pour la requête utilisateur.");
+      return {
+        query,
+        intent: "default_search",
+        entities: {},
+        resultCount: 0,
+        executionTimeMs: 0,
+        response: "La fonctionnalité IA est actuellement désactivée. Veuillez mettre AI_ENABLED à True dans le fichier aiDataService.js pour la réactiver.",
+        profiles: []
+      };
+    }
+    
     // Analyser la requête
     const queryAnalysis = await analyzeQuery(query);
     
@@ -2600,6 +2702,20 @@ async function processUserQuery(query, userId = null) {
 async function processProducerQuery(query, producerId) {
   try {
     console.log(`🔍 Traitement de la requête producteur: "${query}" (producerId: ${producerId})`);
+    
+    // Vérifier si la fonctionnalité IA est activée
+    if (!AI_ENABLED) {
+      console.log("ℹ️ Fonctionnalité IA désactivée: retour d'une réponse simplifiée pour la requête producteur.");
+      return {
+        query,
+        intent: "producer_analytics",
+        entities: { producer_id: producerId },
+        resultCount: 0,
+        executionTimeMs: 0,
+        response: "La fonctionnalité IA est actuellement désactivée. Veuillez mettre AI_ENABLED à True dans le fichier aiDataService.js pour la réactiver.",
+        profiles: []
+      };
+    }
     
     // Analyser la requête
     const queryAnalysis = await analyzeQuery(query);

@@ -54,41 +54,63 @@ router.post('/interested', async (req, res) => {
 
     target = await RestaurantProducer.findById(targetId);
     if (target) {
-      // Ajout dans les deux collections
-      await RestaurantProducer.findByIdAndUpdate(
+      console.log(`📌 Ajout de l'intérêt pour le restaurant ${targetId} par l'utilisateur ${userId}`);
+      // Ajout dans la collection de restaurants
+      const updatedRestaurant = await RestaurantProducer.findByIdAndUpdate(
         targetId,
-        { $addToSet: { interestedUsers: objectIdUser } },
+        { 
+          $addToSet: { interestedUsers: objectIdUser },
+          $inc: { interest_count: 1 } // Incrémenter le compteur d'intérêts
+        },
         { new: true }
       );
-      await User.findByIdAndUpdate(
+      
+      // Ajout dans la collection d'utilisateurs
+      const updatedUser = await User.findByIdAndUpdate(
         userId,
         { $addToSet: { interests: objectIdTarget } },
         { new: true }
       );
+      
+      console.log(`✅ Restaurant mis à jour: ${updatedRestaurant?._id}, utilisateur mis à jour: ${updatedUser?._id}`);
+      console.log(`📊 Nombre d'intérêts pour le restaurant: ${updatedRestaurant?.interest_count || 'non défini'}`);
+      
       return res.status(200).json({
         message: 'Restaurant marqué comme intéressé avec succès.',
         targetType: 'RestaurantProducer',
         targetId,
+        interestCount: updatedRestaurant?.interest_count || 1
       });
     }
 
     target = await LeisureEvent.findById(targetId);
     if (target) {
-      // Ajout dans les deux collections
-      await LeisureEvent.findByIdAndUpdate(
+      console.log(`📌 Ajout de l'intérêt pour l'événement ${targetId} par l'utilisateur ${userId}`);
+      // Ajout dans la collection d'événements
+      const updatedEvent = await LeisureEvent.findByIdAndUpdate(
         targetId,
-        { $addToSet: { interestedUsers: objectIdUser } },
+        { 
+          $addToSet: { interestedUsers: objectIdUser },
+          $inc: { interest_count: 1 } // Incrémenter le compteur d'intérêts
+        },
         { new: true }
       );
-      await User.findByIdAndUpdate(
+      
+      // Ajout dans la collection d'utilisateurs
+      const updatedUser = await User.findByIdAndUpdate(
         userId,
         { $addToSet: { interests: objectIdTarget } },
         { new: true }
       );
+      
+      console.log(`✅ Événement mis à jour: ${updatedEvent?._id}, utilisateur mis à jour: ${updatedUser?._id}`);
+      console.log(`📊 Nombre d'intérêts pour l'événement: ${updatedEvent?.interest_count || 'non défini'}`);
+      
       return res.status(200).json({
         message: 'Événement marqué comme intéressé avec succès.',
         targetType: 'LeisureEvent',
         targetId,
+        interestCount: updatedEvent?.interest_count || 1
       });
     }
 
@@ -130,43 +152,65 @@ router.post('/choice', async (req, res) => {
 
     target = await RestaurantProducer.findById(targetId);
     if (target) {
-      // Ajout dans les deux collections
-      await RestaurantProducer.findByIdAndUpdate(
+      console.log(`📌 Ajout d'un choice pour le restaurant ${targetId} par l'utilisateur ${userId}`);
+      // Ajout dans la collection de restaurants
+      const updatedRestaurant = await RestaurantProducer.findByIdAndUpdate(
         targetId,
-        { $addToSet: { choiceUsers: { userId: objectIdUser, comment } } },
+        { 
+          $addToSet: { choiceUsers: { userId: objectIdUser, comment } },
+          $inc: { choice_count: 1 } // Incrémenter le compteur de choices
+        },
         { new: true }
       );
-      await User.findByIdAndUpdate(
+      
+      // Ajout dans la collection d'utilisateurs
+      const updatedUser = await User.findByIdAndUpdate(
         userId,
         { $addToSet: { choices: { targetId: objectIdTarget, comment } } },
         { new: true }
       );
+      
+      console.log(`✅ Restaurant mis à jour: ${updatedRestaurant?._id}, utilisateur mis à jour: ${updatedUser?._id}`);
+      console.log(`📊 Nombre de choices pour le restaurant: ${updatedRestaurant?.choice_count || 'non défini'}`);
+      
       return res.status(200).json({
         message: 'Choice ajouté pour le restaurant avec succès.',
         targetType: 'RestaurantProducer',
         targetId,
         comment,
+        choiceCount: updatedRestaurant?.choice_count || 1
       });
     }
 
     target = await LeisureEvent.findById(targetId);
     if (target) {
-      // Ajout dans les deux collections
-      await LeisureEvent.findByIdAndUpdate(
+      console.log(`📌 Ajout d'un choice pour l'événement ${targetId} par l'utilisateur ${userId}`);
+      // Ajout dans la collection d'événements
+      const updatedEvent = await LeisureEvent.findByIdAndUpdate(
         targetId,
-        { $addToSet: { choiceUsers: { userId: objectIdUser, comment } } },
+        { 
+          $addToSet: { choiceUsers: { userId: objectIdUser, comment } },
+          $inc: { choice_count: 1 } // Incrémenter le compteur de choices
+        },
         { new: true }
       );
-      await User.findByIdAndUpdate(
+      
+      // Ajout dans la collection d'utilisateurs
+      const updatedUser = await User.findByIdAndUpdate(
         userId,
         { $addToSet: { choices: { targetId: objectIdTarget, comment } } },
         { new: true }
       );
+      
+      console.log(`✅ Événement mis à jour: ${updatedEvent?._id}, utilisateur mis à jour: ${updatedUser?._id}`);
+      console.log(`📊 Nombre de choices pour l'événement: ${updatedEvent?.choice_count || 'non défini'}`);
+      
       return res.status(200).json({
         message: 'Choice ajouté pour l\'événement avec succès.',
         targetType: 'LeisureEvent',
         targetId,
         comment,
+        choiceCount: updatedEvent?.choice_count || 1
       });
     }
 
