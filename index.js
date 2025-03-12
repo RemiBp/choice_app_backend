@@ -101,6 +101,11 @@ module.exports = { choiceAppDb, testDb };
   app.use('/api/interactions', interactionsRoutes);
   app.use('/api/ai', aiRoutes); // Intégration des routes IA avec accès MongoDB en temps réel
 
+// Intégration du service d'automatisation des posts
+const postAutomationService = require('./services/postAutomationService');
+postAutomationService.integrateWithApp(app);
+console.log('🤖 Service d\'automatisation des posts initialisé et intégré');
+
 
 // Planification Cron : Mise à jour des producteurs
 cron.schedule('0 0 */3 * *', () => {

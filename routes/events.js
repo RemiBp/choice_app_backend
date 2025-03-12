@@ -1,6 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const { 
+  formatEventDate, 
+  isEventPassed, 
+  getEventImageUrl,
+  normalizeCollectionRoute 
+} = require('../utils/leisureHelpers');
 
 // Connexion à la base Loisir&Culture
 const eventDb = mongoose.createConnection(process.env.MONGO_URI, {
@@ -96,8 +102,10 @@ router.get('/advanced-search', async (req, res) => {
         appréciation_globale: event.notes_globales?.appréciation_globale || 'Non disponible',
       },
       prix_reduit: event.prix_reduit || 'Prix non disponible',
+      date_formatted: formatEventDate(event.date_debut || event.prochaines_dates),
+      is_passed: isEventPassed(event),
       location: event.location || { coordinates: [] },
-      image: event.image || 'Image non disponible',
+      image: getEventImageUrl(event),
       purchase_url: event.purchase_url || '',
     }));
 
@@ -172,8 +180,10 @@ router.get('/search-by-artist', async (req, res) => {
       intitulé: event.intitulé || 'Intitulé non disponible',
       catégorie: event.catégorie || 'Catégorie non disponible',
       lieu: event.lieu || 'Lieu non disponible',
-      image: event.image || null,
+      image: getEventImageUrl(event),
+      date_formatted: formatEventDate(event.date_debut || event.prochaines_dates),
       prochaines_dates: event.prochaines_dates || 'Dates non disponibles',
+      is_passed: isEventPassed(event),
       purchase_url: event.purchase_url || '',
       prix_reduit: event.prix_reduit || 'Prix non disponible',
     }));
@@ -201,7 +211,15 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Événement non trouvé.' });
     }
 
-    res.status(200).json(event);
+    // Formater l'événement avec les helpers
+    const formattedEvent = {
+      ...event.toObject(),
+      date_formatted: formatEventDate(event.date_debut || event.prochaines_dates),
+      image_url: getEventImageUrl(event),
+      is_passed: isEventPassed(event)
+    };
+
+    res.status(200).json(formattedEvent);
   } catch (err) {
     console.error(`❌ Erreur lors de la récupération de l'événement :`, err.message);
     res.status(500).json({ message: 'Erreur interne du serveur.' });

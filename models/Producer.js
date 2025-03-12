@@ -34,9 +34,27 @@ const ProducerSchema = new mongoose.Schema({
   price_level: { type: Number, default: null },
   rating: { type: Number, default: null },
   user_ratings_total: { type: Number, default: null },
+  automated_posting: {
+    enabled: { type: Boolean, default: false },
+    frequency: { type: String, enum: ['daily', 'weekly', 'monthly'], default: 'weekly' },
+    preferences: {
+      new_items: { type: Boolean, default: true },
+      special_events: { type: Boolean, default: true },
+      user_activity: { type: Boolean, default: true },
+      review_threshold: { type: Number, default: 4.5 },
+    },
+    last_post: { type: Date, default: null },
+    approval_required: { type: Boolean, default: true },
+  },
   serves_vegetarian_food: { type: String, default: 'Non spécifié' },
   service_options: { type: Object, default: {} },
   popular_times: { type: [Object], default: [] },
+  post_templates: {
+    welcome: { type: String, default: "Bienvenue chez {{name}}! Découvrez notre ambiance unique et nos spécialités." },
+    new_item: { type: String, default: "Nouveau chez {{name}}: {{item}}! Venez le découvrir." },
+    special_event: { type: String, default: "Événement spécial chez {{name}}: {{event}}" },
+    user_activity: { type: String, default: "{{user}} a adoré son expérience chez {{name}}! Pourquoi pas vous?" },
+  },
   notes_globales: {
     service: { type: Number, default: 0 },
     lieu: { type: Number, default: 0 },
