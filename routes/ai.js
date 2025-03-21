@@ -210,6 +210,73 @@ router.get('/insights/user/:userId', async (req, res) => {
   }
 });
 
+const vibeMapService = require('../services/vibeMapService');
+
+/**
+ * @route POST /api/ai/vibe-map
+ * @description Génère une cartographie sensorielle basée sur une ambiance ou une émotion
+ * @example
+ * // Requête: Recherche d'expériences basées sur une ambiance "mélancolique et poétique"
+ * {
+ *   "userId": "user123",  // optionnel
+ *   "vibe": "mélancolique et poétique",
+ *   "location": "Paris 11"  // optionnel
+ * }
+ */
+router.post('/vibe-map', async (req, res) => {
+  try {
+    const { userId, vibe, location } = req.body;
+    
+    if (!vibe) {
+      return res.status(400).json({
+        success: false,
+        message: 'Le paramètre vibe est requis'
+      });
+    }
+    
+    console.log(`🎭 Génération de cartographie sensorielle pour l'ambiance: "${vibe}"`);
+    
+    // Créer une requête enrichie qui intègre l'ambiance
+    const enrichedQuery = `Propose des lieux et expériences avec une ambiance ${vibe}${location ? ` à ${location}` : ''}`;
+    
+    // Traiter la requête avec accès complet aux données MongoDB
+    const result = await processUserQuery(enrichedQuery, userId);
+    
+    // Utiliser vibeMapService pour générer les métadonnées visuelles
+    const intensity = vibeMapService.calculateVibeIntensity(vibe, result.profiles);
+    const keywords = vibeMapService.extractVibeKeywords(vibe);
+    const relatedVibes = vibeMapService.generateRelatedVibes(vibe);
+    const colorScheme = vibeMapService.generateColorSchemeForVibe(vibe);
+    
+    // Format de réponse spécifique pour la cartographie sensorielle
+    return res.json({
+      success: true,
+      vibe: vibe,
+      location: location || null,
+      response: result.response,
+      profiles: result.profiles || [],
+      resultCount: result.resultCount || 0,
+      executionTimeMs: result.executionTimeMs || 0,
+      // Métadonnées spécifiques pour la visualisation
+      vibeData: {
+        intensity,
+        keywords,
+        relatedVibes,
+        colorScheme
+      }
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la génération de la cartographie sensorielle:', error);
+    return res.status(500).json({
+      success: false,
+      vibe: req.body.vibe,
+      error: "Erreur lors de la génération de la cartographie",
+      response: "Désolé, une erreur s'est produite lors de la génération de votre carte sensorielle. Veuillez réessayer.",
+      profiles: []
+    });
+  }
+});
+
 /**
  * @route GET /api/ai/insights/producer/:producerId
  * @description Obtient des insights commerciaux pour un producteur

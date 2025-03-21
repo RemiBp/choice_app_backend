@@ -323,45 +323,244 @@ function normalizePost(post, user) {
 
 // Route pour récupérer tous les posts
 router.get('/', async (req, res) => {
-  const { userId, page = 1, limit = 10 } = req.query;
+  const { userId, page = 1, limit = 10, producerId, prioritizeFollowers = 'false', sort = 'time' } = req.query;
 
   try {
     console.log('🔍 GET /api/posts');
-    console.log('Query params:', { userId, page, limit });
+    console.log('Query params:', { userId, page, limit, producerId, prioritizeFollowers, sort });
 
-    const [postsChoice, postsRest] = await Promise.all([
-      PostChoice.find()
-        .sort({ posted_at: -1 })
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit))
-        .lean(),
-      PostRest.find()
-        .sort({ posted_at: -1 })
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit))
-        .lean(),
-    ]);
+  // Construire la requête de base
+  let choiceQuery = {};
+  let restQuery = {};
 
-    console.log(`📦 Found ${postsChoice.length} choice posts and ${postsRest.length} rest posts`);
+  // Filtrer par producerId si fourni (pour les posts spécifiques à un lieu)
+  if (producerId) {
+    choiceQuery.producer_id = producerId;
+    restQuery.producer_id = producerId;
+    console.log(`🏢 Filtering posts for producer: ${producerId}`);
+    
+    // Si venueOnly est true, assurer un filtrage strict des posts de ce lieu spécifique
+    if (req.query.venueOnly === 'true') {
+      choiceQuery.isProducerPost = true;
+      restQuery.isProducerPost = true;
+      console.log('🔒 Using strict venue filtering (venueOnly=true)');
+    }
+  }
 
-    // Récupérer l'utilisateur si userId est fourni pour personnaliser les interactions
+    // Obtenir les données de l'utilisateur si userId est fourni
     let user = null;
+    let followingIds = [];
     if (userId) {
-      user = await User.findById(userId);
+      user = await User.findById(userId).select('following followingProducers interests choices');
+      if (user) {
+        followingIds = [
+          ...(user.following || []), 
+          ...(user.followingProducers || [])
+        ].map(id => id.toString());
+        console.log(`👥 User has ${followingIds.length} following connections`);
+      }
     }
 
-    // Normaliser et trier les posts
-    const normalizedPosts = [...postsChoice, ...postsRest]
-      .sort((a, b) => new Date(b.posted_at) - new Date(a.posted_at))
-      .slice(0, limit)
-      .map(post => user ? normalizePost(post, user) : {
-        ...post,
-        likes_count: post.likes ? post.likes.length : 0,
-        choices_count: post.choices ? post.choices.length : 0,
-        interests_count: post.interestedUsers ? post.interestedUsers.length : 0
-      });
+    let allPosts = [];
+    
+    // Gérer le cas où on priorise les posts des followers
+    if (prioritizeFollowers === 'true' && followingIds.length > 0 && userId) {
+      console.log('🔝 Prioritizing posts from followed users and interests');
+      
+      // Construire les requêtes pour les posts des followers
+      const followersChoiceQuery = {
+        ...choiceQuery,
+        $or: [
+          { user_id: { $in: followingIds } },
+          { producer_id: { $in: followingIds } },
+          { producer_id: { $in: user.interests || [] } },
+          { producer_id: { $in: user.choices || [] } }
+        ]
+      };
+      
+      const followersRestQuery = {
+        ...restQuery,
+        $or: [
+          { user_id: { $in: followingIds } },
+          { producer_id: { $in: followingIds } },
+          { producer_id: { $in: user.interests || [] } },
+          { producer_id: { $in: user.choices || [] } }
+        ]
+      };
+      
+      // Récupérer d'abord les posts des followers
+      const [followerPostsChoice, followerPostsRest] = await Promise.all([
+        PostChoice.find(followersChoiceQuery)
+          .sort({ posted_at: -1 })
+          .limit(parseInt(limit))
+          .lean(),
+        PostRest.find(followersRestQuery)
+          .sort({ posted_at: -1 })
+          .limit(parseInt(limit))
+          .lean()
+      ]);
+      
+      const followerPosts = [...followerPostsChoice, ...followerPostsRest];
+      console.log(`👨‍👩‍👧‍👦 Found ${followerPosts.length} posts from followed users`);
+      
+      // Si on n'a pas assez de posts des followers, compléter avec d'autres posts
+      if (followerPosts.length < parseInt(limit)) {
+        const remainingLimit = parseInt(limit) - followerPosts.length;
+        console.log(`🔍 Fetching ${remainingLimit} additional posts to complete the feed`);
+        
+        // Exclure les IDs des posts déjà récupérés
+        const excludeIds = followerPosts.map(p => p._id);
+        
+        const [otherPostsChoice, otherPostsRest] = await Promise.all([
+          PostChoice.find({
+            ...choiceQuery,
+            _id: { $nin: excludeIds },
+            user_id: { $nin: followingIds }
+          })
+            .sort({ posted_at: -1 })
+            .skip((page - 1) * remainingLimit)
+            .limit(remainingLimit)
+            .lean(),
+          PostRest.find({
+            ...restQuery,
+            _id: { $nin: excludeIds },
+            user_id: { $nin: followingIds }
+          })
+            .sort({ posted_at: -1 })
+            .skip((page - 1) * remainingLimit)
+            .limit(remainingLimit)
+            .lean()
+        ]);
+        
+        allPosts = [...followerPosts, ...otherPostsChoice, ...otherPostsRest];
+      } else {
+        allPosts = followerPosts;
+      }
+    } else {
+      // Récupération standard des posts sans prioritization
+      const [postsChoice, postsRest] = await Promise.all([
+        PostChoice.find(choiceQuery)
+          .sort({ posted_at: -1 })
+          .skip((page - 1) * limit)
+          .limit(parseInt(limit))
+          .lean(),
+        PostRest.find(restQuery)
+          .sort({ posted_at: -1 })
+          .skip((page - 1) * limit)
+          .limit(parseInt(limit))
+          .lean(),
+      ]);
+      
+      allPosts = [...postsChoice, ...postsRest];
+    }
+    
+    console.log(`📦 Found ${allPosts.length} total posts`);
 
-    console.log(`🔄 Returning ${normalizedPosts.length} normalized posts with interaction counts`);
+    // Normaliser et trier les posts avec l'algorithme amélioré
+    let normalizedPosts = allPosts.map(post => {
+        // Enrichir les posts avec des informations sur les interactions des followers
+        if (user) {
+          const isProducerPost = !!post.producer_id;
+          
+          // Compter les interactions des followers si l'utilisateur a des followers
+          if (followingIds.length > 0 && isProducerPost) {
+            // Followers qui ont liké ce post
+            const followerLikes = post.likes ? 
+              post.likes.filter(id => followingIds.includes(id.toString())).length : 0;
+              
+            // Followers intéressés par ce producer
+            const followerInterests = post.interestedUsers ? 
+              post.interestedUsers.filter(id => followingIds.includes(id.toString())).length : 0;
+              
+            // Ajouter ces métriques au post
+            post.follower_likes_count = followerLikes;
+            post.follower_interests_count = followerInterests;
+            
+            // Statistiques d'entité (producer/lieu)
+            if (post.producer_id) {
+              post.entity_interests_count = post.interestedUsers ? post.interestedUsers.length : 0;
+              post.entity_choices_count = post.choiceUsers ? post.choiceUsers.length : 0;
+            }
+          }
+          
+          return normalizePost(post, user);
+        } else {
+          return {
+            ...post,
+            likes_count: post.likes ? post.likes.length : 0,
+            choices_count: post.choices ? post.choices.length : 0,
+            interests_count: post.interestedUsers ? post.interestedUsers.length : 0
+          };
+        }
+    });
+    
+    // Appliquer un tri basé sur la pertinence si demandé
+    if (sort === 'relevance' || prioritizeFollowers === 'true') {
+      console.log('🔄 Applying relevance-based sorting algorithm');
+      const followersWeight = parseInt(req.query.followersWeight) || 2;
+      
+      normalizedPosts.sort((a, b) => {
+        let scoreA = 0;
+        let scoreB = 0;
+        
+        // Facteur temps (posts plus récents ont un score plus élevé)
+        const dateA = new Date(a.posted_at || a.time_posted);
+        const dateB = new Date(b.posted_at || b.time_posted);
+        const now = new Date();
+        
+        // Score basé sur le temps (0-10, plus récent = plus élevé)
+        const timeFactorA = 10 - Math.min(10, (now - dateA) / (1000 * 60 * 60 * 24 * 3)); // max 3 jours
+        const timeFactorB = 10 - Math.min(10, (now - dateB) / (1000 * 60 * 60 * 24 * 3));
+        
+        scoreA += timeFactorA;
+        scoreB += timeFactorB;
+        
+        // Si on a des follower_likes_count, les utiliser pour le score
+        if (a.follower_likes_count !== undefined && b.follower_likes_count !== undefined) {
+          scoreA += a.follower_likes_count * followersWeight;
+          scoreB += b.follower_likes_count * followersWeight;
+        }
+        
+        // Si on a des follower_interests_count, les utiliser pour le score
+        if (a.follower_interests_count !== undefined && b.follower_interests_count !== undefined) {
+          scoreA += a.follower_interests_count * followersWeight;
+          scoreB += b.follower_interests_count * followersWeight;
+        }
+        
+        // Points additionnels pour les posts automatisés des followers
+        if (a.is_automated && a.follower_likes_count > 0) scoreA += 1;
+        if (b.is_automated && b.follower_likes_count > 0) scoreB += 1;
+        
+        // Facteurs d'engagement (likes, commentaires augmentent la pertinence)
+        const engagementA = (a.likes_count || 0) + ((a.comments_count || 0) * 2);
+        const engagementB = (b.likes_count || 0) + ((b.comments_count || 0) * 2);
+        
+        // Normaliser l'engagement à 0-5 et l'ajouter au score
+        const maxEngagement = Math.max(engagementA, engagementB, 20);
+        scoreA += (engagementA / maxEngagement) * 5;
+        scoreB += (engagementB / maxEngagement) * 5;
+        
+        // Posts d'événements à venir ont un score plus élevé
+        if (a.is_event && a.event_date && new Date(a.event_date) > now) scoreA += 3;
+        if (b.is_event && b.event_date && new Date(b.event_date) > now) scoreB += 3;
+        
+        // Comparaison finale (score plus élevé en premier)
+        return scoreB - scoreA;
+      });
+    } else {
+      // Tri par date si pas de tri par pertinence demandé
+      console.log('🕒 Applying time-based sorting');
+      normalizedPosts.sort((a, b) => {
+        const dateA = new Date(a.posted_at || a.time_posted);
+        const dateB = new Date(b.posted_at || b.time_posted);
+        return dateB - dateA;
+      });
+    }
+    
+    // Limiter au nombre demandé
+    normalizedPosts = normalizedPosts.slice(0, limit);
+
+    console.log(`🔄 Returning ${normalizedPosts.length} normalized posts with enhanced interaction data`);
 
     res.json(normalizedPosts);
   } catch (error) {
