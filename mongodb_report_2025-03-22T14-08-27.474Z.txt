@@ -1,0 +1,2513 @@
+# MongoDB Export - 2025-03-22T14:08:27.475Z
+
+🔄 Connexion à MongoDB Atlas...
+✅ Connexion réussie à MongoDB Atlas!
+
+## BASES DE DONNÉES DISPONIBLES:
+- Beauty_Wellness (0.08 MB)
+- Loisir&Culture (15.26 MB)
+- Nightclub (0.24 MB)
+- Restauration_Officielle (21.26 MB)
+- choice_app (0.59 MB)
+- admin (0.33 MB)
+- local (8500.20 MB)
+
+## BASE DE DONNÉES: Beauty_Wellness
+### Collections:
+- BeautyPlaces
+
+### Échantillons de la collection `BeautyPlaces` :
+#### Document 1:
+{
+  "_id": "67b79316b1274f704c3b727b",
+  "place_id": "ChIJ7-NoffV65kcRq4v0Do_ezDY",
+  "address": "54 Rue Jean Pierre Timbaud, Issy-les-Moulineaux",
+  "category": "Soins esthétiques et bien-être",
+  "gps_coordinates": {
+    "lat": 48.81833330000001,
+    "lng": 2.249321300000001
+  },
+  "maps_url": "https://www.google.com/maps/place/?q=place_id:ChIJ...",
+  "name": "Beauty Success L'Institut",
+  "rating": 4.5,
+  "reviews": [
+    {
+      "author_name": "Viviane Generoso",
+      "author_url": "https://www.google.com/maps/contrib/11141306201023...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a-/ALV-UjVCLshxU...",
+      "rating": 5,
+      "relative_time_description": "8 months ago",
+      "text": "Very good service and kind people!",
+      "time": 1717583113,
+      "translated": false
+    },
+    {
+      "author_name": "axelle vergracht",
+      "author_url": "https://www.google.com/maps/contrib/11082745285570...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a-/ALV-UjXOQi15q...",
+      "rating": 5,
+      "relative_time_description": "3 years ago",
+      "text": "top !",
+      "time": 1635510097,
+      "translated": false
+    },
+    {
+      "author_name": "Sawssen H",
+      "author_url": "https://www.google.com/maps/contrib/10642836206165...",
+      "language": "en-US",
+      "original_language": "fr",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a-/ALV-UjXh1Irq9...",
+      "rating": 3,
+      "relative_time_description": "5 months ago",
+      "text": "Very warm welcome and the place is clean.\nOn the o...",
+      "time": 1724920673,
+      "translated": true
+    },
+    {
+      "author_name": "Leïla T.",
+      "author_url": "https://www.google.com/maps/contrib/11808656456353...",
+      "language": "en-US",
+      "original_language": "fr",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a-/ALV-UjXVgGOXO...",
+      "rating": 1,
+      "relative_time_description": "6 months ago",
+      "text": "I do not recommend this institute. I came for hair...",
+      "time": 1724516972,
+      "translated": true
+    },
+    {
+      "author_name": "Valentin",
+      "author_url": "https://www.google.com/maps/contrib/10222809469343...",
+      "language": "en-US",
+      "original_language": "fr",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocK0SOmYsn...",
+      "rating": 5,
+      "relative_time_description": "5 months ago",
+      "text": "Not often going to beauty salons, I was very happy...",
+      "time": 1724929197,
+      "translated": true
+    }
+  ],
+  "sub_category": "beauty_salon",
+  "user_ratings_total": 208,
+  "website": "https://www.esthetic-center.com/institut/esthetic-..."
+}
+
+#### Document 2:
+{
+  "_id": "67b79315b1274f704c3b7273",
+  "place_id": "ChIJpYo1znVw5kcRbK98A5XOuK0",
+  "address": "4-6 Rue Louis Armand, Paris",
+  "category": "Soins esthétiques et bien-être",
+  "gps_coordinates": {
+    "lat": 48.8310432,
+    "lng": 2.2758336
+  },
+  "maps_url": "https://www.google.com/maps/place/?q=place_id:ChIJ...",
+  "name": "Forest Hill - Aquaboulevard de Paris",
+  "rating": 3.4,
+  "reviews": [
+    {
+      "author_name": "Jingyi Zhou",
+      "author_url": "https://www.google.com/maps/contrib/10169525025313...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJfyfhico...",
+      "rating": 2,
+      "relative_time_description": "a month ago",
+      "text": "The water park is full of safety risks!\n\nThere are...",
+      "time": 1736099393,
+      "translated": false
+    },
+    {
+      "author_name": "Simon Theresianto",
+      "author_url": "https://www.google.com/maps/contrib/10327484507377...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocKajeJMgg...",
+      "rating": 2,
+      "relative_time_description": "3 months ago",
+      "text": "Awesome people, horrible management.\n\nApart from t...",
+      "time": 1731763113,
+      "translated": false
+    },
+    {
+      "author_name": "haithem kacem",
+      "author_url": "https://www.google.com/maps/contrib/11542921282295...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a-/ALV-UjUavPHr4...",
+      "rating": 1,
+      "relative_time_description": "4 months ago",
+      "text": "I had the worst experience ever last night in fore...",
+      "time": 1729184883,
+      "translated": false
+    },
+    {
+      "author_name": "The Roulious",
+      "author_url": "https://www.google.com/maps/contrib/11766281774450...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a-/ALV-UjWqYrfM6...",
+      "rating": 1,
+      "relative_time_description": "4 months ago",
+      "text": "Padel courts are mostly fine, except on court 1 wh...",
+      "time": 1728911493,
+      "translated": false
+    },
+    {
+      "author_name": "Murillo Caçador",
+      "author_url": "https://www.google.com/maps/contrib/10453754893976...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a-/ALV-UjWHxmP8D...",
+      "rating": 4,
+      "relative_time_description": "6 months ago",
+      "text": "It’s a very nice room and machines for doing your ...",
+      "time": 1723394477,
+      "translated": false
+    }
+  ],
+  "sub_category": "spa",
+  "user_ratings_total": 2313,
+  "website": "http://www.forest-hill.fr/"
+}
+
+## BASE DE DONNÉES: Loisir&Culture
+### Collections:
+- Loisir_Paris_Evenements
+- Configuration
+- Loisir_Paris_Producers
+
+### Échantillons de la collection `Loisir_Paris_Evenements` :
+#### Document 1:
+{
+  "_id": "67d074791980da6dae3f836c",
+  "intitulé": "Basilique Cathédrale de Saint-Denis",
+  "catégorie": "Loisirs » Musées / Expos",
+  "catégorie_principale": "Loisirs",
+  "catégorie_originale": "Loisirs » Musées / Expos",
+  "détail": "Connaissez-vous la basilique Saint-Denis, édifiée ...",
+  "lieu": "Basilique de Saint Denis",
+  "lien_lieu": "https://www.billetreduc.com/12505/salle.htm",
+  "prochaines_dates": "Dates non disponibles",
+  "prix_reduit": "9€50",
+  "ancien_prix": "Ancien prix non disponible",
+  "note": "Note non disponible",
+  "image": "https://www.billetreduc.com/zg/n100/370231.jpeg",
+  "site_url": "https://www.billetreduc.com/370231/evt.htm",
+  "purchase_url": "https://www.billetreduc.com/v2/PurchaseTunnel#/Sho...",
+  "source": "billetreduc",
+  "horaires": [],
+  "catégories_prix": [],
+  "commentaires": [],
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3522,
+      48.8566
+    ]
+  }
+}
+
+#### Document 2:
+{
+  "_id": "677ba95eb06ac29bec7d14e1",
+  "intitulé": "Daniel Camus dans Happy hour",
+  "catégorie": "Spectacles » One man show  à partir de 12 ans",
+  "détail": "Un bar c'est comme les réseaux sociaux, c'est plei...",
+  "lieu": "Royale Factory",
+  "lien_lieu": "https://www.billetreduc.com/lieu/versailles/royale...",
+  "date_debut": "30/01/2025",
+  "date_fin": "01/02/2025",
+  "horaires": [
+    {
+      "jour": "samedi",
+      "heure": "20h30"
+    }
+  ],
+  "prix_reduit": "19€50",
+  "ancien_prix": "24€00",
+  "note": "Note non disponible",
+  "image": "https://www.billetreduc.com/zg/n100/360500.jpeg",
+  "site_url": "https://www.billetreduc.com/360500/evt.htm",
+  "purchase_url": "https://www.billetreduc.com/v2/PurchaseTunnel#/Sho...",
+  "catégories_prix": [
+    {
+      "Catégorie": "Placement libre assis",
+      "Prix": [
+        "19,50 €",
+        "24,00 €"
+      ]
+    }
+  ],
+  "commentaires": [
+    {
+      "titre": "-Anniversaire de Matteo",
+      "note": "10/10",
+      "contenu": "Tout simplement hilarant"
+    },
+    {
+      "titre": "-Spectacle trés marrant",
+      "note": "10/10",
+      "contenu": "Spectacle vu à la Baule , Atlantia , le 28 avril 2..."
+    },
+    {
+      "titre": "-Un excellent moment de rire",
+      "note": "10/10",
+      "contenu": "Daniel nous a régalé avec beaucoup de générosité ;..."
+    },
+    {
+      "titre": "-Que du bonheur !",
+      "note": "10/10",
+      "contenu": "Un grand merci à Daniel pour m'avoir fait rire aux..."
+    },
+    {
+      "titre": "-On a bien rigolé !",
+      "note": "9/10",
+      "contenu": "Super soirée autour du zinc de Daniel ce soir a Au..."
+    },
+    {
+      "titre": "-Super soirée",
+      "note": "10/10",
+      "contenu": "Vu \"adopte\" à Nantes, génial j'avais adoré. Je sui..."
+    },
+    {
+      "titre": "-Super spectacle",
+      "note": "10/10",
+      "contenu": "Une super soirée remplie d'humour et d'éclats de r..."
+    },
+    {
+      "titre": "-Génial",
+      "note": "Note non disponible",
+      "contenu": "nous sommmes sortis avec un mal à la mâchoire à fo..."
+    },
+    {
+      "titre": "-Un one man show hallucinant !",
+      "note": "10/10",
+      "contenu": "Talentueux, sincère, sympa, Daniel Camus dégage un..."
+    },
+    {
+      "titre": "-spectacle à voir sans hésiter",
+      "note": "9/10",
+      "contenu": "très bon moment passé avec Daniel Camus = drole et..."
+    },
+    {
+      "titre": "-Un excellent moment",
+      "note": "10/10",
+      "contenu": "J'ai ri du début à la fin . Spectacle bien écrit q..."
+    },
+    {
+      "titre": "-Tous à l’apero",
+      "note": "10/10",
+      "contenu": "Merci Daniel Avec beaucoup de pudeur et de joie no..."
+    },
+    {
+      "titre": "-J'adore",
+      "note": "10/10",
+      "contenu": "Aller voir Daniel Camus sur scène est toujours un ..."
+    },
+    {
+      "titre": "-Très bon spectacle drôle et finement mené !",
+      "note": "10/10",
+      "contenu": "Hier j'ai découvert le spectacle Happy Hour de Dan..."
+    },
+    {
+      "titre": "-Genialissime",
+      "note": "10/10",
+      "contenu": "Bravo Daniel pour cette happy hour. Un moment de r..."
+    },
+    {
+      "titre": "-Réelle Happy Hour",
+      "note": "9/10",
+      "contenu": "Je recommande. Un mélange d'humour, de bonne humeu..."
+    },
+    {
+      "titre": "-ce mec est génial !!!!",
+      "note": "10/10",
+      "contenu": "quelle finesse, quelles histoires, quels enchaînem..."
+    },
+    {
+      "titre": "-Une super soirée",
+      "note": "10/10",
+      "contenu": "Je n'ai pas l'habitude de mettre des avis mais là ..."
+    },
+    {
+      "titre": "-Allez boire un verre chez Daniel",
+      "note": "10/10",
+      "contenu": "Vous allez vous régaler, peut-être aurez-vous droi..."
+    },
+    {
+      "titre": "-ca pulse !",
+      "note": "10/10",
+      "contenu": "à la basse cour de Grenoble, salle pliée en deux d..."
+    },
+    {
+      "titre": "-Une excellente soirée",
+      "note": "9/10",
+      "contenu": "Formidable Daniel , ils nous a beaucoup fait rire ..."
+    },
+    {
+      "titre": "-UN PUR MOMENT DE BONHEUR ET DE RIRE",
+      "note": "10/10",
+      "contenu": "Cela faisait longtemps que je n'avais pas autant r..."
+    },
+    {
+      "titre": "-un grand moment",
+      "note": "Note non disponible",
+      "contenu": "Spectacle et humoriste à découvrir sans hésiter! M..."
+    },
+    {
+      "titre": "-Très bonne soirée",
+      "note": "8/10",
+      "contenu": "Personnages très bien campés, tellement qu'on pens..."
+    },
+    {
+      "titre": "-Une pinte STP",
+      "note": "10/10",
+      "contenu": "Excellent spectacle de Daniel hier soir à la Luna ..."
+    },
+    {
+      "titre": "-Excellent spectacle",
+      "note": "10/10",
+      "contenu": "Bravo Daniel ! Il raconte notre jeunesse avec bcp ..."
+    },
+    {
+      "titre": "-Spectacle happy hour",
+      "note": "10/10",
+      "contenu": "Super spectacle, chaleureux et très humain ! Cela ..."
+    },
+    {
+      "titre": "-Génial",
+      "note": "10/10",
+      "contenu": "Excellente soirée!!! Daniel tu as bien fais de ne ..."
+    },
+    {
+      "titre": "-A voir absooooooooolument",
+      "note": "10/10",
+      "contenu": "Excellente soirée au café théatre Le Balcon à Chol..."
+    },
+    {
+      "titre": "-Happy Hours",
+      "note": "10/10",
+      "contenu": "Nous avons passé un excellent moment avec Daniel e..."
+    },
+    {
+      "titre": "-Une soirée de rires",
+      "note": "10/10",
+      "contenu": "Quelle bonne idée ont eu mes filles de m'offrir ce..."
+    },
+    {
+      "titre": "-Génial",
+      "note": "10/10",
+      "contenu": "Super spectacle vu en famille ( de 15 à 73 ans) Da..."
+    },
+    {
+      "titre": "-Un excellent spectacle vivant",
+      "note": "10/10",
+      "contenu": "Quel plaisir de passer une soirée en compagnie de ..."
+    },
+    {
+      "titre": "-humour a Coubron",
+      "note": "6/10",
+      "contenu": "Daniel Camus nous fait rire crescendo et non stop ..."
+    },
+    {
+      "titre": "-Un excellent moment",
+      "note": "9/10",
+      "contenu": "Très surpris que Daniel CAMUS ne soit pas plus con..."
+    },
+    {
+      "titre": "-Excellent",
+      "note": "10/10",
+      "contenu": "Merci Merci pour cette soirée 👌 On a passé un vra..."
+    },
+    {
+      "titre": "-Daniel Camus",
+      "note": "10/10",
+      "contenu": "Bravo mon copain ! Lolo et Vanessa ont passé un su..."
+    },
+    {
+      "titre": "-Drolissime",
+      "note": "10/10",
+      "contenu": "Je le savais !! J'y retourne avec plaisir aux spec..."
+    },
+    {
+      "titre": "-Un vrai moment de plaisir et de finesse",
+      "note": "10/10",
+      "contenu": "Un vrai moment de riressss et de finesse dans l'hu..."
+    },
+    {
+      "titre": "-Génialissime",
+      "note": "10/10",
+      "contenu": "Un pur moment de rires et de fous rires🤣🤣 Que du..."
+    },
+    {
+      "titre": "-A ne pas rater",
+      "note": "10/10",
+      "contenu": "Du rire pendant 2h. Des personnes touchants, drôle..."
+    },
+    {
+      "titre": "-Excellentissime",
+      "note": "10/10",
+      "contenu": "Merci pour cette excellente soirée, drôle à souhai..."
+    },
+    {
+      "titre": "-Bravo !",
+      "note": "10/10",
+      "contenu": "Merci de nous avoir fait passer un excellent momen..."
+    },
+    {
+      "titre": "-Quelle soirée 🤩",
+      "note": "10/10",
+      "contenu": "2h de spectacle hilarant 😅 essuyage de lunettes à..."
+    },
+    {
+      "titre": "-Drôle",
+      "note": "10/10",
+      "contenu": "Première fois que je venais au théâtre de l'ouest,..."
+    },
+    {
+      "titre": "-Daniel camus happy hours",
+      "note": "10/10",
+      "contenu": "Excellentissime Nous venons d'aller le voir à Roue..."
+    },
+    {
+      "titre": "-Super 😀",
+      "note": "9/10",
+      "contenu": "On a passé une très bonne soirée ! On a vraiment b..."
+    },
+    {
+      "titre": "-EXCELLENT !",
+      "note": "10/10",
+      "contenu": "2 Heures de spectacle et une salle qui rit du débu..."
+    },
+    {
+      "titre": "-Isa",
+      "note": "10/10",
+      "contenu": "J'en sort à l'instant, j'ai adoré ... On ne s'ennu..."
+    },
+    {
+      "titre": "-Comedie",
+      "note": "10/10",
+      "contenu": "Vraiment génial,on a passé un super moment. Merci ..."
+    }
+  ],
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.133638,
+      48.80209079999999
+    ]
+  },
+  "note_ai": 8.333333333333334,
+  "notes_globales": {
+    "aspects": {
+      "qualite_generale": 9,
+      "interet": 9,
+      "originalite": 7
+    },
+    "emotions": [],
+    "appréciation_globale": "Pas de synthèse disponible"
+  }
+}
+
+#### Document 3:
+{
+  "_id": "677ba1f0b06ac29bec7d141f",
+  "intitulé": "Yvain dans Pas courageux",
+  "catégorie": "Spectacles » One man show  à partir de 7 ans",
+  "détail": "Un spectacle unique mêlant improvisation, stand up...",
+  "lieu": "Le Solo",
+  "lien_lieu": "https://www.billetreduc.com/lieu/paris/le-solo/",
+  "date_debut": "Date début non disponible",
+  "date_fin": "Date fin non disponible",
+  "horaires": [],
+  "prix_reduit": "10€00",
+  "ancien_prix": "15€00",
+  "note": "Note non disponible",
+  "image": "https://www.billetreduc.com/zg/n100/358813.jpeg",
+  "site_url": "https://www.billetreduc.com/358813/evt.htm",
+  "purchase_url": "https://www.billetreduc.com/v2/PurchaseTunnel#/Sho...",
+  "catégories_prix": [],
+  "commentaires": [
+    {
+      "titre": "-Le groupe de prisonnières avec la vieille",
+      "note": "10/10",
+      "contenu": "Un spectacle vraiment drôle. Merci Yvain de nous a..."
+    },
+    {
+      "titre": "-Très bien",
+      "note": "10/10",
+      "contenu": "Spectacle très sympa dans une petite salle. Donc i..."
+    },
+    {
+      "titre": "-Allez-y on a trop rigolé",
+      "note": "10/10",
+      "contenu": "Super spectacle ! Je suis venue avec mon fils de 1..."
+    },
+    {
+      "titre": "-GÉNIAL !!!",
+      "note": "9/10",
+      "contenu": "Super soirée ! Merci Yvain pour ce merveilleux mom..."
+    },
+    {
+      "titre": "-Formidable",
+      "note": "10/10",
+      "contenu": "Excellent moment avec Yvain. Drôle sans être gross..."
+    },
+    {
+      "titre": "-Super",
+      "note": "10/10",
+      "contenu": "Première expérience en café théâtre et ravi de mon..."
+    },
+    {
+      "titre": "-Excellente soirée",
+      "note": "10/10",
+      "contenu": "Nous avons passer un très bon moment, Yvain est tr..."
+    },
+    {
+      "titre": "-Humour et autodérision",
+      "note": "10/10",
+      "contenu": "Je suis allé voir le spectacle d'Yvain complètemen..."
+    },
+    {
+      "titre": "-Je recommande !",
+      "note": "10/10",
+      "contenu": "Super soirée en compagnie d'Yvain, c'est très cour..."
+    },
+    {
+      "titre": "-Yvain trop bien",
+      "note": "10/10",
+      "contenu": "Bon je fais un jeu de syllabes mais lui fait mieux..."
+    },
+    {
+      "titre": "-super",
+      "note": "10/10",
+      "contenu": "Très drôle, interactions courageuses avec le publi..."
+    },
+    {
+      "titre": "-Bonne soirée",
+      "note": "8/10",
+      "contenu": "On a passé un bon moment et c'est bien cool comme ..."
+    },
+    {
+      "titre": "-Allez-y !",
+      "note": "10/10",
+      "contenu": "Drôle et touchant, allez voir Yvain ! Chouettes in..."
+    },
+    {
+      "titre": "-Yvain pas courageux",
+      "note": "10/10",
+      "contenu": "Humoriste au top j ai vraiment rigoler du début à ..."
+    },
+    {
+      "titre": "-Un mec courageux !!",
+      "note": "10/10",
+      "contenu": "Trop bien franchement allez lui donner de la force..."
+    },
+    {
+      "titre": "-Nous avons bien rigolé",
+      "note": "10/10",
+      "contenu": "Un sujet original, des blagues surprises et surpre..."
+    },
+    {
+      "titre": "-Un très bon moment",
+      "note": "9/10",
+      "contenu": "Bravo à Yvain pour son spectacle ! Il a su animer ..."
+    },
+    {
+      "titre": "-Un spectacle chaleureux",
+      "note": "8/10",
+      "contenu": "Un humoriste chaleureux, authentique qui nous fait..."
+    },
+    {
+      "titre": "-Génial !",
+      "note": "9/10",
+      "contenu": "Nous avons passé un excellent moment avec Yvain, j..."
+    },
+    {
+      "titre": "-Super spectacle !",
+      "note": "10/10",
+      "contenu": "Un comédien génial faisant participer activement l..."
+    },
+    {
+      "titre": "-très bonne expérience !!",
+      "note": "10/10",
+      "contenu": "spectacle très sympathique je recommande !!"
+    },
+    {
+      "titre": "-Yvain un artiste talentueux !",
+      "note": "10/10",
+      "contenu": "Super spectacle ! Nous avons beaucoup ri, Yvain es..."
+    },
+    {
+      "titre": "-Top",
+      "note": "10/10",
+      "contenu": "Top, un excellent moment. Yvain est sensible et no..."
+    },
+    {
+      "titre": "-Génial",
+      "note": "10/10",
+      "contenu": "Spectacle très très amusant, le temps passe trop v..."
+    },
+    {
+      "titre": "-Bien rigolé",
+      "note": "10/10",
+      "contenu": "Spectacle bourré d'humour, pas de temps mort, 100%..."
+    },
+    {
+      "titre": "-Un très bon moment",
+      "note": "10/10",
+      "contenu": "Yvain est vraiment très drôle, avec un belle énerg..."
+    },
+    {
+      "titre": "-La taille ça compte !",
+      "note": "10/10",
+      "contenu": "Vraiment un très bon moment passé avec Yvain, spec..."
+    },
+    {
+      "titre": "-Courageuse de donner mon avis",
+      "note": "10/10",
+      "contenu": "Spectacle où nous avons ri du début à la fin. Peti..."
+    },
+    {
+      "titre": "-🤟🤟🤟",
+      "note": "10/10",
+      "contenu": "J'ai passé un très bon moment, on ne va pas tarder..."
+    },
+    {
+      "titre": "-Très bonne soirée !",
+      "note": "10/10",
+      "contenu": "Nous avons passé une très bonne soirée dans ce pet..."
+    },
+    {
+      "titre": "-Yvain samedi soir 21h",
+      "note": "10/10",
+      "contenu": "Nous avons passe un super moment avec Yvain. On a ..."
+    },
+    {
+      "titre": "-Yvain sur 20",
+      "note": "10/10",
+      "contenu": "Yvain n'est peut-être pas courageux, mais il est t..."
+    },
+    {
+      "titre": "-Super soirée",
+      "note": "10/10",
+      "contenu": "Nous avons passé un très bon moment, on a beaucoup..."
+    },
+    {
+      "titre": "-Génial mais vraiment pas courageux",
+      "note": "10/10",
+      "contenu": "C'est génial, allez y ! 💖"
+    },
+    {
+      "titre": "-Super",
+      "note": "10/10",
+      "contenu": "Très bon moment ,drôle , avec impro et spectacle é..."
+    },
+    {
+      "titre": "-Superbe soirée entre amis",
+      "note": "10/10",
+      "contenu": "La soirée est passée à une vitesse folle, où le ri..."
+    },
+    {
+      "titre": "-On a passé un bon moment",
+      "note": "10/10",
+      "contenu": "Une soirée comme on aime ,j'ai adoré son spectacle..."
+    },
+    {
+      "titre": "-Excellent",
+      "note": "10/10",
+      "contenu": "Excellent !"
+    },
+    {
+      "titre": "-Bon moment de rires",
+      "note": "8/10",
+      "contenu": "Tres bon moment. Une belle énergie et une improvis..."
+    },
+    {
+      "titre": "-Trop drôle...",
+      "note": "10/10",
+      "contenu": "Yvain, tu es absolument hilarant, tu nous prends s..."
+    },
+    {
+      "titre": "-Très belle soiree",
+      "note": "10/10",
+      "contenu": "Spectacle très sympa, dynamique et sans temps mort..."
+    },
+    {
+      "titre": "-Un excellent moment",
+      "note": "10/10",
+      "contenu": "On a passé un excellent moment. Il fait participer..."
+    },
+    {
+      "titre": "-Phobie du Rire !",
+      "note": "10/10",
+      "contenu": "Quel super moment passé chez les Tontons ! Du rire..."
+    },
+    {
+      "titre": "-Dynamique et attachant",
+      "note": "9/10",
+      "contenu": "Yvain jongle avec de nombreux styles d'humour, rit..."
+    },
+    {
+      "titre": "-Un spectacle très amusant, rempli d'honnêteté et ...",
+      "note": "10/10",
+      "contenu": "Yvain déconstruit les clichés sur les hommes d'auj..."
+    },
+    {
+      "titre": "-Très bon spectacle",
+      "note": "10/10",
+      "contenu": "On est venues un peu par hasard sans n'avoir rien ..."
+    },
+    {
+      "titre": "-Super moment",
+      "note": "8/10",
+      "contenu": "Nous étions en famille et nous avons passé un supe..."
+    },
+    {
+      "titre": "-Génial!",
+      "note": "10/10",
+      "contenu": "Un très bon moment dans un théâtre très agréable. ..."
+    },
+    {
+      "titre": "-Excellent",
+      "note": "10/10",
+      "contenu": "Toute bonne soirée au spectacle de Yvain, pas une ..."
+    },
+    {
+      "titre": "-Super moment",
+      "note": "10/10",
+      "contenu": "Nous avons passé un super moment. Des rires du déb..."
+    }
+  ],
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3698195,
+      48.8663293
+    ]
+  },
+  "note_ai": 8,
+  "notes_globales": {
+    "aspects": {
+      "qualité_generale": 9,
+      "interet": 8,
+      "originalite": 7
+    },
+    "emotions": [],
+    "appréciation_globale": "Pas de synthèse disponible"
+  },
+  "posts": [
+    "67d7a4d5b2f98201f8fd9094"
+  ]
+}
+
+#### Document 4:
+{
+  "_id": "677bef977e700e2764ce6cf9",
+  "intitulé": "Ados sur TikTok, parents qui déblok",
+  "catégorie": "Théâtre » Comédie",
+  "détail": "Les ados, n'essayez pas de les comprendre. Essayez...",
+  "lieu": "Le République - Petite Salle",
+  "lien_lieu": "https://www.billetreduc.com/24020/salle.htm",
+  "date_debut": "11/01/2025",
+  "date_fin": "29/06/2025",
+  "horaires": [],
+  "prix_reduit": "10€00",
+  "ancien_prix": "23€00",
+  "note": "Note non disponible",
+  "image": "https://www.billetreduc.com/zg/n100/340609.jpeg",
+  "site_url": "https://www.billetreduc.com/340609/evt.htm",
+  "purchase_url": "https://www.billetreduc.com/v2/PurchaseTunnel#/Sho...",
+  "catégories_prix": [],
+  "commentaires": [
+    {
+      "titre": "-D'excellentes répliques",
+      "note": "8/10",
+      "contenu": "Il y a des répliques très drôles tout au long du s..."
+    },
+    {
+      "titre": "-Un bon moment en famille",
+      "note": "9/10",
+      "contenu": "Les ados comme les parents s'y reconnaitront! ;) T..."
+    },
+    {
+      "titre": "-Une excellente surprise",
+      "note": "10/10",
+      "contenu": "Ayant fait le choix d'emmener 3 ados voir ce spect..."
+    },
+    {
+      "titre": "-Mdr",
+      "note": "8/10",
+      "contenu": "Ah ! Là, ça décoiffe !!.... C'est plus fort que le..."
+    },
+    {
+      "titre": "-Super spectacle pour toute la famille",
+      "note": "9/10",
+      "contenu": "J ai adoré.C était super drôle, impossible de s en..."
+    },
+    {
+      "titre": "-A voire en famille",
+      "note": "10/10",
+      "contenu": "Nous y sommes allés en famille avec notre fille et..."
+    },
+    {
+      "titre": "-Ado sur titok, parents deblock",
+      "note": "9/10",
+      "contenu": "Tranche de rigolade asuree magnifique soirée"
+    },
+    {
+      "titre": "-Génial",
+      "note": "10/10",
+      "contenu": "On a passé un super moment adultes comme enfants !..."
+    },
+    {
+      "titre": "-Très drôle !",
+      "note": "10/10",
+      "contenu": "Génial! Pièce très très drôle nous recommandons. :..."
+    },
+    {
+      "titre": "-À voir absolument",
+      "note": "10/10",
+      "contenu": "Superbe pièce de théâtre. Que du bonheur, avec une..."
+    },
+    {
+      "titre": "-Super !",
+      "note": "10/10",
+      "contenu": "J'y suis allée avec mon fils de 10 ans . Il a ador..."
+    },
+    {
+      "titre": "-Super moment",
+      "note": "10/10",
+      "contenu": "De très bons acteurs ! Pièce très drôle un bon mom..."
+    },
+    {
+      "titre": "-Excellent spectacle",
+      "note": "10/10",
+      "contenu": "J'y suis allée avec mes deux ados, 12 et 16 ans. A..."
+    },
+    {
+      "titre": "-sympa",
+      "note": "7/10",
+      "contenu": "un spectacle intéressant et rigolo. il y avait qq ..."
+    },
+    {
+      "titre": "-Drôle",
+      "note": "9/10",
+      "contenu": "Un moment de détente avec cette pièce et le jeu de..."
+    },
+    {
+      "titre": "-Un spectacle hilarant",
+      "note": "10/10",
+      "contenu": "Merci aux trois formidable comédiens qui arrivent ..."
+    },
+    {
+      "titre": "-MDR",
+      "note": "9/10",
+      "contenu": "Nous sommes allés voir ce spectacle avec nos petit..."
+    },
+    {
+      "titre": "-Fou rire assuré",
+      "note": "10/10",
+      "contenu": "Petite sortie avec 2 ados,nous avons rigolé du déb..."
+    },
+    {
+      "titre": "-Très drôle",
+      "note": "10/10",
+      "contenu": "Je suis allée voir cette pièce avec mes petits-fil..."
+    },
+    {
+      "titre": "-Topissime",
+      "note": "10/10",
+      "contenu": "Un très bon moment, nous étions 2 adultes et 2 ado..."
+    },
+    {
+      "titre": "-Je recommande",
+      "note": "9/10",
+      "contenu": "Un spectacle plein de rire avec des acteurs qui do..."
+    },
+    {
+      "titre": "-Ça deblok",
+      "note": "8/10",
+      "contenu": "Un beau reflet des relations parents enfants avec ..."
+    },
+    {
+      "titre": "-Très drôle 🤣",
+      "note": "10/10",
+      "contenu": "J'étais avec enfant et petits enfants (66, 30, 11 ..."
+    },
+    {
+      "titre": "-Super spectacle !",
+      "note": "10/10",
+      "contenu": "Super spectacle vu avec 2 enfants de 12 ans. Très ..."
+    },
+    {
+      "titre": "-Un très bon moment",
+      "note": "10/10",
+      "contenu": "A venir voir en famille sans hésiter. Superbes com..."
+    },
+    {
+      "titre": "-Excellent",
+      "note": "10/10",
+      "contenu": "Nous avons été voir le spectacle avec mes 2 filles..."
+    },
+    {
+      "titre": "-Ados sur TikTok… plaisir en bloc",
+      "note": "10/10",
+      "contenu": "Très drôle Les acteurs sont excellents merci Zoé p..."
+    },
+    {
+      "titre": "-Genialissime",
+      "note": "10/10",
+      "contenu": "Super spectacle vu avec ma sœur et mes filles . On..."
+    },
+    {
+      "titre": "-Spectacle très drôle",
+      "note": "10/10",
+      "contenu": "Spectacle vu en famille génial ???? bravo aux 3 co..."
+    },
+    {
+      "titre": "-Hilarant !",
+      "note": "10/10",
+      "contenu": "Excellente pièce : très bon scénario, rythme soute..."
+    },
+    {
+      "titre": "-Un très bon moment à passé en famille",
+      "note": "10/10",
+      "contenu": "Beaucoup de rire franc tout au long de la pièce. E..."
+    },
+    {
+      "titre": "-Incroyable",
+      "note": "10/10",
+      "contenu": "Un super moment passé en famille, j’ai pleuré de r..."
+    },
+    {
+      "titre": "-Très drôle très bon moment",
+      "note": "9/10",
+      "contenu": "Nous avons passé un très bon moment, bien ri tout ..."
+    },
+    {
+      "titre": "-Très bien !",
+      "note": "8/10",
+      "contenu": "J'ai trouvé cette pièce drôle et très bien jouée. ..."
+    },
+    {
+      "titre": "-Très bien joué et très drôle !",
+      "note": "10/10",
+      "contenu": "Les acteurs jouent avec beaucoup d'énergie et sont..."
+    },
+    {
+      "titre": "-Très drôle",
+      "note": "10/10",
+      "contenu": "Pièce vraiment drôle ! Ma fille de 10 ans et mon f..."
+    },
+    {
+      "titre": "-Spectacle en famille",
+      "note": "10/10",
+      "contenu": "En famille avec une fille de 9 ans et un ado de 15..."
+    },
+    {
+      "titre": "-Wohala c'était trop bien !",
+      "note": "10/10",
+      "contenu": "En sortie avec mes 2 filles de 10 et 12 ans, on a ..."
+    },
+    {
+      "titre": "-Magnifique",
+      "note": "10/10",
+      "contenu": "J’y suis allée hier avec mes deux petits enfants 7..."
+    },
+    {
+      "titre": "-Excellent",
+      "note": "10/10",
+      "contenu": "Excellent comédie, mes ados ont adorés. Merci aux ..."
+    },
+    {
+      "titre": "-Bon moment",
+      "note": "7/10",
+      "contenu": "Il est parfois difficile de trouver une pièce qui ..."
+    },
+    {
+      "titre": "-Super",
+      "note": "10/10",
+      "contenu": "Nous avons vraiment tous passés un très bon moment..."
+    },
+    {
+      "titre": "-Dynamique",
+      "note": "10/10",
+      "contenu": "Nous avons tous aimé la pièce, drôle et dynamique ..."
+    },
+    {
+      "titre": "-Ados sur TikTok",
+      "note": "10/10",
+      "contenu": "Belle énergie de la part des acteurs qui nous a pe..."
+    },
+    {
+      "titre": "-Hilarant pour toute la famille",
+      "note": "9/10",
+      "contenu": "Un excellent moment, très bien joué"
+    },
+    {
+      "titre": "-A voir absolument",
+      "note": "10/10",
+      "contenu": "Ne pas manquer nous avons rigoler tout au long de ..."
+    },
+    {
+      "titre": "-TOP !",
+      "note": "9/10",
+      "contenu": "Merci ! Nous avons passé un super moment en famill..."
+    },
+    {
+      "titre": "-Super !!!",
+      "note": "10/10",
+      "contenu": "Venus avec notre petite fille, génération confondu..."
+    },
+    {
+      "titre": "-JE RECOMMANDE",
+      "note": "9/10",
+      "contenu": "C'est presque se voir dans le miroir ; très agréab..."
+    },
+    {
+      "titre": "-à ne pas louper",
+      "note": "10/10",
+      "contenu": "super moment drôle,vivant,des acteurs incroyables!..."
+    }
+  ],
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3620847,
+      48.8677279
+    ]
+  },
+  "catégorie_originale": "Spectacles Enfants » Théâtre Enfant » Comédie  de ...",
+  "catégorie_principale": "Théâtre",
+  "prochaines_dates": "Dates non disponibles",
+  "source": "billetreduc",
+  "notes_globales": {
+    "aspects": {},
+    "emotions": [],
+    "appréciation_globale": "Pas de synthèse disponible"
+  }
+}
+
+#### Document 5:
+{
+  "_id": "677ba4beb06ac29bec7d1468",
+  "intitulé": "Blédart Comedy Club",
+  "catégorie": "Spectacles » Plateau d'humoristes",
+  "détail": "Rejoignez cette expérience où l'esprit s'unit dans...",
+  "lieu": "Le Royal Est",
+  "lien_lieu": "https://www.billetreduc.com/lieu/paris/le-royal-es...",
+  "date_debut": "08/01/2025",
+  "date_fin": "23/04/2025",
+  "horaires": [
+    {
+      "jour": "Mercredi",
+      "heure": "20h30"
+    }
+  ],
+  "prix_reduit": "2€00",
+  "ancien_prix": "7€00",
+  "note": "Note non disponible",
+  "image": "https://www.billetreduc.com/zg/n100/344804.jpeg",
+  "site_url": "https://www.billetreduc.com/344804/evt.htm",
+  "purchase_url": "https://www.billetreduc.com/v2/PurchaseTunnel#/Sho...",
+  "catégories_prix": [
+    {
+      "Catégorie": "Placement libre",
+      "Prix": [
+        "5,00 €"
+      ]
+    }
+  ],
+  "commentaires": [],
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3591005,
+      48.8755317
+    ]
+  }
+}
+
+### Échantillons de la collection `Configuration` :
+#### Document 1:
+{
+  "_id": "67d0feadb636b2b6450e5c75",
+  "type": "billetreduc_ai_status",
+  "ai_processed": true,
+  "processed_date": "2025-03-21T16:53:09.280Z"
+}
+
+### Échantillons de la collection `Loisir_Paris_Producers` :
+#### Document 1:
+{
+  "_id": "67a0038e0478f4d172ab333f",
+  "lieu": "Continuum",
+  "adresse": "Nantes",
+  "description": "Description non disponible",
+  "evenements": [],
+  "lien_lieu": "https://shotgun.live/fr/venues/continuum",
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      -1.553621,
+      47.218371
+    ]
+  },
+  "nombre_evenements": 0,
+  "image": "https://res.cloudinary.com/shotgun/image/upload/c_..."
+}
+
+#### Document 2:
+{
+  "_id": "677c3a1ff2ed9423773525dd",
+  "lieu": "Le Comedy Club",
+  "adresse": "42 Boulevard Bonne Nouvelle, 75010 Paris",
+  "description": "Salle de spectacle de 120 places environ",
+  "evenements": [
+    {
+      "intitulé": "Jamel Comedy Club : La scène nouveaux talents",
+      "catégorie": "Spectacles » Plateau d'humoristes",
+      "lien_evenement": "/Loisir_Paris_Evenements/677ba1a0b06ac29bec7d1417"
+    },
+    {
+      "intitulé": "PV dans Presque vrai",
+      "catégorie": "Spectacles » One man show",
+      "lien_evenement": "/Loisir_Paris_Evenements/677bb027b06ac29bec7d159f"
+    },
+    {
+      "intitulé": "La Troupe du Jamel Comedy Club",
+      "catégorie": "Spectacles » Plateau d'humoristes  à 16 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677bb767b06ac29bec7d1660"
+    },
+    {
+      "intitulé": "Sofiane Soch",
+      "catégorie": "Spectacles » One man show",
+      "lien_evenement": "/Loisir_Paris_Evenements/677bb7c6b06ac29bec7d166b"
+    },
+    {
+      "intitulé": "Dating Comedy Show",
+      "catégorie": "Spectacles » Nuits à Thème  à partir de 18 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677bb7d1b06ac29bec7d166c"
+    },
+    {
+      "intitulé": "Impro club",
+      "catégorie": "Spectacles » Improvisation",
+      "lien_evenement": "/Loisir_Paris_Evenements/677bbb41b06ac29bec7d16cb"
+    }
+  ],
+  "lien_lieu": "https://www.billetreduc.com/lieu/paris/le-comedy-c...",
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.348503,
+      48.8708755
+    ]
+  },
+  "nombre_evenements": 6,
+  "source": "billetreduc",
+  "posts": [
+    "67dcf039b2f98201f8fd9908"
+  ]
+}
+
+#### Document 3:
+{
+  "_id": "67d07c29b636b2b6450e5acd",
+  "lieu": "A Gauche De La Lune",
+  "adresse": "Adresse non disponible",
+  "description": "Description non disponible",
+  "evenements": [
+    {
+      "intitulé": "Contrefaçon - Lille",
+      "catégorie": "Autre",
+      "lien_evenement": "/Loisir_Paris_Evenements/67a0d1583a2fc0b65e5c9cd0"
+    },
+    {
+      "intitulé": "Chaton - Club Tour - Lille",
+      "catégorie": "Autre",
+      "lien_evenement": "/Loisir_Paris_Evenements/67a0d1593a2fc0b65e5c9cd3"
+    },
+    {
+      "intitulé": "Realo - Lille",
+      "catégorie": "rap",
+      "lien_evenement": "/Loisir_Paris_Evenements/67a0d15a3a2fc0b65e5c9cd5"
+    },
+    {
+      "intitulé": "Halfpipe Records Pres. Nollie In The Club - Lille",
+      "catégorie": "Autre",
+      "lien_evenement": "/Loisir_Paris_Evenements/67a0d2883a2fc0b65e5c9fa9"
+    }
+  ],
+  "lien_lieu": "https://shotgun.live/fr/venues/slalom-lille",
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3522,
+      48.8566
+    ]
+  },
+  "nombre_evenements": 4,
+  "source": "shotgun"
+}
+
+#### Document 4:
+{
+  "_id": "67a003130478f4d172ab31ac",
+  "lieu": "Corcoran's Grands Boulevards",
+  "adresse": "Paris",
+  "description": "Bienvenue au Corcoran's Grands Boulevards, situé d...",
+  "evenements": [],
+  "lien_lieu": "https://shotgun.live/fr/venues/corcoran-s-grands-b...",
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3513765,
+      48.8575475
+    ]
+  },
+  "nombre_evenements": 0,
+  "image": "https://res.cloudinary.com/shotgun/image/upload/c_...",
+  "posts": [
+    "67dd452bdaff0b2b307b91ab"
+  ]
+}
+
+#### Document 5:
+{
+  "_id": "677c3ae5f2ed942377352657",
+  "lieu": "Métro Place d'Italie",
+  "adresse": "Métro Place d'Italie, 75013 Paris",
+  "description": "Site en Plein air de 20 places environ",
+  "evenements": [
+    {
+      "intitulé": "Visite guidée : le quartier chinois, histoire et g...",
+      "catégorie": "Loisirs » Visite guidée, Excursions  à partir de 2...",
+      "lien_evenement": "/Loisir_Paris_Evenements/677be9ba7e700e2764ce6c5a"
+    },
+    {
+      "intitulé": "Visite guidée : Le charme discret de la Butte aux ...",
+      "catégorie": "Loisirs » Visite guidée, Excursions",
+      "lien_evenement": "/Loisir_Paris_Evenements/677be9e37e700e2764ce6c5e"
+    }
+  ],
+  "lien_lieu": "https://www.billetreduc.com/12779/salle.htm",
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3555149,
+      48.83144919999999
+    ]
+  },
+  "nombre_evenements": 2,
+  "source": "billetreduc"
+}
+
+## BASE DE DONNÉES: Nightclub
+### Collections:
+- Nightclub_Paris_Producers
+- Nightclub_Paris_Producers2
+
+### Échantillons de la collection `Nightclub_Paris_Producers` :
+#### Document 1:
+{
+  "_id": "677bf51ef2ed942377352436",
+  "name": "Tigre Paris",
+  "address": "5 rue de Molière 75001 Paris France",
+  "categories": [
+    "Boîtes de nuit,",
+    "Salles de concert"
+  ],
+  "comments": [],
+  "days_and_hours": [
+    {
+      "day": "Tue",
+      "time": "Fermé"
+    },
+    {
+      "day": "Wed",
+      "time": "Fermé"
+    },
+    {
+      "day": "Thu",
+      "time": "Fermé"
+    },
+    {
+      "day": "Fri",
+      "time": "11:00 PM - 6:00 AM (le jour suivant)"
+    },
+    {
+      "day": "Sat",
+      "time": "11:00 PM - 6:00 AM (le jour suivant)"
+    },
+    {
+      "day": "Sun",
+      "time": "11:00 PM - 6:00 AM (le jour suivant)"
+    }
+  ],
+  "description": "Description non disponible",
+  "images": [
+    "https://s3-media0.fl.yelpcdn.com/bphoto/pZuUDXR-5g...",
+    "https://s3-media0.fl.yelpcdn.com/bphoto/XhGWOQPucN...",
+    "https://s3-media0.fl.yelpcdn.com/bphoto/UZOZc7wJHP...",
+    "https://s3-media0.fl.yelpcdn.com/bphoto/HQI04GKFCw...",
+    "https://s3-media0.fl.yelpcdn.com/bphoto/eeF324vXTE...",
+    "https://s3-media0.fl.yelpcdn.com/bphoto/LoFix7kL0W..."
+  ],
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.335457,
+      48.86492759999999
+    ]
+  },
+  "note": 5.2,
+  "website_url": null
+}
+
+#### Document 2:
+{
+  "_id": "677bf520f2ed942377352437",
+  "name": "Nano Club Paris",
+  "address": "12 rue Sainte Anne 75001 Paris France",
+  "categories": [
+    "Boîtes de nuit"
+  ],
+  "comments": [],
+  "days_and_hours": [
+    {
+      "day": "Tue",
+      "time": "Fermé"
+    },
+    {
+      "day": "Wed",
+      "time": "Fermé"
+    },
+    {
+      "day": "Thu",
+      "time": "Fermé"
+    },
+    {
+      "day": "Fri",
+      "time": "Fermé"
+    },
+    {
+      "day": "Sat",
+      "time": "Fermé"
+    },
+    {
+      "day": "Sun",
+      "time": "10:30 PM - 5:00 AM (le jour suivant)"
+    }
+  ],
+  "description": "Description non disponible",
+  "images": [
+    "https://s3-media0.fl.yelpcdn.com/bphoto/J95bxiVCFq...",
+    "https://s3-media0.fl.yelpcdn.com/bphoto/Hmch1dQuCO..."
+  ],
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3354704,
+      48.8658911
+    ]
+  },
+  "note": 6,
+  "website_url": "http://www.lenanoclub.com/"
+}
+
+### Échantillons de la collection `Nightclub_Paris_Producers2` :
+#### Document 1:
+{
+  "_id": "67a0c0a23a2fc0b65e5c9c4c",
+  "site_url": "https://shotgun.live/fr/events/rex-club-presents-s...",
+  "ancien_prix": "",
+  "catégorie": "electro",
+  "catégories_prix": [],
+  "commentaires": [],
+  "détail": "Rex Club Presents: Sonny Fodera, Selena Faider",
+  "horaires": [
+    {
+      "jour": "jeu",
+      "heure": "23:59 - 07:00"
+    }
+  ],
+  "image": "https://res.cloudinary.com/shotgun/image/upload/c_...",
+  "intitulé": "Rex Club Presents: Sonny Fodera, Selena Faider",
+  "lien_lieu": "https://shotgun.live/fr/venues/rex-club",
+  "lieu": "REX CLUB",
+  "lineup": [
+    {
+      "nom": "Sonny Fodera",
+      "image": "https://res.cloudinary.com/shotgun/image/upload/c_..."
+    },
+    {
+      "nom": "Selena Faider",
+      "image": "https://res.cloudinary.com/shotgun/image/upload/c_..."
+    }
+  ],
+  "location": {
+    "adresse": "5 Bd Poissonnière, 75002 Paris, France"
+  },
+  "note": "Note non disponible",
+  "prix_reduit": "Prix non disponible",
+  "prochaines_dates": "jeu 13 févr.",
+  "purchase_url": "https://shotgun.live/fr/events/rex-club-presents-s..."
+}
+
+#### Document 2:
+{
+  "_id": "67a0c0a33a2fc0b65e5c9c4d",
+  "site_url": "https://shotgun.live/fr/events/ha-ai-residency-ha-...",
+  "ancien_prix": "",
+  "catégorie": "electro",
+  "catégories_prix": [],
+  "commentaires": [],
+  "détail": "HAAi Residency: HAAi, Optimo (espacio)",
+  "horaires": [
+    {
+      "jour": "ven",
+      "heure": "23:59 - 07:00"
+    }
+  ],
+  "image": "https://res.cloudinary.com/shotgun/image/upload/c_...",
+  "intitulé": "Haai Residency: Haai, Optimo (Espacio)",
+  "lien_lieu": "https://shotgun.live/fr/venues/rex-club",
+  "lieu": "REX CLUB",
+  "lineup": [
+    {
+      "nom": "HAAi",
+      "image": "https://res.cloudinary.com/shotgun/image/upload/c_..."
+    },
+    {
+      "nom": "Optimo Music",
+      "image": "https://res.cloudinary.com/shotgun/image/upload/c_..."
+    }
+  ],
+  "location": {
+    "adresse": "5 Boulevard Poissonnière, 75002 Paris, France"
+  },
+  "note": "Note non disponible",
+  "prix_reduit": "Prix non disponible",
+  "prochaines_dates": "ven 14 févr.",
+  "purchase_url": "https://shotgun.live/fr/events/ha-ai-residency-ha-..."
+}
+
+## BASE DE DONNÉES: Restauration_Officielle
+### Collections:
+- producers
+
+### Échantillons de la collection `producers` :
+#### Document 1:
+{
+  "_id": "6773e277eaaae1bdfb4f3560",
+  "place_id": "ChIJQ9JDnUhw5kcRE1VGySKUagM",
+  "name": "Traiteur Shanghaï（巴黎快餐店）",
+  "verified": false,
+  "photo": null,
+  "description": "",
+  "address": "68 Rue de Vouillé, 75015 Paris, France",
+  "gps_coordinates": {
+    "type": "Point",
+    "coordinates": [
+      2.3088575,
+      48.83356360000001
+    ]
+  },
+  "category": [
+    "restaurant"
+  ],
+  "opening_hours": [
+    "Monday: 11:00 AM – 10:30 PM",
+    "Tuesday: 11:00 AM – 10:30 PM",
+    "Wednesday: 11:00 AM – 10:30 PM",
+    "Thursday: 11:00 AM – 10:30 PM",
+    "Friday: 11:00 AM – 10:30 PM",
+    "Saturday: 11:00 AM – 10:30 PM",
+    "Sunday: Closed"
+  ],
+  "phone_number": "09 54 40 17 24",
+  "international_phone_number": "+33 9 54 40 17 24",
+  "maps_url": "https://www.google.com/maps/place/?q=place_id:ChIJ...",
+  "website": "https://traiteur-shanghai-2.net-lab.fr/",
+  "business_status": "OPERATIONAL",
+  "price_level": 1,
+  "rating": 3.5,
+  "user_ratings_total": 85,
+  "serves_vegetarian_food": "Non spécifié",
+  "service_options": {
+    "dine_in": "Disponible",
+    "takeout": "Disponible",
+    "delivery": "Non spécifié"
+  },
+  "popular_times": [
+    "Données non disponibles"
+  ],
+  "notes_globales": {},
+  "abonnés": 0,
+  "photos": [
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m..."
+  ],
+  "menu": [],
+  "__v": 0,
+  "structured_data": {},
+  "choice": 0
+}
+
+#### Document 2:
+{
+  "_id": "6773e255eaaae1bdfb4f2360",
+  "place_id": "ChIJBQgNkk5w5kcRaV56wI-3JJY",
+  "name": "Emma",
+  "verified": false,
+  "photo": null,
+  "description": "",
+  "address": "48 Rue Pierre Larousse, 75014 Paris, France",
+  "gps_coordinates": {
+    "type": "Point",
+    "coordinates": [
+      2.3130832,
+      48.8298364
+    ]
+  },
+  "category": [
+    "restaurant"
+  ],
+  "opening_hours": [],
+  "phone_number": null,
+  "international_phone_number": null,
+  "maps_url": "https://www.google.com/maps/place/?q=place_id:ChIJ...",
+  "website": null,
+  "business_status": "OPERATIONAL",
+  "price_level": null,
+  "rating": null,
+  "user_ratings_total": null,
+  "serves_vegetarian_food": "Non spécifié",
+  "service_options": {
+    "dine_in": "Disponible",
+    "takeout": "Disponible",
+    "delivery": "Non spécifié"
+  },
+  "popular_times": [
+    "Données non disponibles"
+  ],
+  "notes_globales": {},
+  "abonnés": 0,
+  "photos": [],
+  "menu": [],
+  "__v": 0,
+  "structured_data": {},
+  "choice": 0
+}
+
+## BASE DE DONNÉES: choice_app
+### Collections:
+- ai_queries
+- Posts
+- Users
+
+### Échantillons de la collection `ai_queries` :
+#### Document 1:
+{
+  "_id": "67cc9d50de2acfeec6a3077d",
+  "userId": "677db5b562dbd1a04ed621c8",
+  "producerId": null,
+  "query": "Recommande-moi des événements ou restaurants qui p...",
+  "intent": "recommendation",
+  "entities": [],
+  "mongoQuery": [
+    {
+      "collection": "User",
+      "query": {
+        "_id": "677db5b562dbd1a04ed621c8"
+      },
+      "projection": {
+        "comments": 1
+      },
+      "limit": 1
+    },
+    {
+      "collection": "Producer",
+      "query": {
+        "$or": [
+          {
+            "category": {
+              "$in": [
+                "italien",
+                "mexicain"
+              ]
+            }
+          },
+          {
+            "rating": {
+              "$gte": 4
+            }
+          }
+        ]
+      },
+      "projection": {
+        "_id": 1,
+        "name": 1,
+        "address": 1,
+        "rating": 1,
+        "description": 1
+      },
+      "limit": 10,
+      "sort": {
+        "rating": -1
+      }
+    },
+    {
+      "collection": "Event",
+      "query": {
+        "category": {
+          "$in": [
+            "musique",
+            "culture"
+          ]
+        },
+        "date_debut": {
+          "$gte": "2023-10-01"
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "intitulé": 1,
+        "lieu": 1,
+        "date_debut": 1,
+        "description": 1
+      },
+      "limit": 10,
+      "sort": {
+        "date_debut": 1
+      }
+    }
+  ],
+  "resultCount": 11,
+  "executionTimeMs": 12036,
+  "response": "Bien sûr ! Voici quelques restaurants que je te re...",
+  "timestamp": "2025-03-08T19:41:04.109Z",
+  "__v": 0
+}
+
+#### Document 2:
+{
+  "_id": "67cad9ecde2acfeec6a2f489",
+  "userId": "677db5b562dbd1a04ed621c8",
+  "producerId": null,
+  "query": "Recommande-moi des événements ou restaurants qui p...",
+  "intent": "recommendation",
+  "entities": [],
+  "mongoQuery": [
+    {
+      "collection": "User",
+      "query": {
+        "_id": "677db5b562dbd1a04ed621c8"
+      },
+      "projection": {
+        "comments": 1
+      },
+      "limit": 1
+    },
+    {
+      "collection": "Producer",
+      "query": {
+        "rating": {
+          "$gte": 4
+        },
+        "category": {
+          "$in": [
+            "cuisine-italienne",
+            "cuisine-française",
+            "cuisine-japonaise"
+          ]
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "name": 1,
+        "address": 1,
+        "category": 1,
+        "rating": 1,
+        "description": 1
+      },
+      "limit": 5,
+      "sort": {
+        "rating": -1
+      }
+    },
+    {
+      "collection": "Event",
+      "query": {
+        "category": {
+          "$in": [
+            "concert",
+            "exposition",
+            "festival"
+          ]
+        },
+        "date_debut": {
+          "$gte": "2023-10-01"
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "intitulé": 1,
+        "lieu": 1,
+        "date_debut": 1,
+        "category": 1,
+        "description": 1
+      },
+      "limit": 5,
+      "sort": {
+        "date_debut": 1
+      }
+    }
+  ],
+  "resultCount": 1,
+  "executionTimeMs": 13293,
+  "response": "Il semble que je n'ai pas trouvé d'événements ou d...",
+  "timestamp": "2025-03-07T11:35:08.185Z",
+  "__v": 0
+}
+
+#### Document 3:
+{
+  "_id": "67deba7de4a960c6220b6064",
+  "userId": "67deb5f13de6d0adf9ee76c3",
+  "producerId": null,
+  "query": "Propose des lieux et expériences avec une ambiance...",
+  "intent": "leisure_search",
+  "entities": [
+    "Paris",
+    "couples",
+    "romantique et intime"
+  ],
+  "mongoQuery": [
+    {
+      "collection": "LeisureProducer",
+      "query": {
+        "adresse": {
+          "$regex": "Paris",
+          "$options": "i"
+        },
+        "description": {
+          "$regex": "romantique|intime",
+          "$options": "i"
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "nom": 1,
+        "adresse": 1,
+        "rating": 1,
+        "category": 1,
+        "description": 1
+      },
+      "limit": 20,
+      "sort": {
+        "rating": -1
+      }
+    },
+    {
+      "collection": "Event",
+      "query": {
+        "lieu": {
+          "$regex": "Paris",
+          "$options": "i"
+        },
+        "description": {
+          "$regex": "romantique|intime",
+          "$options": "i"
+        },
+        "date_debut": {
+          "$gte": "2023-01-01"
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "intitulé/nom": 1,
+        "lieu": 1,
+        "date_debut": 1,
+        "category": 1,
+        "description": 1
+      },
+      "limit": 20,
+      "sort": {
+        "date_debut": 1
+      }
+    },
+    {
+      "collection": "User",
+      "query": {
+        "_id": "67deb5f13de6d0adf9ee76c3"
+      },
+      "projection": {
+        "comments": 1
+      },
+      "limit": 1
+    }
+  ],
+  "resultCount": 2,
+  "executionTimeMs": 13261,
+  "response": "Pour une ambiance romantique et intime à Paris, vo...",
+  "timestamp": "2025-03-22T13:26:21.108Z",
+  "__v": 0
+}
+
+#### Document 4:
+{
+  "_id": "67cd8b1ede2acfeec6a31153",
+  "userId": "677db5b562dbd1a04ed621c8",
+  "producerId": null,
+  "query": "Recommande-moi des événements ou restaurants qui p...",
+  "intent": "recommendation",
+  "entities": [],
+  "mongoQuery": [
+    {
+      "collection": "User",
+      "query": {
+        "_id": "677db5b562dbd1a04ed621c8"
+      },
+      "projection": {
+        "comments": 1
+      },
+      "limit": 1
+    },
+    {
+      "collection": "Producer",
+      "query": {
+        "_id": {
+          "$in": {
+            "$map": {
+              "input": "$comments.producer_id",
+              "as": "comment",
+              "in": "$$comment"
+            }
+          }
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "name": 1,
+        "rating": 1,
+        "category": 1
+      },
+      "limit": 20,
+      "sort": {
+        "rating": -1
+      }
+    },
+    {
+      "collection": "Event",
+      "query": {
+        "category": {
+          "$in": [
+            {
+              "$let": {
+                "vars": {
+                  "prodCats": {
+                    "$map": {
+                      "input": "$comments",
+                      "as": "comment",
+                      "in": "$$comment.category"
+                    }
+                  }
+                },
+                "in": {
+                  "$setUnion": "$$prodCats"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "intitulé": 1,
+        "lieu": 1,
+        "date_debut": 1,
+        "category": 1
+      },
+      "limit": 20,
+      "sort": {
+        "date_debut": 1
+      }
+    }
+  ],
+  "resultCount": 21,
+  "executionTimeMs": 13778,
+  "response": "Bien sûr, voici quelques recommandations de restau...",
+  "timestamp": "2025-03-09T12:35:42.099Z",
+  "__v": 0
+}
+
+#### Document 5:
+{
+  "_id": "67cc3e22de2acfeec6a30604",
+  "userId": "677db5b562dbd1a04ed621c8",
+  "producerId": null,
+  "query": "Recommande-moi des événements ou restaurants qui p...",
+  "intent": "recommendation",
+  "entities": [],
+  "mongoQuery": [
+    {
+      "collection": "User",
+      "query": {
+        "_id": "677db5b562dbd1a04ed621c8"
+      },
+      "projection": {
+        "comments": 1
+      },
+      "limit": 1
+    },
+    {
+      "collection": "Producer",
+      "query": {
+        "category": {
+          "$in": [
+            "category_from_user_comments"
+          ]
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "name": 1,
+        "address": 1,
+        "rating": 1,
+        "price_level": 1,
+        "category": 1
+      },
+      "limit": 20,
+      "sort": {
+        "rating": -1
+      }
+    },
+    {
+      "collection": "Event",
+      "query": {
+        "category": {
+          "$in": [
+            "category_from_user_comments"
+          ]
+        },
+        "date_debut": {
+          "$gte": "current_date"
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "intitulé": 1,
+        "lieu": 1,
+        "date_debut": 1,
+        "description": 1
+      },
+      "limit": 20,
+      "sort": {
+        "date_debut": 1
+      }
+    }
+  ],
+  "resultCount": 1,
+  "executionTimeMs": 9410,
+  "response": "Je suis désolé, il semble qu'il n'y ait pas d'évén...",
+  "timestamp": "2025-03-08T12:54:58.350Z",
+  "__v": 0
+}
+
+### Échantillons de la collection `Posts` :
+#### Document 1:
+{
+  "_id": "67da8bde692a4e3acf102c29",
+  "content": "🎭 Lieu Culturel présente: Hyde Paris | Opening At...",
+  "time_posted": "2025-03-19T10:18:22.538599",
+  "author": {
+    "id": "67a003660478f4d172ab32bb",
+    "name": "Lieu Culturel",
+    "avatar": "https://res.cloudinary.com/shotgun/image/upload/c_..."
+  },
+  "producer_id": "67a003660478f4d172ab32bb",
+  "referenced_event_id": "67a0d3643a2fc0b65e5ca194",
+  "isProducerPost": true,
+  "isLeisureProducer": true,
+  "is_automated": true,
+  "likes": 0,
+  "likes_count": 0,
+  "comments": 0,
+  "comments_count": 0,
+  "interested": false,
+  "interested_count": 0,
+  "choice": false,
+  "choice_count": 0,
+  "location": {
+    "address": "23 Rue Taitbout, 75009 Paris, France",
+    "coords": {}
+  },
+  "media": [
+    {
+      "type": "image",
+      "url": "https://res.cloudinary.com/shotgun/image/upload/c_...",
+      "width": 800,
+      "height": 600
+    },
+    {
+      "type": "image",
+      "url": "https://res.cloudinary.com/shotgun/image/upload/c_...",
+      "width": 400,
+      "height": 400
+    },
+    {
+      "type": "image",
+      "url": "https://res.cloudinary.com/shotgun/image/upload/c_...",
+      "width": 400,
+      "height": 400
+    }
+  ]
+}
+
+#### Document 2:
+{
+  "_id": "67818dd264f99a896e3813e1",
+  "user_id": "677db5b562dbd1a04ed621d2",
+  "target_id": "675adf63da75cfe37235c7b4",
+  "target_type": "restaurant",
+  "title": "Avis de John Taylor sur Crêperie Le Belem",
+  "content": "Titre : Déception totale au Crêperie Le Belem\n\nEn ...",
+  "tags": [
+    "exhibition",
+    "art",
+    "vegan"
+  ],
+  "media": [
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m..."
+  ],
+  "location": {
+    "name": "Crêperie Le Belem",
+    "coordinates": [],
+    "address": "5 Pl. Stalingrad, 92190 Meudon, France"
+  },
+  "posted_at": "2025-01-10T21:14:58.579774"
+}
+
+#### Document 3:
+{
+  "_id": "67d11519f7dbe8469b8efaa0",
+  "content": "🎭 Producteur sans nom présente: Sous le plancher ...",
+  "time_posted": "2025-03-12T05:01:13.444Z",
+  "is_automated": true,
+  "author": {
+    "id": "677c3b66f2ed9423773526ab",
+    "name": "Producteur",
+    "avatar": "/defaultAppAvatar.png"
+  },
+  "likes": 0,
+  "comments": 0,
+  "media": [
+    {
+      "type": "image",
+      "url": "https://www.billetreduc.com/zg/n100/356281.jpeg",
+      "width": 800,
+      "height": 600,
+      "is_event": true
+    }
+  ],
+  "isProducerPost": true,
+  "isLeisureProducer": true,
+  "producer_id": "677c3b66f2ed9423773526ab",
+  "referenced_event_id": "677abe1f7108f1cc0fba4858",
+  "__v": 0
+}
+
+#### Document 4:
+{
+  "_id": "67818d9d64f99a896e3813ce",
+  "event_id": "676d7734bc725bb6e91c51e8",
+  "producer_id": "676d7973356e6bbc522c4e21",
+  "title": "Découvrez Mon petit grand frère au Comédie Bastill...",
+  "content": "🎭✨ **Mon petit grand frère - Une déclaration d'am...",
+  "media": [
+    "https://www.billetreduc.com/zg/n100/353145.jpeg"
+  ],
+  "tags": [
+    "Théâtre » Théâtre dramatique  à 12 ans"
+  ],
+  "location": {
+    "name": "Comédie Bastille",
+    "coordinates": [
+      2.3699119,
+      48.8588731
+    ],
+    "address": "5 rue Nicolas Appert, 75011 Paris"
+  },
+  "posted_at": "2025-01-05T14:00:00.000Z"
+}
+
+#### Document 5:
+{
+  "_id": "67d642afb2f98201f8fd8da4",
+  "content": "🎭 Producteur sans nom présente: Tendre colère à p...",
+  "time_posted": "2025-03-16T03:17:03.093Z",
+  "is_automated": true,
+  "author": {
+    "id": "677c3c3ef2ed94237735270c",
+    "name": "Producteur",
+    "avatar": "/defaultAppAvatar.png"
+  },
+  "likes": 0,
+  "comments": 0,
+  "media": [
+    {
+      "type": "image",
+      "url": "https://www.billetreduc.com/zg/n100/365825.jpeg",
+      "width": 800,
+      "height": 600,
+      "is_event": true
+    }
+  ],
+  "isProducerPost": true,
+  "isLeisureProducer": true,
+  "producer_id": "677c3c3ef2ed94237735270c",
+  "referenced_event_id": "677bab43b06ac29bec7d1515",
+  "__v": 0
+}
+
+### Échantillons de la collection `Users` :
+#### Document 1:
+{
+  "_id": "677db5b562dbd1a04ed621d9",
+  "name": "Marie Johnson",
+  "age": null,
+  "gender": "Non spécifié",
+  "photo_url": "https://api.dicebear.com/6.x/adventurer/png?seed=6...",
+  "bio": "",
+  "location": {
+    "latitude": 48.888544,
+    "longitude": 2.382179
+  },
+  "preferred_content_format": {
+    "text": 0.7,
+    "image": 0.56,
+    "video": 0.6
+  },
+  "liked_tags": [
+    "vegan",
+    "rooftop",
+    "concert",
+    "art"
+  ],
+  "trusted_circle": [],
+  "sector_preferences": {
+    "food": {
+      "avg_spending": 24,
+      "vegan": true,
+      "carbon_aware": false
+    },
+    "culture": {
+      "preferred_styles": [
+        "sculpture",
+        "classical_art",
+        "modern_art"
+      ],
+      "event_types": [
+        "exhibition",
+        "concert"
+      ]
+    }
+  },
+  "interaction_metrics": {
+    "total_interactions": 297,
+    "comments_given": 89,
+    "choices_given": 50,
+    "shares_given": 10
+  },
+  "consumption_behavior": {
+    "varies_preferences": false,
+    "tries_new_content": true
+  },
+  "frequent_locations": [],
+  "affinity_producers": [],
+  "search_keywords": [],
+  "is_star": true,
+  "followers_count": 75,
+  "influence_score": 62,
+  "posts": [
+    "67818dd964f99a896e3813e3",
+    "67818df364f99a896e3813e9"
+  ],
+  "__v": 0,
+  "email": "mariejohnson@example.com",
+  "password": "$2b$10$noEqK3OtsmW22t3.WUiHDuvmfeQ9SExhI.DnWCyqVXs..."
+}
+
+#### Document 2:
+{
+  "_id": "678fc76bcf53a0d1b42d0d04",
+  "name": "John Doe",
+  "email": "john.doe@yearss.com",
+  "password": "$2b$10$noEqK3OtsmW22t3.WUiHDuvmfeQ9SExhI.DnWCyqVXs...",
+  "gender": "Male",
+  "liked_tags": [
+    "sports",
+    "music"
+  ],
+  "photo_url": "https://api.dicebear.com/6.x/adventurer/png?seed=6...",
+  "__v": 0
+}
+
+#### Document 3:
+{
+  "_id": "678fcfd8606a4f402c03d35c",
+  "name": "Baaaaarber",
+  "email": "barber.rem@yearsssssss.com",
+  "password": "$2b$10$noEqK3OtsmW22t3.WUiHDuvmfeQ9SExhI.DnWCyqVXs...",
+  "gender": "Non spécifié",
+  "liked_tags": [],
+  "photo_url": "https://api.dicebear.com/6.x/adventurer/png?seed=6...",
+  "__v": 0
+}
+
+#### Document 4:
+{
+  "_id": "678fcd61b8ea11dfdefbd885",
+  "name": "John Doe",
+  "email": "john.doe@yearsssssss.com",
+  "password": "$2b$10$noEqK3OtsmW22t3.WUiHDuvmfeQ9SExhI.DnWCyqVXs...",
+  "gender": "Non spécifié",
+  "liked_tags": [],
+  "photo_url": "https://api.dicebear.com/6.x/adventurer/png?seed=6...",
+  "__v": 0
+}
+
+#### Document 5:
+{
+  "_id": "678fca34cf53a0d1b42d0d09",
+  "name": "John Doe",
+  "email": "john.doe@yearssssss.com",
+  "password": "$2b$10$noEqK3OtsmW22t3.WUiHDuvmfeQ9SExhI.DnWCyqVXs...",
+  "gender": "Non spécifié",
+  "liked_tags": [],
+  "photo_url": "https://api.dicebear.com/6.x/adventurer/png?seed=6...",
+  "__v": 0
+}
+
+## BASE DE DONNÉES: admin
+Aucune collection trouvée.
+
+## BASE DE DONNÉES: local
+### Collections:
+- oplog.rs
+
+### Échantillons de la collection `oplog.rs` :
+#### Document 1:
+{
+  "lsid": {
+    "id": "9bf4e38d-6511-4643-8f0b-297d3797735b",
+    "uid": "ddqot68vLpBUPnOuqFj2cdClv/dv/vF9ZVSwknYHEsE="
+  },
+  "txnNumber": 766,
+  "op": "u",
+  "ns": "Loisir&Culture.Loisir_Paris_Evenements",
+  "ui": "0386ad0f-5a77-4c1c-9e39-08b68226b14a",
+  "o": {
+    "$v": 2,
+    "diff": {
+      "u": {
+        "lien_lieu": "https://www.billetreduc.com/27775/salle.htm"
+      }
+    }
+  },
+  "o2": {
+    "_id": "677bea907e700e2764ce6c71"
+  },
+  "stmtId": 0,
+  "ts": {
+    "$timestamp": "7484251332442849287"
+  },
+  "t": 252,
+  "v": 2,
+  "wall": "2025-03-21T13:17:35.751Z",
+  "prevOpTime": {
+    "ts": {
+      "$timestamp": "0"
+    },
+    "t": -1
+  }
+}
+
+#### Document 2:
+{
+  "lsid": {
+    "id": "9bf4e38d-6511-4643-8f0b-297d3797735b",
+    "uid": "ddqot68vLpBUPnOuqFj2cdClv/dv/vF9ZVSwknYHEsE="
+  },
+  "txnNumber": 972,
+  "op": "u",
+  "ns": "Loisir&Culture.Loisir_Paris_Evenements",
+  "ui": "0386ad0f-5a77-4c1c-9e39-08b68226b14a",
+  "o": {
+    "$v": 2,
+    "diff": {
+      "u": {
+        "catégories_prix": [],
+        "commentaires": [
+          {
+            "titre": "-Superbe !",
+            "note": "8/10",
+            "contenu": "Très bon spectacle, plein d'humour et de surprises..."
+          },
+          {
+            "titre": "-Un beau dimanche",
+            "note": "10/10",
+            "contenu": "Toujours un plaisir de revoir le théâtre pinocchio..."
+          },
+          {
+            "titre": "-Une Féérie Haute en Couleurs",
+            "note": "10/10",
+            "contenu": "Aujourd'hui, j'ai eu le plaisir d'assister à un sp..."
+          },
+          {
+            "titre": "-Bravo !",
+            "note": "10/10",
+            "contenu": "Jamais déçu avec ces artistes. J'ai assisté à tous..."
+          },
+          {
+            "titre": "-Toujours très bien",
+            "note": "10/10",
+            "contenu": "Les enfants ont beaucoup aimé comme les spectacles..."
+          },
+          {
+            "titre": "-Spectacle rafraîchissant",
+            "note": "10/10",
+            "contenu": "Nous sommes déjà venue pour leur représentation d'..."
+          },
+          {
+            "titre": "-Très chouette spectacle !",
+            "note": "8/10",
+            "contenu": "Très chouette spectacle de presque 2h avec un entr..."
+          },
+          {
+            "titre": "-Un moment suspendu",
+            "note": "10/10",
+            "contenu": "Une fois de plus, la troupe de Pinocchio Productio..."
+          },
+          {
+            "titre": "-Super spectacle 🎊🎉🥳",
+            "note": "10/10",
+            "contenu": "Mon neveu de 7 ans a adoré, spectacle plein d'humo..."
+          },
+          {
+            "titre": "-super spectacle",
+            "note": "10/10",
+            "contenu": "Merci pour ce spectacle , j'ai emmené mes petites ..."
+          },
+          {
+            "titre": "-Je recommande.",
+            "note": "10/10",
+            "contenu": "Avec deux petits-enfants, nous avons passé 90 mn d..."
+          },
+          {
+            "titre": "-Exceptionnel",
+            "note": "10/10",
+            "contenu": "En allant a ce spectacle, je m'attendais à un spec..."
+          },
+          {
+            "titre": "-Très beau spectacle",
+            "note": "8/10",
+            "contenu": "2eme fois que nous venons et toujours aussi bien. ..."
+          },
+          {
+            "titre": "- Pinocchio production carnaval",
+            "note": "10/10",
+            "contenu": "Très beau spectacle pour les enfants"
+          },
+          {
+            "titre": "-Au top",
+            "note": "10/10",
+            "contenu": "Un bon moment ! Un beau spectacle qui plait aux en..."
+          },
+          {
+            "titre": "-Magnifique",
+            "note": "10/10",
+            "contenu": "Je recommande à 100% votre spectacle. Je vous suis..."
+          },
+          {
+            "titre": "-Février 2024",
+            "note": "10/10",
+            "contenu": "Parfait nous avons adoré !!"
+          },
+          {
+            "titre": "-Très bon spectacle",
+            "note": "10/10",
+            "contenu": "Les petites filles de 3 et 5ans ont adoré Spectacl..."
+          },
+          {
+            "titre": "-Un grand bravo !!!",
+            "note": "10/10",
+            "contenu": "Nous avons passé un excellent moment avec ma petit..."
+          },
+          {
+            "titre": "-Remerciements",
+            "note": "10/10",
+            "contenu": "Aujourd'hui, nous avons de nouveau assisté à la re..."
+          },
+          {
+            "titre": "-A ne pas manquer !!!",
+            "note": "10/10",
+            "contenu": "C'est beau ! C'est bien ! C'est \"madgic\" ! Plein d..."
+          },
+          {
+            "titre": "-CARNAVAL",
+            "note": "Note non disponible",
+            "contenu": "Spectacle très sympathique. Bravo à cette équipe, ..."
+          }
+        ],
+        "horaires": [],
+        "lien_lieu": "https://www.billetreduc.com/29348/salle.htm"
+      }
+    }
+  },
+  "o2": {
+    "_id": "67d077251980da6dae3f838e"
+  },
+  "stmtId": 0,
+  "ts": {
+    "$timestamp": "7484254596617994245"
+  },
+  "t": 252,
+  "v": 2,
+  "wall": "2025-03-21T13:30:15.320Z",
+  "prevOpTime": {
+    "ts": {
+      "$timestamp": "0"
+    },
+    "t": -1
+  }
+}
+
+✅ Rapport d'export terminé
+🔒 Connexion fermée

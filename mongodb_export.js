@@ -3,21 +3,32 @@ const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 
-// Charger les variables d'environnement
 dotenv.config();
 
-// Informations de connexion
 const mongoUri = process.env.MONGO_URI;
 const outputFilePath = path.join(__dirname, `mongodb_report_${new Date().toISOString().replace(/:/g, '-')}.txt`);
 
-// Fonction pour écrire dans le fichier de sortie
+const DEFAULT_SAMPLE_LIMIT = 2;
+const LARGE_SAMPLE_LIMIT = 5;
+const MAX_STRING_LENGTH = 50;
+
+const largeSampleDbNames = ['choice_app', 'Loisir&Culture'];
+
 function writeToFile(content) {
   fs.appendFileSync(outputFilePath, content + '\n');
 }
 
-// Fonction principale
+// Fonction pour tronquer les longues chaînes
+function truncateLongStrings(obj, maxLength = MAX_STRING_LENGTH) {
+  return JSON.parse(JSON.stringify(obj, (key, value) => {
+    if (typeof value === 'string' && value.length > maxLength) {
+      return value.slice(0, maxLength) + '...';
+    }
+    return value;
+  }));
+}
+
 async function exportMongoDBData() {
-  // Initialiser le fichier de sortie
   fs.writeFileSync(outputFilePath, `# MongoDB Export - ${new Date().toISOString()}\n\n`);
 
   if (!mongoUri) {
@@ -32,75 +43,65 @@ async function exportMongoDBData() {
     await client.connect();
     writeToFile('✅ Connexion réussie à MongoDB Atlas!\n');
 
-    // 1. Lister toutes les bases de données
+    const admin = client.db().admin();
+    const databasesList = await admin.listDatabases();
+
     writeToFile('## BASES DE DONNÉES DISPONIBLES:');
-    const databasesList = await client.db().admin().listDatabases();
-    databasesList.databases.forEach((db) => {
-      writeToFile(`- ${db.name} (${(db.sizeOnDisk / 1024 / 1024).toFixed(2)} MB)`);
-    });
-    writeToFile('');
-
-    // 2. Explorer la base de données principale (restaurants)
-    const mainDb = client.db();
-    writeToFile(`## BASE DE DONNÉES: ${mainDb.databaseName}`);
-    
-    // Lister les collections
-    const mainCollections = await mainDb.listCollections().toArray();
-    writeToFile('### Collections:');
-    for (const collection of mainCollections) {
-      writeToFile(`- ${collection.name}`);
+    for (const dbInfo of databasesList.databases) {
+      writeToFile(`- ${dbInfo.name} (${(dbInfo.sizeOnDisk / 1024 / 1024).toFixed(2)} MB)`);
     }
     writeToFile('');
 
-    // Examiner la collection Restaurant (si elle existe)
-    if (mainCollections.some(c => c.name === 'restaurants')) {
-      writeToFile('### Échantillon de Restaurants:');
-      const restaurants = await mainDb.collection('restaurants').find().limit(2).toArray();
-      restaurants.forEach((restaurant, index) => {
-        writeToFile(`#### Restaurant ${index + 1}:`);
-        writeToFile('```json');
-        writeToFile(JSON.stringify(restaurant, null, 2));
-        writeToFile('```\n');
-      });
+    for (const dbInfo of databasesList.databases) {
+      const dbName = dbInfo.name;
+      const db = client.db(dbName);
+
+      const sampleLimit = (
+        dbName === 'Loisir&Culture' ||
+        dbName.includes('choice_app')
+      ) ? LARGE_SAMPLE_LIMIT : DEFAULT_SAMPLE_LIMIT;
+
+      writeToFile(`## BASE DE DONNÉES: ${dbName}`);
+
+      const collections = await db.listCollections().toArray();
+      if (collections.length === 0) {
+        writeToFile('Aucune collection trouvée.\n');
+        continue;
+      }
+
+      writeToFile('### Collections:');
+      collections.forEach(col => writeToFile(`- ${col.name}`));
+      writeToFile('');
+
+      for (const col of collections) {
+        writeToFile(`### Échantillons de la collection \`${col.name}\` :`);
+        try {
+          const collection = db.collection(col.name);
+          const count = await collection.countDocuments();
+          const actualLimit = Math.min(sampleLimit, count);
+
+          if (actualLimit === 0) {
+            writeToFile('Aucun document disponible.\n');
+            continue;
+          }
+
+          const documents = await collection
+            .aggregate([{ $sample: { size: actualLimit } }])
+            .toArray();
+
+          documents.forEach((doc, index) => {
+            const truncated = truncateLongStrings(doc);
+            writeToFile(`#### Document ${index + 1}:`);
+            writeToFile(JSON.stringify(truncated, null, 2));
+            writeToFile('');
+          });
+        } catch (err) {
+          writeToFile(`❌ Erreur lors de la lecture de la collection "${col.name}": ${err.message}\n`);
+        }
+      }
     }
 
-    // 3. Explorer la base de données Loisir&Culture
-    const leisureDb = client.db('Loisir&Culture');
-    writeToFile(`## BASE DE DONNÉES: Loisir&Culture`);
-    
-    // Lister les collections
-    const leisureCollections = await leisureDb.listCollections().toArray();
-    writeToFile('### Collections:');
-    for (const collection of leisureCollections) {
-      writeToFile(`- ${collection.name}`);
-    }
-    writeToFile('');
-
-    // Examiner la collection Loisir_Paris_Producers
-    if (leisureCollections.some(c => c.name === 'Loisir_Paris_Producers')) {
-      writeToFile('### Échantillon de Lieux de Loisirs:');
-      const producers = await leisureDb.collection('Loisir_Paris_Producers').find().limit(2).toArray();
-      producers.forEach((producer, index) => {
-        writeToFile(`#### Lieu de Loisirs ${index + 1}:`);
-        writeToFile('```json');
-        writeToFile(JSON.stringify(producer, null, 2));
-        writeToFile('```\n');
-      });
-    }
-
-    // Examiner la collection Loisir_Paris_Evenements
-    if (leisureCollections.some(c => c.name === 'Loisir_Paris_Evenements')) {
-      writeToFile('### Échantillon d\'Événements:');
-      const events = await leisureDb.collection('Loisir_Paris_Evenements').find().limit(2).toArray();
-      events.forEach((event, index) => {
-        writeToFile(`#### Événement ${index + 1}:`);
-        writeToFile('```json');
-        writeToFile(JSON.stringify(event, null, 2));
-        writeToFile('```\n');
-      });
-    }
-
-    writeToFile('## Rapport d\'export terminé');
+    writeToFile('✅ Rapport d\'export terminé');
     console.log(`✅ Export terminé: ${outputFilePath}`);
   } catch (error) {
     writeToFile(`❌ Erreur: ${error.message}`);
@@ -113,5 +114,4 @@ async function exportMongoDBData() {
   }
 }
 
-// Exécuter la fonction principale
 exportMongoDBData().catch(console.error);

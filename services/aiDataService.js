@@ -889,8 +889,20 @@ async function executeQueryPlan(queryPlan) {
  * @returns {Object} - La requête nettoyée
  */
 function sanitizeMongoQuery(query, collection) {
+  // Vérifier si la requête est valide avant de la traiter
+  if (!query || typeof query !== 'object') {
+    console.warn('⚠️ Requête MongoDB invalide:', query);
+    return {};
+  }
+  
   // Copie profonde de la requête pour éviter de modifier l'originale
-  const sanitized = JSON.parse(JSON.stringify(query));
+  let sanitized;
+  try {
+    sanitized = JSON.parse(JSON.stringify(query));
+  } catch (error) {
+    console.error('❌ Erreur lors de la copie de la requête MongoDB:', error);
+    return {};
+  }
   
   // Traitement spécial pour les _id
   if (sanitized._id) {
@@ -905,6 +917,24 @@ function sanitizeMongoQuery(query, collection) {
     // S'assurer que l'_id est une chaîne propre
     if (typeof sanitized._id === 'string') {
       sanitized._id = sanitized._id.replace(/[{}"'$]/g, '').replace(/oid:/i, '').trim();
+    }
+  }
+  
+  // Traitement spécial pour les dates
+  if (sanitized.date_debut) {
+    if (typeof sanitized.date_debut === 'object' && sanitized.date_debut.$date) {
+      // Convertir le format de date complexe en date JavaScript standard
+      sanitized.date_debut = new Date(sanitized.date_debut.$date);
+    } else if (typeof sanitized.date_debut === 'object' && sanitized.date_debut.$gte && sanitized.date_debut.$gte.$date) {
+      // Format { $gte: { $date: "..." } }
+      sanitized.date_debut = {
+        $gte: new Date(sanitized.date_debut.$gte.$date)
+      };
+      
+      // Si $lt est également présent
+      if (sanitized.date_debut.$lt && sanitized.date_debut.$lt.$date) {
+        sanitized.date_debut.$lt = new Date(sanitized.date_debut.$lt.$date);
+      }
     }
   }
   
@@ -982,6 +1012,16 @@ async function processQueryResults(queryResults, queryPlan, entities) {
           processedResults = await applyScoreOperation(processedResults, operation.parameters, entities);
           break;
           
+        case "merge":
+          // Fusionner différents ensembles de résultats
+          processedResults = await applyMergeOperation(processedResults, operation.parameters);
+          break;
+          
+        case "analyze":
+          // Analyser les résultats pour extraire des insights
+          processedResults = await applyAnalyzeOperation(processedResults, operation.parameters);
+          break;
+          
         default:
           console.warn(`⚠️ Opération inconnue: ${operation.operation}`);
       }
@@ -989,6 +1029,225 @@ async function processQueryResults(queryResults, queryPlan, entities) {
   }
   
   return processedResults;
+}
+
+/**
+ * Fusionne différents ensembles de résultats (opération "merge")
+ * @param {Object} results - Les résultats à fusionner
+ * @param {Object} parameters - Les paramètres de fusion
+ * @returns {Promise<Object>} - Les résultats fusionnés
+ */
+async function applyMergeOperation(results, parameters = {}) {
+  console.log(`📊 Exécution de l'opération de fusion`);
+  
+  const { collections = [], targetField = '_merged', mergeBy = '_id' } = parameters;
+  const processedResults = { ...results };
+  
+  // Si aucune collection n'est spécifiée, utiliser toutes les collections disponibles
+  const collectionsToMerge = collections.length > 0 
+    ? collections 
+    : Object.keys(processedResults.results || {});
+  
+  // Créer un ensemble de résultats fusionnés
+  const mergedItems = [];
+  
+  // Fusionner les collections spécifiées
+  for (const collection of collectionsToMerge) {
+    if (processedResults.results[collection] && Array.isArray(processedResults.results[collection])) {
+      // Ajouter les items de cette collection au résultat fusionné
+      processedResults.results[collection].forEach(item => {
+        // Ajouter une propriété pour identifier la collection source
+        const enrichedItem = { 
+          ...item, 
+          _sourceCollection: collection,
+          _sourceId: item._id || item.id
+        };
+        
+        mergedItems.push(enrichedItem);
+      });
+    }
+  }
+  
+  // Stocker les résultats fusionnés
+  processedResults.mergedResults = mergedItems;
+  
+  console.log(`📊 Fusion terminée: ${mergedItems.length} éléments fusionnés`);
+  
+  return processedResults;
+}
+
+/**
+ * Analyse les résultats pour extraire des insights (opération "analyze")
+ * @param {Object} results - Les résultats à analyser
+ * @param {Object} parameters - Les paramètres d'analyse
+ * @returns {Promise<Object>} - Les résultats avec analyses ajoutées
+ */
+async function applyAnalyzeOperation(results, parameters = {}) {
+  console.log(`📊 Exécution de l'opération d'analyse`);
+  
+  const { targetCollection, analyzeFields = [], sentiment = false } = parameters;
+  const processedResults = { ...results };
+  
+  // Initialiser l'objet d'analyse si nécessaire
+  if (!processedResults.analysis) {
+    processedResults.analysis = {};
+  }
+  
+  // Si aucune collection cible n'est spécifiée, analyser les résultats fusionnés ou toutes les collections
+  const collectionsToAnalyze = targetCollection 
+    ? [targetCollection] 
+    : processedResults.mergedResults 
+      ? ['mergedResults'] 
+      : Object.keys(processedResults.results || {});
+  
+  // Analyser chaque collection spécifiée
+  for (const collection of collectionsToAnalyze) {
+    const items = collection === 'mergedResults' 
+      ? processedResults.mergedResults 
+      : processedResults.results[collection];
+      
+    if (!items || !Array.isArray(items)) continue;
+    
+    // Initialiser l'analyse pour cette collection
+    processedResults.analysis[collection] = {};
+    
+    // Analyser les champs spécifiés
+    for (const field of analyzeFields) {
+      // Extraire toutes les valeurs non nulles du champ
+      const values = items
+        .map(item => getNestedProperty(item, field))
+        .filter(val => val !== undefined && val !== null);
+      
+      // Calculer des statistiques de base
+      const stats = {
+        count: values.length,
+        uniqueCount: new Set(values).size
+      };
+      
+      // Pour les valeurs numériques, calculer min, max, moyenne, etc.
+      const numericValues = values.filter(val => !isNaN(parseFloat(val)));
+      if (numericValues.length > 0) {
+        stats.min = Math.min(...numericValues);
+        stats.max = Math.max(...numericValues);
+        stats.avg = numericValues.reduce((a, b) => a + parseFloat(b), 0) / numericValues.length;
+        stats.sum = numericValues.reduce((a, b) => a + parseFloat(b), 0);
+      }
+      
+      // Pour les chaînes de caractères, analyser les occurrences
+      if (values.some(val => typeof val === 'string')) {
+        const occurrences = {};
+        values.forEach(val => {
+          if (typeof val === 'string') {
+            occurrences[val] = (occurrences[val] || 0) + 1;
+          }
+        });
+        
+        // Trier par nombre d'occurrences décroissant
+        const sortedOccurrences = Object.entries(occurrences)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10) // Limiter aux 10 plus fréquentes
+          .map(([value, count]) => ({ value, count }));
+          
+        stats.mostCommon = sortedOccurrences;
+      }
+      
+      // Stocker les statistiques
+      processedResults.analysis[collection][field] = stats;
+    }
+    
+    // Analyse de sentiment si demandée
+    if (sentiment) {
+      // Chercher des champs contenant potentiellement du texte pour l'analyse de sentiment
+      const sentimentFields = ['description', 'commentaires', 'avis', 'reviews', 'content'];
+      
+      const sentimentResults = {
+        positive: 0,
+        neutral: 0,
+        negative: 0,
+        mostPositive: null,
+        mostNegative: null
+      };
+      
+      // Analyser de façon basique le sentiment (démonstration)
+      items.forEach(item => {
+        for (const field of sentimentFields) {
+          const text = getNestedProperty(item, field);
+          if (text && typeof text === 'string') {
+            // Analyse simplifiée basée sur des mots-clés
+            const score = simpleSentimentAnalysis(text);
+            
+            if (score > 0.5) {
+              sentimentResults.positive++;
+              if (!sentimentResults.mostPositive || score > sentimentResults.mostPositive.score) {
+                sentimentResults.mostPositive = { item, score };
+              }
+            } else if (score < -0.5) {
+              sentimentResults.negative++;
+              if (!sentimentResults.mostNegative || score < sentimentResults.mostNegative.score) {
+                sentimentResults.mostNegative = { item, score };
+              }
+            } else {
+              sentimentResults.neutral++;
+            }
+          }
+        }
+      });
+      
+      processedResults.analysis[collection].sentiment = sentimentResults;
+    }
+  }
+  
+  console.log(`📊 Analyse terminée avec ${Object.keys(processedResults.analysis).length} collections analysées`);
+  
+  return processedResults;
+}
+
+/**
+ * Analyse simplifiée du sentiment d'un texte
+ * @param {string} text - Le texte à analyser
+ * @returns {number} - Score de sentiment entre -1 (négatif) et 1 (positif)
+ */
+function simpleSentimentAnalysis(text) {
+  if (!text || typeof text !== 'string') return 0;
+  
+  const normalizedText = text.toLowerCase();
+  
+  // Mots-clés positifs
+  const positiveWords = [
+    'excellent', 'super', 'génial', 'parfait', 'extraordinaire', 'aimer', 'adorer',
+    'fantastique', 'merveilleux', 'agréable', 'délicieux', 'savoureux', 'exquis',
+    'recommande', 'satisfait', 'bravo', 'top', 'superbe', 'formidable', 'meilleur'
+  ];
+  
+  // Mots-clés négatifs
+  const negativeWords = [
+    'mauvais', 'horrible', 'terrible', 'déçu', 'déception', 'médiocre', 'insatisfait',
+    'décevant', 'pire', 'affreux', 'désastreux', 'éviter', 'dommage', 'problème',
+    'négligé', 'inacceptable', 'détestable', 'dégoûtant', 'nul', 'minable'
+  ];
+  
+  // Compter les occurrences
+  let positiveCount = 0;
+  let negativeCount = 0;
+  
+  positiveWords.forEach(word => {
+    if (normalizedText.includes(word)) {
+      positiveCount++;
+    }
+  });
+  
+  negativeWords.forEach(word => {
+    if (normalizedText.includes(word)) {
+      negativeCount++;
+    }
+  });
+  
+  // Calculer le score
+  const totalWords = (normalizedText.match(/\b\w+\b/g) || []).length;
+  const normalizedPositive = positiveCount / Math.min(30, totalWords);
+  const normalizedNegative = negativeCount / Math.min(30, totalWords);
+  
+  return normalizedPositive - normalizedNegative;
 }
 
 /**
