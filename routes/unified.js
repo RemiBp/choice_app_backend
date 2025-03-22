@@ -84,9 +84,156 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// Route pour les éléments innovants (public)
+router.get('/innovative-public', async (req, res) => {
+  console.log('🔍 Récupération des éléments innovants (public)');
+  
+  try {
+    // Rechercher des lieux et événements avec des critères d'innovation
+    const [innovativeRestaurants, innovativeEvents] = await Promise.all([
+      Restaurant.find({ tags: { $in: ['innovant', 'original', 'unique'] } })
+        .sort({ rating: -1 })
+        .limit(10)
+        .lean(),
+      Event.find({ catégorie: { $in: ['exposition', 'innovation', 'technologie'] } })
+        .sort({ date: -1 })
+        .limit(10)
+        .lean()
+    ]);
+    
+    // Combiner et formater les résultats
+    const results = [
+      ...innovativeRestaurants.map(r => ({ type: 'restaurant', ...r })),
+      ...innovativeEvents.map(e => ({ type: 'event', ...e }))
+    ];
+    
+    console.log(`✅ ${results.length} éléments innovants trouvés`);
+    res.status(200).json(results);
+  } catch (err) {
+    console.error('❌ Erreur dans /api/unified/innovative-public :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
+  }
+});
+
+// Route pour les éléments à proximité (public)
+router.get('/nearby-public', async (req, res) => {
+  const { lat, lng, radius = 5000 } = req.query;
+  
+  console.log(`🔍 Recherche d'éléments à proximité de (${lat}, ${lng}) dans un rayon de ${radius}m`);
+  
+  if (!lat || !lng) {
+    return res.status(400).json({ message: 'Les paramètres lat et lng sont requis.' });
+  }
+  
+  try {
+    // Rechercher des lieux et événements à proximité
+    const [nearbyRestaurants, nearbyLeisure] = await Promise.all([
+      Restaurant.find({
+        location: {
+          $near: {
+            $geometry: {
+              type: "Point",
+              coordinates: [parseFloat(lng), parseFloat(lat)]
+            },
+            $maxDistance: parseInt(radius)
+          }
+        }
+      })
+      .limit(15)
+      .lean(),
+      LeisureProducer.find({
+        coordonnées: {
+          $near: {
+            $geometry: {
+              type: "Point",
+              coordinates: [parseFloat(lng), parseFloat(lat)]
+            },
+            $maxDistance: parseInt(radius)
+          }
+        }
+      })
+      .limit(15)
+      .lean()
+    ]);
+    
+    // Combiner et formater les résultats
+    const results = [
+      ...nearbyRestaurants.map(r => ({ type: 'restaurant', ...r })),
+      ...nearbyLeisure.map(l => ({ type: 'leisureProducer', ...l }))
+    ];
+    
+    console.log(`✅ ${results.length} éléments trouvés à proximité`);
+    res.status(200).json(results);
+  } catch (err) {
+    console.error('❌ Erreur dans /api/unified/nearby-public :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
+  }
+});
+
+// Route pour les surprises (public)
+router.get('/surprise-public', async (req, res) => {
+  console.log('🔍 Récupération des éléments surprise (public)');
+  
+  try {
+    // Récupérer un échantillon aléatoire de restaurants et événements
+    const [surpriseRestaurants, surpriseEvents] = await Promise.all([
+      Restaurant.aggregate([{ $sample: { size: 5 } }]),
+      Event.aggregate([{ $sample: { size: 5 } }])
+    ]);
+    
+    // Combiner et formater les résultats
+    const results = [
+      ...surpriseRestaurants.map(r => ({ type: 'restaurant', ...r })),
+      ...surpriseEvents.map(e => ({ type: 'event', ...e }))
+    ];
+    
+    console.log(`✅ ${results.length} éléments surprise trouvés`);
+    res.status(200).json(results);
+  } catch (err) {
+    console.error('❌ Erreur dans /api/unified/surprise-public :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
+  }
+});
+
+// Route pour les éléments tendance (public)
+router.get('/trending-public', async (req, res) => {
+  console.log('🔍 Récupération des éléments tendance (public)');
+  
+  try {
+    // Rechercher des lieux et événements populaires ou tendance
+    const [trendingRestaurants, trendingEvents] = await Promise.all([
+      Restaurant.find()
+        .sort({ views: -1, rating: -1 })
+        .limit(10)
+        .lean(),
+      Event.find({ date: { $gte: new Date() } })
+        .sort({ popularity: -1 })
+        .limit(10)
+        .lean()
+    ]);
+    
+    // Combiner et formater les résultats
+    const results = [
+      ...trendingRestaurants.map(r => ({ type: 'restaurant', ...r })),
+      ...trendingEvents.map(e => ({ type: 'event', ...e }))
+    ];
+    
+    console.log(`✅ ${results.length} éléments tendance trouvés`);
+    res.status(200).json(results);
+  } catch (err) {
+    console.error('❌ Erreur dans /api/unified/trending-public :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
+  }
+});
+
 // Route pour récupérer les détails uniquement via l'ID
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
+  
+  // Ignorer les routes spéciales déjà définies
+  if (['innovative-public', 'nearby-public', 'surprise-public', 'trending-public', 'search'].includes(id)) {
+    return;
+  }
 
   try {
     if (!mongoose.isValidObjectId(id)) {

@@ -218,7 +218,7 @@ function calculatePostScore(user, post, now) {
   let score = 0;
 
   // Correspondance des tags
-  const tagsMatched = post.tags?.filter((tag) => user.liked_tags.includes(tag)).length || 0;
+  const tagsMatched = post.tags?.filter((tag) => (user.liked_tags || []).includes(tag)).length || 0;
   score += tagsMatched * 10;
 
   // Cercle de confiance
