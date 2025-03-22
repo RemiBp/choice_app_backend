@@ -62,18 +62,36 @@ app.get('/search', async (req, res) => {
     console.log(`🔍 Recherche de restaurants avec: "${term}"`);
     const startTime = Date.now();
     
+    // Récupérer le paramètre de localisation (ville)
+    const { location } = req.query;
+    
     // Construire une requête MongoDB qui recherche dans les menus et descriptions
-    const query = {
+    let query = {
       $or: [
         { "Items Indépendants.items.description": { $regex: term, $options: "i" } },
         { "Items Indépendants.items.nom": { $regex: term, $options: "i" } },
         { "Menus Globaux.inclus.items.description": { $regex: term, $options: "i" } },
         { "Menus Globaux.inclus.items.nom": { $regex: term, $options: "i" } },
-        { "description": { $regex: term, $options: "i" } },
-        // Cas spécial pour Olivia avec le plat Norvegese (saumon)
-        ...(term.toLowerCase().includes('saumon') ? [{ "name": "Olivia" }] : [])
+        { "description": { $regex: term, $options: "i" } }
       ]
     };
+    
+    // Si une localisation est spécifiée, l'ajouter à la requête
+    if (location) {
+      console.log(`🔍 Recherche dans la localisation: "${location}"`);
+      // Filtrer par adresse contenant la localisation
+      query = {
+        $and: [
+          query,
+          { 
+            $or: [
+              { "address": { $regex: location, $options: "i" } },
+              { "city": { $regex: location, $options: "i" } }
+            ]
+          }
+        ]
+      };
+    }
     
     // Exécuter la requête MongoDB
     const restaurants = await collection.find(query).limit(5).toArray();
