@@ -10,7 +10,7 @@ const OpenAI = require('openai');
 require('dotenv').config();
 
 // Toggle pour activer/désactiver la fonctionnalité IA
-const AI_ENABLED = false; // Mettre à True pour réactiver l'IA
+const AI_ENABLED = true; // Mettre à True pour réactiver l'IA
 
 // Configuration OpenAI
 const openai = new OpenAI({
