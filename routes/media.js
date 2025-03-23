@@ -3,7 +3,8 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const { upload } = require('../controllers/mediaController');
-const { UserChoice } = require('../models/user');
+// Fix the import path to match capitalization used in other files
+const { UserChoice } = require('../models/User.js');
 
 // Utilisation du modèle UserChoice importé depuis models/user.js
 const User = UserChoice;
