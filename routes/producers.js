@@ -293,6 +293,11 @@ router.get('/:producerId/relations', async (req, res) => {
   const { producerId } = req.params;
 
   try {
+    // Vérifier d'abord si l'ID est un ObjectId valide
+    if (!mongoose.isValidObjectId(producerId)) {
+      return res.status(400).json({ message: 'ID invalide.' });
+    }
+
     // Vérifiez que le producteur existe
     const producer = await Producer.findById(producerId).select(
       'followers following choiceUsers interestedUsers'

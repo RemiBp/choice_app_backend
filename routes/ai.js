@@ -321,6 +321,67 @@ router.get('/insights/producer/:producerId', async (req, res) => {
 });
 
 /**
+ * @route POST /api/ai/dialogic-feed
+ * @description Génère un contenu de feed en style dialogique pour l'interface utilisateur
+ * @example
+ * // Requête: feed personnalisé basé sur les préférences et l'historique de l'utilisateur
+ * {
+ *   "userId": "user123",
+ *   "location": "Paris 10",  // optionnel
+ *   "interests": ["sushi", "exposition"],  // optionnel
+ *   "mood": "relaxed"  // optionnel
+ * }
+ */
+router.post('/dialogic-feed', async (req, res) => {
+  try {
+    const { userId, location, interests, mood } = req.body;
+    
+    console.log(`🤖 REQUÊTE AI DÉTECTÉE! \n🔍 Path: /api/ai/dialogic-feed\n📦 Payload: ${JSON.stringify(req.body, null, 2)}`);
+    
+    // Générer un contenu dialogique par défaut sans attendre le traitement AI complet
+    // Cela permet à l'interface de charger immédiatement
+    const defaultContent = [
+      {
+        "content": "Bienvenue sur votre feed personnalisé ! Découvrez de nouveaux lieux et événements basés sur vos préférences.",
+        "is_interactive": true,
+        "suggestions": ["Restaurants près de moi", "Événements ce weekend", "Lieux tendance"],
+        "timestamp": new Date().toISOString()
+      }
+    ];
+    
+    // Si nous avons un utilisateur, nous pouvons personnaliser le contenu
+    if (userId) {
+      try {
+        // Construire une requête personnalisée
+        const query = "Based on the user's recent activity, generate a personalized feed message";
+        
+        // Traiter la requête sans bloquer la réponse
+        processUserQuery(query, userId)
+          .then(result => {
+            console.log(`📊 Traitement asynchrone terminé pour le feed dialogique (userId: ${userId})`);
+          })
+          .catch(err => {
+            console.error(`❌ Erreur lors du traitement asynchrone: ${err}`);
+          });
+      } catch (error) {
+        console.warn(`⚠️ Erreur non bloquante lors de la personnalisation: ${error}`);
+      }
+    }
+    
+    // Renvoyer le contenu par défaut immédiatement
+    return res.json(defaultContent);
+  } catch (error) {
+    console.error('❌ Erreur lors de la génération du feed dialogique:', error);
+    return res.status(500).json([{
+      "content": "Désolé, je n'ai pas pu charger votre feed personnalisé. Veuillez réessayer.",
+      "is_interactive": true,
+      "suggestions": ["Actualiser", "Explorer les restaurants", "Explorer les événements"],
+      "timestamp": new Date().toISOString()
+    }]);
+  }
+});
+
+/**
  * @route GET /api/ai/health
  * @description Vérifie l'état de santé du service IA
  */

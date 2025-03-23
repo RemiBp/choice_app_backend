@@ -83,6 +83,8 @@ module.exports = { choiceAppDb, testDb };
   const shareRoutes = require('./routes/share');
   const interactionsRoutes = require('./routes/interactions');
   const aiRoutes = require('./routes/ai'); // Nouvelles routes pour l'IA avec accès MongoDB en temps réel
+  const mediaRoutes = require('./routes/media'); // Routes pour l'upload de médias et photos de profil
+  const locationHistoryRoutes = require('./routes/location-history'); // Routes pour la vérification de l'historique des visites
 
   // Configuration des routes
   app.use('/api/leisureProducers', leisureProducerRoutes);
@@ -100,6 +102,8 @@ module.exports = { choiceAppDb, testDb };
   app.use('/api/share', shareRoutes);
   app.use('/api/interactions', interactionsRoutes);
   app.use('/api/ai', aiRoutes); // Intégration des routes IA avec accès MongoDB en temps réel
+  app.use('/api/media', mediaRoutes); // Routes pour l'upload de médias et photos de profil
+  app.use('/api/location-history', locationHistoryRoutes); // Routes pour la vérification de l'historique des visites
 
 // Intégration du service d'automatisation des posts
 const postAutomationService = require('./services/postAutomationService');

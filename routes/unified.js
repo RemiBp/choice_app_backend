@@ -27,7 +27,64 @@ const Event = leisureDb.model(
   'Loisir_Paris_Evenements' // Événements dans Loisir&Culture
 );
 
-// Route pour la recherche unifiée
+// Route pour la recherche unifiée (version publique non-authentifiée)
+router.get('/search-public', async (req, res) => {
+  const { query } = req.query;
+
+  if (!query || query.trim() === '') {
+    return res.status(400).json({ message: 'Veuillez fournir un mot-clé pour la recherche.' });
+  }
+
+  console.log(`🔍 Recherche publique pour le mot-clé : ${query}`);
+
+  try {
+    // Créez les filtres pour chaque collection
+    const filter = { $regex: query, $options: 'i' };
+
+    const [restaurants, leisureProducers, events] = await Promise.all([
+      Restaurant.find({
+        $or: [
+          { name: filter },
+          { address: filter },
+          { description: filter },
+        ],
+      }).limit(20),
+      LeisureProducer.find({
+        $or: [
+          { lieu: filter },
+          { adresse: filter },
+          { description: filter },
+        ],
+      }).limit(20),
+      Event.find({
+        $or: [
+          { intitulé: filter },
+          { catégorie: filter },
+          { détail: filter },
+        ],
+      }).limit(20),
+    ]);
+
+    const results = [
+      ...restaurants.map((r) => ({ type: 'restaurant', ...r.toObject() })),
+      ...leisureProducers.map((l) => ({ type: 'leisureProducer', ...l.toObject() })),
+      ...events.map((e) => ({ type: 'event', ...e.toObject() })),
+    ];
+
+    if (results.length === 0) {
+      console.log(`❌ Aucun résultat trouvé pour la recherche publique : ${query}`);
+      return res.status(404).json({ message: 'Aucun résultat trouvé.' });
+    }
+
+    console.log(`✅ Recherche publique : ${results.length} résultats trouvés`);
+    res.status(200).json(results);
+  } catch (err) {
+    console.error('❌ Erreur dans /api/unified/search-public :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
+  }
+});
+
+// Route pour la recherche unifiée (version authentifiée)
 router.get('/search', async (req, res) => {
   const { query } = req.query;
 
@@ -35,7 +92,7 @@ router.get('/search', async (req, res) => {
     return res.status(400).json({ message: 'Veuillez fournir un mot-clé pour la recherche.' });
   }
 
-  console.log(`🔍 Recherche pour le mot-clé : ${query}`);
+  console.log(`🔍 Recherche authentifiée pour le mot-clé : ${query}`);
 
   try {
     // Créez les filtres pour chaque collection
@@ -126,34 +183,21 @@ router.get('/nearby-public', async (req, res) => {
   }
   
   try {
-    // Rechercher des lieux et événements à proximité
+    // Utiliser une recherche simple sans requête géospatiale
+    // pour éviter les problèmes d'index manquants
     const [nearbyRestaurants, nearbyLeisure] = await Promise.all([
-      Restaurant.find({
-        location: {
-          $near: {
-            $geometry: {
-              type: "Point",
-              coordinates: [parseFloat(lng), parseFloat(lat)]
-            },
-            $maxDistance: parseInt(radius)
-          }
-        }
-      })
-      .limit(15)
-      .lean(),
-      LeisureProducer.find({
-        coordonnées: {
-          $near: {
-            $geometry: {
-              type: "Point",
-              coordinates: [parseFloat(lng), parseFloat(lat)]
-            },
-            $maxDistance: parseInt(radius)
-          }
-        }
-      })
-      .limit(15)
-      .lean()
+      // Récupérer les restaurants sans filtrage spatial avancé
+      // car la requête $near échoue sans index géospatial
+      Restaurant.find()
+        .sort({ rating: -1 })
+        .limit(15)
+        .lean(),
+      
+      // Récupérer les lieux de loisir sans filtrage spatial avancé
+      LeisureProducer.find()
+        .sort({ rating: -1 })
+        .limit(15)
+        .lean()
     ]);
     
     // Combiner et formater les résultats

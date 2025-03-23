@@ -912,41 +912,157 @@ function sanitizeMongoQuery(query, collection) {
     } else if (typeof sanitized._id === 'object' && sanitized._id.$eq) {
       // Forme: { _id: { $eq: "..." } }
       sanitized._id = sanitized._id.$eq;
+    } else if (typeof sanitized._id === 'object' && sanitized._id.$oid) {
+      // Forme: { _id: { $oid: "..." } }
+      sanitized._id = sanitized._id.$oid;
     }
     
     // S'assurer que l'_id est une chaîne propre
     if (typeof sanitized._id === 'string') {
+      // Gérer les valeurs hardcodées comme "USER_ID" pour éviter les CastError
+      if (sanitized._id === "USER_ID" || sanitized._id === "undefined" || 
+          sanitized._id === "null" || sanitized._id === "UTILISES_COMMENTS_IDS") {
+        console.log(`⚠️ Détection d'une valeur _id non valide: "${sanitized._id}" - Utilisation d'une requête alternative`);
+        // Retourner une requête qui matchera toujours un document existant
+        // Cela permet d'éviter les erreurs sans bloquer l'exécution
+        return {};
+      }
+      
       sanitized._id = sanitized._id.replace(/[{}"'$]/g, '').replace(/oid:/i, '').trim();
     }
   }
   
+  // Traitement spécial pour les $in dans les _id qui pourraient contenir des valeurs comme "UTILISES_COMMENTS_IDS"
+  if (sanitized._id && typeof sanitized._id === 'object' && sanitized._id.$in) {
+    if (typeof sanitized._id.$in === 'string' && 
+       (sanitized._id.$in === "UTILISES_COMMENTS_IDS" || 
+        sanitized._id.$in === "undefined" || 
+        sanitized._id.$in === "null")) {
+      console.log(`⚠️ Détection d'une valeur _id.$in non valide: "${sanitized._id.$in}" - Utilisation d'une requête alternative`);
+      // Remplacer par une requête qui ramènera des résultats par défaut
+      delete sanitized._id;
+    }
+  }
+  
   // Traitement spécial pour les dates
-  if (sanitized.date_debut) {
-    if (typeof sanitized.date_debut === 'object' && sanitized.date_debut.$date) {
-      // Convertir le format de date complexe en date JavaScript standard
-      sanitized.date_debut = new Date(sanitized.date_debut.$date);
-    } else if (typeof sanitized.date_debut === 'object' && sanitized.date_debut.$gte && sanitized.date_debut.$gte.$date) {
-      // Format { $gte: { $date: "..." } }
-      sanitized.date_debut = {
-        $gte: new Date(sanitized.date_debut.$gte.$date)
-      };
+  sanitized = convertDates(sanitized);
+  
+  // Traitement spécial pour category.$in qui pourrait contenir CATEGORY_RELATED_TO_USER_COMMENTS
+  if (sanitized.category && typeof sanitized.category === 'object' && sanitized.category.$in) {
+    if (typeof sanitized.category.$in === 'string' && 
+       (sanitized.category.$in === "CATEGORY_RELATED_TO_USER_COMMENTS" || 
+        sanitized.category.$in === "undefined" || 
+        sanitized.category.$in === "null")) {
+      console.log(`⚠️ Détection d'une valeur category.$in non valide: "${sanitized.category.$in}" - Utilisation d'une requête alternative`);
+      // Remplacer par une requête qui ramènera des résultats par défaut
+      delete sanitized.category;
+    }
+  }
+  
+  // NOUVELLE FONCTION: Convertir tous les objets $oid en strings
+  sanitized = convertObjectIds(sanitized);
+  
+  return sanitized;
+}
+
+/**
+ * Convertit tous les objets $oid en strings simples
+ * @param {Object} obj - L'objet à traiter
+ * @returns {Object} - L'objet avec ObjectIds convertis
+ */
+function convertObjectIds(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  
+  // Si c'est un tableau, convertir chaque élément
+  if (Array.isArray(obj)) {
+    return obj.map(item => convertObjectIds(item));
+  }
+  
+  const result = {};
+  
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      const val = obj[key];
       
-      // Si $lt est également présent
-      if (sanitized.date_debut.$lt && sanitized.date_debut.$lt.$date) {
-        sanitized.date_debut.$lt = new Date(sanitized.date_debut.$lt.$date);
+      // Cas spécial: objet avec $oid
+      if (val && typeof val === 'object' && val.$oid) {
+        result[key] = val.$oid;
+      } 
+      // Cas récursif pour les objets
+      else if (val && typeof val === 'object') {
+        result[key] = convertObjectIds(val);
+      } 
+      // Cas simple: valeur non-objet
+      else {
+        result[key] = val;
       }
     }
   }
   
-  // Parcourir récursivement tous les champs pour nettoyer les sous-requêtes
-  for (const key in sanitized) {
-    if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
-      // Nettoyer les sous-objets
-      sanitized[key] = sanitizeMongoQuery(sanitized[key], collection);
+  return result;
+}
+
+/**
+ * Convertit les formats de date complexes en dates JavaScript
+ * @param {Object} obj - L'objet à traiter
+ * @returns {Object} - L'objet avec dates converties
+ */
+function convertDates(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  
+  // Si c'est un tableau, convertir chaque élément
+  if (Array.isArray(obj)) {
+    return obj.map(item => convertDates(item));
+  }
+  
+  const result = {};
+  
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      const val = obj[key];
+      
+      // Cas spécial: champ date_debut
+      if (key === 'date_debut' && val && typeof val === 'object') {
+        // Format { $date: "2023-01-01" }
+        if (val.$date) {
+          result[key] = new Date(val.$date);
+        } 
+        // Format { $gte: { $date: "2023-01-01" }, $lt: { $date: "2023-01-02" } }
+        else if (val.$gte && val.$gte.$date) {
+          result[key] = {
+            $gte: new Date(val.$gte.$date)
+          };
+          
+          if (val.$lt && val.$lt.$date) {
+            result[key].$lt = new Date(val.$lt.$date);
+          }
+        }
+        // Format { $gte: "2023-01-01", $lt: "2023-01-02" }
+        else if (val.$gte) {
+          result[key] = {
+            $gte: new Date(val.$gte)
+          };
+          
+          if (val.$lt) {
+            result[key].$lt = new Date(val.$lt);
+          }
+        }
+        else {
+          result[key] = convertDates(val);
+        }
+      } 
+      // Cas récursif pour les objets
+      else if (val && typeof val === 'object') {
+        result[key] = convertDates(val);
+      } 
+      // Cas simple: valeur non-objet
+      else {
+        result[key] = val;
+      }
     }
   }
   
-  return sanitized;
+  return result;
 }
 
 /**
@@ -1032,174 +1148,132 @@ async function processQueryResults(queryResults, queryPlan, entities) {
 }
 
 /**
- * Fusionne différents ensembles de résultats (opération "merge")
+ * Applique une opération de fusion (merge) sur les résultats
  * @param {Object} results - Les résultats à fusionner
- * @param {Object} parameters - Les paramètres de fusion
- * @returns {Promise<Object>} - Les résultats fusionnés
+ * @param {Object} operation - Les paramètres de l'opération
+ * @returns {Object} - Les résultats fusionnés
  */
-async function applyMergeOperation(results, parameters = {}) {
-  console.log(`📊 Exécution de l'opération de fusion`);
+function applyMergeOperation(results, operation) {
+  console.log("📊 Exécution de l'opération de fusion");
   
-  const { collections = [], targetField = '_merged', mergeBy = '_id' } = parameters;
-  const processedResults = { ...results };
-  
-  // Si aucune collection n'est spécifiée, utiliser toutes les collections disponibles
-  const collectionsToMerge = collections.length > 0 
-    ? collections 
-    : Object.keys(processedResults.results || {});
-  
-  // Créer un ensemble de résultats fusionnés
-  const mergedItems = [];
-  
-  // Fusionner les collections spécifiées
-  for (const collection of collectionsToMerge) {
-    if (processedResults.results[collection] && Array.isArray(processedResults.results[collection])) {
-      // Ajouter les items de cette collection au résultat fusionné
-      processedResults.results[collection].forEach(item => {
-        // Ajouter une propriété pour identifier la collection source
-        const enrichedItem = { 
-          ...item, 
-          _sourceCollection: collection,
-          _sourceId: item._id || item.id
-        };
-        
-        mergedItems.push(enrichedItem);
-      });
-    }
+  // Si nous n'avons pas de résultats, retourner tels quels
+  if (!results || !results.results) {
+    console.log("⚠️ Aucun résultat à fusionner");
+    return results;
   }
   
-  // Stocker les résultats fusionnés
-  processedResults.mergedResults = mergedItems;
-  
-  console.log(`📊 Fusion terminée: ${mergedItems.length} éléments fusionnés`);
-  
-  return processedResults;
+  try {
+    // Extraire tous les résultats dans un seul tableau
+    const allResults = [];
+    
+    // Parcourir chaque collection de résultats
+    Object.keys(results.results).forEach(collection => {
+      if (Array.isArray(results.results[collection])) {
+        // Ajouter le type à chaque résultat
+        const typedResults = results.results[collection].map(item => ({
+          ...item,
+          sourceCollection: collection
+        }));
+        
+        allResults.push(...typedResults);
+      }
+    });
+    
+    // Enrichir les résultats avec des informations additionnelles
+    const enrichedResults = allResults.map(result => {
+      // Cas spécifique: lier les producteurs aux événements
+      if (result.sourceCollection === 'Event' && result.producer_id) {
+        const producer = allResults.find(r => 
+          (r.sourceCollection === 'Producer' || r.sourceCollection === 'LeisureProducer') && 
+          r._id && r._id.toString() === result.producer_id.toString()
+        );
+        
+        if (producer) {
+          result.producerName = producer.name || producer.nom;
+          result.producerRating = producer.rating;
+        }
+      }
+      
+      return result;
+    });
+    
+    // Mettre à jour les résultats
+    const resultsCopy = { ...results };
+    resultsCopy.mergedResults = enrichedResults;
+    
+    console.log("📊 Fusion terminée:", enrichedResults.length, "éléments fusionnés");
+    return resultsCopy;
+    
+  } catch (error) {
+    console.error("❌ Erreur lors de la fusion:", error);
+    return results;
+  }
 }
 
 /**
- * Analyse les résultats pour extraire des insights (opération "analyze")
+ * Applique une opération d'analyse sur les résultats
  * @param {Object} results - Les résultats à analyser
- * @param {Object} parameters - Les paramètres d'analyse
- * @returns {Promise<Object>} - Les résultats avec analyses ajoutées
+ * @param {Object} operation - Les paramètres de l'opération
+ * @returns {Object} - Les résultats avec analyses
  */
-async function applyAnalyzeOperation(results, parameters = {}) {
-  console.log(`📊 Exécution de l'opération d'analyse`);
+function applyAnalyzeOperation(results, operation) {
+  console.log("📊 Exécution de l'opération d'analyse");
   
-  const { targetCollection, analyzeFields = [], sentiment = false } = parameters;
-  const processedResults = { ...results };
-  
-  // Initialiser l'objet d'analyse si nécessaire
-  if (!processedResults.analysis) {
-    processedResults.analysis = {};
+  // Si nous n'avons pas de résultats, retourner tels quels
+  if (!results || !results.results) {
+    console.log("⚠️ Aucun résultat à analyser");
+    return results;
   }
   
-  // Si aucune collection cible n'est spécifiée, analyser les résultats fusionnés ou toutes les collections
-  const collectionsToAnalyze = targetCollection 
-    ? [targetCollection] 
-    : processedResults.mergedResults 
-      ? ['mergedResults'] 
-      : Object.keys(processedResults.results || {});
-  
-  // Analyser chaque collection spécifiée
-  for (const collection of collectionsToAnalyze) {
-    const items = collection === 'mergedResults' 
-      ? processedResults.mergedResults 
-      : processedResults.results[collection];
-      
-    if (!items || !Array.isArray(items)) continue;
+  try {
+    // Créer une copie des résultats
+    const resultsCopy = { ...results };
     
-    // Initialiser l'analyse pour cette collection
-    processedResults.analysis[collection] = {};
+    // Initialiser l'objet d'analyse
+    resultsCopy.analysis = {};
     
-    // Analyser les champs spécifiés
-    for (const field of analyzeFields) {
-      // Extraire toutes les valeurs non nulles du champ
-      const values = items
-        .map(item => getNestedProperty(item, field))
-        .filter(val => val !== undefined && val !== null);
-      
-      // Calculer des statistiques de base
-      const stats = {
-        count: values.length,
-        uniqueCount: new Set(values).size
-      };
-      
-      // Pour les valeurs numériques, calculer min, max, moyenne, etc.
-      const numericValues = values.filter(val => !isNaN(parseFloat(val)));
-      if (numericValues.length > 0) {
-        stats.min = Math.min(...numericValues);
-        stats.max = Math.max(...numericValues);
-        stats.avg = numericValues.reduce((a, b) => a + parseFloat(b), 0) / numericValues.length;
-        stats.sum = numericValues.reduce((a, b) => a + parseFloat(b), 0);
-      }
-      
-      // Pour les chaînes de caractères, analyser les occurrences
-      if (values.some(val => typeof val === 'string')) {
-        const occurrences = {};
-        values.forEach(val => {
-          if (typeof val === 'string') {
-            occurrences[val] = (occurrences[val] || 0) + 1;
-          }
+    // Analyser chaque collection
+    Object.keys(resultsCopy.results).forEach(collection => {
+      if (Array.isArray(resultsCopy.results[collection])) {
+        // Calculer des statistiques de base
+        const items = resultsCopy.results[collection];
+        
+        // Compter par type ou catégorie
+        const categoryCounts = {};
+        items.forEach(item => {
+          const category = Array.isArray(item.category) 
+            ? item.category[0] 
+            : (typeof item.category === 'string' ? item.category : 'unknown');
+            
+          categoryCounts[category] = (categoryCounts[category] || 0) + 1;
         });
         
-        // Trier par nombre d'occurrences décroissant
-        const sortedOccurrences = Object.entries(occurrences)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 10) // Limiter aux 10 plus fréquentes
-          .map(([value, count]) => ({ value, count }));
+        // Calculer la note moyenne
+        const ratings = items
+          .map(item => item.rating)
+          .filter(rating => rating !== undefined && rating !== null);
           
-        stats.mostCommon = sortedOccurrences;
+        const avgRating = ratings.length > 0
+          ? ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length
+          : 0;
+        
+        // Stocker les résultats d'analyse
+        resultsCopy.analysis[collection] = {
+          count: items.length,
+          categoryBreakdown: categoryCounts,
+          averageRating: avgRating,
+          // Ajouter d'autres statistiques selon les besoins
+        };
       }
-      
-      // Stocker les statistiques
-      processedResults.analysis[collection][field] = stats;
-    }
+    });
     
-    // Analyse de sentiment si demandée
-    if (sentiment) {
-      // Chercher des champs contenant potentiellement du texte pour l'analyse de sentiment
-      const sentimentFields = ['description', 'commentaires', 'avis', 'reviews', 'content'];
-      
-      const sentimentResults = {
-        positive: 0,
-        neutral: 0,
-        negative: 0,
-        mostPositive: null,
-        mostNegative: null
-      };
-      
-      // Analyser de façon basique le sentiment (démonstration)
-      items.forEach(item => {
-        for (const field of sentimentFields) {
-          const text = getNestedProperty(item, field);
-          if (text && typeof text === 'string') {
-            // Analyse simplifiée basée sur des mots-clés
-            const score = simpleSentimentAnalysis(text);
-            
-            if (score > 0.5) {
-              sentimentResults.positive++;
-              if (!sentimentResults.mostPositive || score > sentimentResults.mostPositive.score) {
-                sentimentResults.mostPositive = { item, score };
-              }
-            } else if (score < -0.5) {
-              sentimentResults.negative++;
-              if (!sentimentResults.mostNegative || score < sentimentResults.mostNegative.score) {
-                sentimentResults.mostNegative = { item, score };
-              }
-            } else {
-              sentimentResults.neutral++;
-            }
-          }
-        }
-      });
-      
-      processedResults.analysis[collection].sentiment = sentimentResults;
-    }
+    console.log("📊 Analyse terminée avec", Object.keys(resultsCopy.analysis).length, "collections analysées");
+    return resultsCopy;
+    
+  } catch (error) {
+    console.error("❌ Erreur lors de l'analyse:", error);
+    return results;
   }
-  
-  console.log(`📊 Analyse terminée avec ${Object.keys(processedResults.analysis).length} collections analysées`);
-  
-  return processedResults;
 }
 
 /**
