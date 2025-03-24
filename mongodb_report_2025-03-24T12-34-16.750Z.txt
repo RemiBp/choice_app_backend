@@ -1,0 +1,3147 @@
+# MongoDB Export - 2025-03-24T12:34:16.751Z
+
+🔄 Connexion à MongoDB Atlas...
+✅ Connexion réussie à MongoDB Atlas!
+
+## BASES DE DONNÉES DISPONIBLES:
+- Beauty_Wellness (0.08 MB)
+- Loisir&Culture (42.61 MB)
+- Nightclub (0.24 MB)
+- Restauration_Officielle (21.29 MB)
+- choice_app (48.42 MB)
+- test (0.02 MB)
+- admin (0.33 MB)
+- local (8494.73 MB)
+
+## BASE DE DONNÉES: Beauty_Wellness
+### Collections:
+- BeautyPlaces
+
+### Échantillons de la collection `BeautyPlaces` :
+#### Document 1:
+{
+  "_id": "67b79317b1274f704c3b7284",
+  "place_id": "ChIJua_9Rgt75kcRt48y-XuDuKQ",
+  "address": "10 Avenue de l'Europe, Sèvres",
+  "category": "Soins esthétiques et bien-être",
+  "gps_coordinates": {
+    "lat": 48.8227011,
+    "lng": 2.2079874
+  },
+  "maps_url": "https://www.google.com/maps/place/?q=place_id:ChIJ...",
+  "name": "Institut de beauté Bodyminute",
+  "rating": 4.1,
+  "reviews": [
+    {
+      "author_name": "Carrine Bokoma",
+      "author_url": "https://www.google.com/maps/contrib/11189320780249...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a-/ALV-UjXXy_SSU...",
+      "rating": 4,
+      "relative_time_description": "3 years ago",
+      "text": "Cool",
+      "time": 1625501219,
+      "translated": false
+    },
+    {
+      "author_name": "Muriel Amram",
+      "author_url": "https://www.google.com/maps/contrib/10909686806586...",
+      "language": "en-US",
+      "original_language": "fr",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a-/ALV-UjVnNpXjt...",
+      "rating": 5,
+      "relative_time_description": "5 months ago",
+      "text": "Body minute institute that I have been going to fo...",
+      "time": 1726932569,
+      "translated": true
+    },
+    {
+      "author_name": "Jihan Bel abbass",
+      "author_url": "https://www.google.com/maps/contrib/11179345486198...",
+      "language": "en-US",
+      "original_language": "fr",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocI0HbasOI...",
+      "rating": 5,
+      "relative_time_description": "3 months ago",
+      "text": "I just did a treatment set with Nora. This is the ...",
+      "time": 1731684308,
+      "translated": true
+    },
+    {
+      "author_name": "Corinne Provost Sedillot",
+      "author_url": "https://www.google.com/maps/contrib/11778416232879...",
+      "language": "en-US",
+      "original_language": "fr",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a-/ALV-UjVA5sQq7...",
+      "rating": 5,
+      "relative_time_description": "3 months ago",
+      "text": "Come today to catch up on nails missed elsewhere!\n...",
+      "time": 1730324726,
+      "translated": true
+    },
+    {
+      "author_name": "Christine Pantanella",
+      "author_url": "https://www.google.com/maps/contrib/10907961026042...",
+      "language": "en-US",
+      "original_language": "fr",
+      "profile_photo_url": "https://lh3.googleusercontent.com/a-/ALV-UjU-706m5...",
+      "rating": 5,
+      "relative_time_description": "4 months ago",
+      "text": "Thanks to Céline for her kindness and dynamism. I ...",
+      "time": 1728045597,
+      "translated": true
+    }
+  ],
+  "sub_category": "beauty_salon",
+  "user_ratings_total": 102,
+  "website": "https://www.bodyminute.com/instituts/sevres-3751/?..."
+}
+
+## BASE DE DONNÉES: Loisir&Culture
+### Collections:
+- Loisir_Paris_Evenements
+- Configuration
+- Loisir_Paris_Producers
+
+### Échantillons de la collection `Loisir_Paris_Evenements` :
+#### Document 1:
+{
+  "_id": "677b2bce8d64f5ede8b1ad60",
+  "intitulé": "Le malade imaginaire",
+  "catégorie": "Théâtre » Théâtre classique",
+  "détail": "Le malade imaginaire de Molière, une pièce écrite ...",
+  "lieu": "Théâtre Darius Milhaud",
+  "lien_lieu": "https://www.billetreduc.com/lieu/paris/theatre-dar...",
+  "date_debut": "17/01/2025",
+  "date_fin": "27/01/2025",
+  "horaires": [
+    {
+      "jour": "vendredi",
+      "heure": "21h"
+    },
+    {
+      "jour": "dimanche",
+      "heure": "18h"
+    }
+  ],
+  "prix_reduit": "15€50",
+  "ancien_prix": "17€00",
+  "note": "Note non disponible",
+  "image": "https://www.billetreduc.com/zg/n100/361350.jpeg",
+  "site_url": "https://www.billetreduc.com/361350/evt.htm",
+  "purchase_url": "https://www.billetreduc.com/v2/PurchaseTunnel#/Sho...",
+  "catégories_prix": [
+    {
+      "Catégorie": "Placement libre assis",
+      "Prix": [
+        "15,50 €"
+      ]
+    }
+  ],
+  "commentaires": [],
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3932156,
+      48.88589520000001
+    ]
+  }
+}
+
+#### Document 2:
+{
+  "_id": "677bb55ab06ac29bec7d162b",
+  "intitulé": "For Gods Only",
+  "catégorie": "Spectacles » Danse  à partir de 14 ans",
+  "détail": "Le chorégraphe Olivier Dubois répond une nouvelle ...",
+  "lieu": "Espace Michel Simon",
+  "lien_lieu": "https://www.billetreduc.com/lieu/noisy-le-grand/es...",
+  "date_debut": "Date début non disponible",
+  "date_fin": "Date fin non disponible",
+  "horaires": [],
+  "prix_reduit": "18€50",
+  "ancien_prix": "Ancien prix non disponible",
+  "note": "Note non disponible",
+  "image": "https://www.billetreduc.com/zg/n100/352196.jpeg",
+  "site_url": "https://www.billetreduc.com/352196/evt.htm",
+  "purchase_url": "https://www.billetreduc.com/v2/PurchaseTunnel#/Sho...",
+  "catégories_prix": [],
+  "commentaires": [
+    {
+      "titre": "-Tendu et généreux",
+      "note": "8/10",
+      "contenu": "Difficile d'être à la hauteur d'une musique de tel..."
+    },
+    {
+      "titre": "-Bof",
+      "note": "1/10",
+      "contenu": "Spectacle sans grand intérêt. J'ai beau être danse..."
+    },
+    {
+      "titre": "-Très beau",
+      "note": "Note non disponible",
+      "contenu": "J'ai eu un peu du mal á suivre l'historie, mais c'..."
+    },
+    {
+      "titre": "-Tres bien pour la sieste",
+      "note": "1/10",
+      "contenu": "Tres belle musique, belle mise en scene mais il ne..."
+    }
+  ],
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.5535366,
+      48.8459743
+    ]
+  },
+  "notes_globales": {
+    "aspects": {},
+    "emotions": [],
+    "appréciation_globale": "Pas de synthèse disponible"
+  }
+}
+
+### Échantillons de la collection `Configuration` :
+#### Document 1:
+{
+  "_id": "67d0feadb636b2b6450e5c75",
+  "type": "billetreduc_ai_status",
+  "ai_processed": false,
+  "processed_date": "2025-03-24T01:32:25.906Z"
+}
+
+### Échantillons de la collection `Loisir_Paris_Producers` :
+#### Document 1:
+{
+  "_id": "677c3b33f2ed94237735268d",
+  "lieu": "Place Saint-Germain-des-Prés",
+  "adresse": "Place Saint-Germain-des-Prés devant les 2 magots e...",
+  "description": "Site en Plein air de 50 places environ",
+  "evenements": [
+    {
+      "intitulé": "Visite-Enquête : Malédiction à Saint-Germain-des-P...",
+      "catégorie": "Loisirs » Monuments  de 5 à 80 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677bea097e700e2764ce6c62"
+    },
+    {
+      "intitulé": "Visite guidée : Les Francs-maçons, mythes et révél...",
+      "catégorie": "Loisirs » Visite guidée, Excursions  à partir de 7...",
+      "lien_evenement": "/Loisir_Paris_Evenements/67d074d31980da6dae3f8373"
+    }
+  ],
+  "lien_lieu": "https://www.billetreduc.com/11701/salle.htm",
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3331062,
+      48.854052
+    ]
+  },
+  "nombre_evenements": 2,
+  "source": "billetreduc",
+  "posts": [
+    "67da5b7ac4b4d968769ecc82"
+  ],
+  "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...",
+  "lien_google_maps": "https://www.google.com/maps/search/Place+Saint-Ger...",
+  "note_google": "4,2\n(10.103)",
+  "photos": [
+    "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD..."
+  ]
+}
+
+#### Document 2:
+{
+  "_id": "677abbd2f526a921e9ae3e9a",
+  "lieu": "Théâtre Le Lucernaire",
+  "adresse": "53 rue Notre-Dame-des-Champs, 75006 Paris",
+  "description": "Théâtre de 116 places environ",
+  "evenements": [
+    {
+      "intitulé": "Le Malade Imaginaire en La Majeur",
+      "catégorie": "Théâtre » Théâtre musical  à partir de 12 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677ab7927108f1cc0fba47b7"
+    },
+    {
+      "intitulé": "Britannicus : Musical Circus",
+      "catégorie": "Théâtre » Théâtre musical  à partir de 12 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677abb477108f1cc0fba4812"
+    },
+    {
+      "intitulé": "Le Hasard Merveilleux",
+      "catégorie": "Théâtre » Théâtre contemporain  à partir de 12 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677abd567108f1cc0fba4844"
+    },
+    {
+      "intitulé": "Tant pis c'est moi",
+      "catégorie": "Théâtre » Théâtre contemporain  à partir de 12 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677b1b908d64f5ede8b1abbe"
+    },
+    {
+      "intitulé": "Le barbier de Séville",
+      "catégorie": "Théâtre » Théâtre classique  à partir de 12 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677b1ed48d64f5ede8b1ac10"
+    },
+    {
+      "intitulé": "24h de la vie d'une femme",
+      "catégorie": "Théâtre » Théâtre contemporain  à partir de 12 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677b21338d64f5ede8b1ac4f"
+    },
+    {
+      "intitulé": "Nadia Roz dans La Fille du 7ème",
+      "catégorie": "Théâtre » Seul(e) en Scène  à partir de 8 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677b21598d64f5ede8b1ac52"
+    },
+    {
+      "intitulé": "Le Bourgeois Gentilhomme",
+      "catégorie": "Théâtre » Théâtre musical  à partir de 7 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677b21648d64f5ede8b1ac53"
+    },
+    {
+      "intitulé": "La double inconstance",
+      "catégorie": "Théâtre » Théâtre classique",
+      "lien_evenement": "/Loisir_Paris_Evenements/677b217b8d64f5ede8b1ac55"
+    },
+    {
+      "intitulé": "Lumière !",
+      "catégorie": "Théâtre » Théâtre contemporain  à partir de 12 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677b219b8d64f5ede8b1ac58"
+    },
+    {
+      "intitulé": "Pour un oui ou pour un non",
+      "catégorie": "Théâtre » Théâtre contemporain  à partir de 12 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677b21a38d64f5ede8b1ac59"
+    },
+    {
+      "intitulé": "Le Cinéma de Thomas Croisière, Voyage en comédie",
+      "catégorie": "Spectacles » One man show",
+      "lien_evenement": "/Loisir_Paris_Evenements/677b9b82b06ac29bec7d1377"
+    },
+    {
+      "intitulé": "Come Bach",
+      "catégorie": "Spectacles » Spectacle Musical  à 12 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677ba981b06ac29bec7d14e5"
+    },
+    {
+      "intitulé": "Les Divalala dans Choubidouwa !",
+      "catégorie": "Spectacles Enfants » Spectacle Musical  à 3 ans",
+      "lien_evenement": "/Loisir_Paris_Evenements/677bef8a7e700e2764ce6cf8"
+    },
+    {
+      "intitulé": "L'Apprenti Sorcier",
+      "catégorie": "Spectacles",
+      "lien_evenement": "/Loisir_Paris_Evenements/677bf1cb7e700e2764ce6d2b"
+    },
+    {
+      "intitulé": "Augustin, Pirate des Indes",
+      "catégorie": "Spectacles",
+      "lien_evenement": "/Loisir_Paris_Evenements/677bf44a7e700e2764ce6d68"
+    },
+    {
+      "intitulé": "La belle et la bête",
+      "catégorie": "Spectacles Enfants » Théâtre Enfant » Conte  à par...",
+      "lien_evenement": "/Loisir_Paris_Evenements/677bf4817e700e2764ce6d6d"
+    },
+    {
+      "intitulé": "Andersen !",
+      "catégorie": "Spectacles",
+      "lien_evenement": "/Loisir_Paris_Evenements/67d077ee1980da6dae3f83a2"
+    }
+  ],
+  "lien_lieu": "https://www.billetreduc.com/lieu/paris/theatre-le-...",
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.330485,
+      48.8442795
+    ]
+  },
+  "nombre_evenements": 18,
+  "source": "billetreduc",
+  "posts": [
+    "67d8fce6b2f98201f8fd92ed"
+  ],
+  "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...",
+  "lien_google_maps": "https://www.google.com/maps/search/Théâtre+Le+Luce...",
+  "note_google": "4,5\n(797)",
+  "photos": [
+    "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD..."
+  ]
+}
+
+## BASE DE DONNÉES: Nightclub
+### Collections:
+- Nightclub_Paris_Producers
+- Nightclub_Paris_Producers2
+
+### Échantillons de la collection `Nightclub_Paris_Producers` :
+#### Document 1:
+{
+  "_id": "677be041c2cc76f9028105b0",
+  "name": "Café Oz Châtelet Paris 7",
+  "note": 6.6,
+  "categories": [
+    "Bars sportifs,",
+    "Pubs,",
+    "Boîtes de nuit"
+  ],
+  "comments": [
+    "racist Bouncer. don't go. they don't want your mon...",
+    "My friend and I had a terrible experience here.  W...",
+    "I really liked it even if that wasnt that good in ...",
+    "Terrible experience. Bouncer does not let in Ameri...",
+    "A local recommended café oz to us, so we thought w...",
+    "Tried this bar out on a Saturday where there is 10...",
+    "This bar gets surprisingly rammed at night. There ...",
+    "I came for the dancing. Whoever the DJ is tonight ...",
+    "1.75 starsIf I could spell that sound you make whe...",
+    "Endroit extrêmement sale, videurs racistes et agre...",
+    "Loved this place so much when I visited Paris that...",
+    "It's big, it's crowded, and there's a crocodile on...",
+    "I generally try to avoid Ozzie bars because they'r...",
+    "The staff are unprofessional and rude. If you're n...",
+    "A great place to dance all night long ! The good t...",
+    "Cool!!L'endroit est tres sympa! L'ambiance est jeu...",
+    "Bar located in the lively Châtelet les Halles neig...",
+    "Aggressive bouncers, 10€ entry fees, and too crowd..."
+  ],
+  "days_and_hours": [
+    {
+      "day": "Tue",
+      "time": "5:00 PM - 5:00 AM (le jour suivant)"
+    },
+    {
+      "day": "Wed",
+      "time": "5:00 PM - 3:00 AM (le jour suivant)"
+    },
+    {
+      "day": "Thu",
+      "time": "5:00 PM - 5:00 AM (le jour suivant)"
+    },
+    {
+      "day": "Fri",
+      "time": "5:00 PM - 5:00 AM (le jour suivant)"
+    },
+    {
+      "day": "Sat",
+      "time": "5:00 PM - 5:00 AM (le jour suivant)"
+    },
+    {
+      "day": "Sun",
+      "time": "5:00 PM - 5:00 AM (le jour suivant)"
+    }
+  ],
+  "description": "Bar Australien, Dj's & Concerts Live, Sports sur é...",
+  "website_url": "http://www.cafe-oz.com/chatelet",
+  "address": "18 rue Saint-Denis 75001 Paris France",
+  "images": [
+    "https://s3-media0.fl.yelpcdn.com/bphoto/1QbzDkCF1Q...",
+    "https://s3-media0.fl.yelpcdn.com/bphoto/i43S4-m-oB...",
+    "https://s3-media0.fl.yelpcdn.com/bphoto/bUD-YcA3_4...",
+    "https://s3-media0.fl.yelpcdn.com/bphoto/VpzsyclxT1...",
+    "https://s3-media0.fl.yelpcdn.com/bphoto/O2OFC2kBTC...",
+    "https://s3-media0.fl.yelpcdn.com/bphoto/XwdDzJYDeD..."
+  ],
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3479609,
+      48.8593519
+    ]
+  }
+}
+
+### Échantillons de la collection `Nightclub_Paris_Producers2` :
+#### Document 1:
+{
+  "_id": "67a091d734cba9dcea757b32",
+  "site_url": "https://shotgun.live/fr/events/nexus-luciid-kloud-...",
+  "ancien_prix": "",
+  "catégorie": "hard",
+  "catégories_prix": [],
+  "commentaires": [],
+  "détail": "░░░░░░░ LINE-UP ░░░░░░\n🌹 LUCIID\n🌹 KLOUD\n🌹 CEEJA...",
+  "horaires": [
+    {
+      "jour": "ven",
+      "heure": "23:00 - 07:00"
+    }
+  ],
+  "image": "https://res.cloudinary.com/shotgun/image/upload/c_...",
+  "intitulé": "Nexus X Agony : Luciid | Kloud | Ceejay | Hoehenan...",
+  "lien_lieu": "https://shotgun.live/fr/venues/nexus",
+  "lieu": "Nexus",
+  "lineup": [
+    {
+      "nom": "Luciid",
+      "image": "https://res.cloudinary.com/shotgun/image/upload/c_..."
+    },
+    {
+      "nom": "Kloud",
+      "image": "https://res.cloudinary.com/shotgun/image/upload/c_..."
+    },
+    {
+      "nom": "CEEJAY",
+      "image": "https://res.cloudinary.com/shotgun/image/upload/c_..."
+    },
+    {
+      "nom": "HOEHENANGST",
+      "image": "https://res.cloudinary.com/shotgun/image/upload/c_..."
+    }
+  ],
+  "location": {
+    "adresse": "100 Av. du Général Leclerc, 93500 Pantin, France"
+  },
+  "note": "Note non disponible",
+  "prix_reduit": "Prix non disponible",
+  "prochaines_dates": "ven 28 févr.",
+  "purchase_url": "https://shotgun.live/fr/events/nexus-luciid-kloud-..."
+}
+
+## BASE DE DONNÉES: Restauration_Officielle
+### Collections:
+- producers
+- Restauration_Producers
+- chat_messages
+- users
+- Posts
+
+### Échantillons de la collection `producers` :
+#### Document 1:
+{
+  "_id": "6775a9c4e467e839284a1786",
+  "place_id": "ChIJSZUxswhz5kcRDGp2svvTog0",
+  "name": "SARAY LEBANESE KITCHEN",
+  "verified": false,
+  "photo": null,
+  "description": "",
+  "address": "15 Rue de Wattignies, 75012 Paris, France",
+  "gps_coordinates": {
+    "type": "Point",
+    "coordinates": [
+      2.3933924,
+      48.8366731
+    ]
+  },
+  "category": [
+    "restaurant"
+  ],
+  "opening_hours": [
+    "Monday: 11:00 AM – 11:00 PM",
+    "Tuesday: 11:00 AM – 11:00 PM",
+    "Wednesday: 11:00 AM – 11:00 PM",
+    "Thursday: 11:00 AM – 11:00 PM",
+    "Friday: 11:00 AM – 11:00 PM",
+    "Saturday: 11:00 AM – 11:00 PM",
+    "Sunday: 11:00 AM – 11:00 PM"
+  ],
+  "phone_number": "06 77 32 06 65",
+  "international_phone_number": "+33 6 77 32 06 65",
+  "maps_url": "https://www.google.com/maps/place/?q=place_id:ChIJ...",
+  "website": null,
+  "business_status": "OPERATIONAL",
+  "price_level": null,
+  "rating": 4.3,
+  "user_ratings_total": 61,
+  "serves_vegetarian_food": "Non spécifié",
+  "service_options": {
+    "dine_in": "Disponible",
+    "takeout": "Disponible",
+    "delivery": "Disponible"
+  },
+  "popular_times": [
+    {
+      "name": "Monday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        25,
+        62,
+        50,
+        68,
+        31,
+        31,
+        37,
+        18,
+        6,
+        6,
+        18,
+        18,
+        0
+      ]
+    },
+    {
+      "name": "Tuesday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        75,
+        75,
+        68,
+        62,
+        37,
+        37,
+        37,
+        43,
+        31,
+        12,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Wednesday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        12,
+        18,
+        25,
+        37,
+        31,
+        50,
+        25,
+        25,
+        43,
+        25,
+        31,
+        50,
+        0
+      ]
+    },
+    {
+      "name": "Thursday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        25,
+        43,
+        62,
+        31,
+        12,
+        6,
+        18,
+        18,
+        31,
+        50,
+        25,
+        18,
+        0
+      ]
+    },
+    {
+      "name": "Friday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        56,
+        62,
+        75,
+        37,
+        18,
+        12,
+        6,
+        0,
+        0,
+        25,
+        43,
+        100,
+        0
+      ]
+    },
+    {
+      "name": "Saturday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        31,
+        43,
+        50,
+        81,
+        81,
+        43,
+        12,
+        0,
+        0,
+        0,
+        0,
+        12,
+        0
+      ]
+    },
+    {
+      "name": "Sunday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        81,
+        50,
+        43,
+        12,
+        6,
+        6,
+        12,
+        31,
+        18,
+        6,
+        6,
+        18,
+        0
+      ]
+    }
+  ],
+  "notes_globales": {},
+  "abonnés": 0,
+  "photos": [
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m...",
+    "https://maps.googleapis.com/maps/api/place/photo?m..."
+  ],
+  "menu": [],
+  "__v": 0,
+  "structured_data": {},
+  "choice": 0
+}
+
+### Échantillons de la collection `Restauration_Producers` :
+Aucun document disponible.
+
+### Échantillons de la collection `chat_messages` :
+Aucun document disponible.
+
+### Échantillons de la collection `users` :
+Aucun document disponible.
+
+### Échantillons de la collection `Posts` :
+Aucun document disponible.
+
+## BASE DE DONNÉES: choice_app
+### Collections:
+- users
+- chat_messages
+- ai_queries
+- Posts
+- posts
+- Users
+
+### Échantillons de la collection `users` :
+Aucun document disponible.
+
+### Échantillons de la collection `chat_messages` :
+Aucun document disponible.
+
+### Échantillons de la collection `ai_queries` :
+#### Document 1:
+{
+  "_id": "67cc3e93de2acfeec6a30635",
+  "userId": "677db5b562dbd1a04ed621c8",
+  "producerId": null,
+  "query": "Recommande-moi des événements ou restaurants qui p...",
+  "intent": "recommendation",
+  "entities": [],
+  "mongoQuery": [
+    {
+      "collection": "User",
+      "query": {
+        "_id": "677db5b562dbd1a04ed621c8"
+      },
+      "projection": {
+        "comments": 1
+      },
+      "limit": 1
+    },
+    {
+      "collection": "Producer",
+      "query": {
+        "_id": {
+          "$in": []
+        }
+      },
+      "projection": {
+        "name": 1,
+        "rating": 1,
+        "category": 1,
+        "description": 1
+      },
+      "limit": 20,
+      "sort": {
+        "rating": -1
+      }
+    },
+    {
+      "collection": "Event",
+      "query": {
+        "category": {
+          "$in": []
+        }
+      },
+      "projection": {
+        "intitulé": 1,
+        "lieu": 1,
+        "date_debut": 1,
+        "description": 1
+      },
+      "limit": 20,
+      "sort": {
+        "date_debut": 1
+      }
+    }
+  ],
+  "resultCount": 1,
+  "executionTimeMs": 8521,
+  "response": "Je suis désolé, mais il semble qu'il n'y ait actue...",
+  "timestamp": "2025-03-08T12:56:51.315Z",
+  "__v": 0
+}
+
+#### Document 2:
+{
+  "_id": "67cec126de2acfeec6a312ff",
+  "userId": "677db5b562dbd1a04ed621c8",
+  "producerId": null,
+  "query": "Recommande-moi des événements ou restaurants qui p...",
+  "intent": "recommendation",
+  "entities": [],
+  "mongoQuery": [
+    {
+      "collection": "User",
+      "query": {
+        "_id": "677db5b562dbd1a04ed621c8"
+      },
+      "projection": {
+        "comments": 1
+      },
+      "limit": 1
+    },
+    {
+      "collection": "Producer",
+      "query": {
+        "rating": {
+          "$gte": 4
+        },
+        "price_level": {
+          "$lte": 2
+        },
+        "category": {
+          "$in": [
+            "gastronomie",
+            "café"
+          ]
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "name": 1,
+        "address": 1,
+        "rating": 1
+      },
+      "limit": 20,
+      "sort": {
+        "rating": -1
+      }
+    },
+    {
+      "collection": "Event",
+      "query": {
+        "date_debut": {
+          "$gte": "<date actuelle>"
+        },
+        "category": {
+          "$in": [
+            "musique",
+            "exposition"
+          ]
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "intitulé/nom": 1,
+        "lieu": 1,
+        "date_debut": 1
+      },
+      "limit": 20,
+      "sort": {
+        "date_debut": 1
+      }
+    }
+  ],
+  "resultCount": 1,
+  "executionTimeMs": 8300,
+  "response": "Il semble que je n'ai malheureusement pas d'inform...",
+  "timestamp": "2025-03-10T10:38:30.953Z",
+  "__v": 0
+}
+
+### Échantillons de la collection `Posts` :
+#### Document 1:
+{
+  "_id": "67d0f043f7dbe8469b8ef70d",
+  "content": "🎭 Producteur sans nom présente: Vanessa Wagner : ...",
+  "time_posted": "2025-03-12T02:24:03.970Z",
+  "is_automated": true,
+  "author": {
+    "id": "677c38fbf2ed942377352535",
+    "name": "Producteur",
+    "avatar": "/defaultAppAvatar.png"
+  },
+  "likes": 0,
+  "comments": 0,
+  "media": [
+    {
+      "type": "image",
+      "url": "https://www.billetreduc.com/zg/n100/357516.jpeg",
+      "width": 800,
+      "height": 600,
+      "is_event": true
+    }
+  ],
+  "isProducerPost": true,
+  "isLeisureProducer": true,
+  "producer_id": "677c38fbf2ed942377352535",
+  "referenced_event_id": "677bc459b06ac29bec7d17f3",
+  "__v": 0
+}
+
+#### Document 2:
+{
+  "_id": "67e0dedac0b97dd386716405",
+  "content": "🎭 Producteur sans nom présente: Cyrano à partir d...",
+  "time_posted": "2025-03-24T04:26:02.349Z",
+  "is_automated": true,
+  "author": {
+    "id": "677c38a7f2ed942377352505",
+    "name": "Producteur",
+    "avatar": "/defaultAppAvatar.png"
+  },
+  "likes": 0,
+  "comments": 0,
+  "media": [
+    {
+      "type": "image",
+      "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...",
+      "width": 800,
+      "height": 600
+    },
+    {
+      "type": "image",
+      "url": "https://www.billetreduc.com/zg/n100/365799.jpeg",
+      "width": 800,
+      "height": 600,
+      "is_event": true
+    }
+  ],
+  "isProducerPost": true,
+  "isLeisureProducer": true,
+  "producer_id": "677c38a7f2ed942377352505",
+  "referenced_event_id": "677b334c8d64f5ede8b1ae25",
+  "__v": 0
+}
+
+### Échantillons de la collection `posts` :
+Aucun document disponible.
+
+### Échantillons de la collection `Users` :
+#### Document 1:
+{
+  "_id": "67df4b5c9378791ae0a1048c",
+  "name": "Sarah Morin",
+  "email": "sarahmorin@orange.fr",
+  "password": "$2b$12$NBGFfGWYkalwDNv6D8yzHeRlBYHxhq2B/nUbfrjZ5h/...",
+  "gender": "female",
+  "age": 25,
+  "photo_url": "https://api.dicebear.com/6.x/adventurer/png?seed=5...",
+  "bio": "",
+  "location": {
+    "latitude": 48.835182466612025,
+    "longitude": 2.3884465350325716
+  },
+  "preferred_content_format": {
+    "text": 0.85,
+    "image": 0.48,
+    "video": 0.32
+  },
+  "liked_tags": [
+    "musique classique",
+    "sushi",
+    "fusion",
+    "théâtre",
+    "libanais",
+    "spectacle musical",
+    "thaïlandais",
+    "rooftop",
+    "ballet",
+    "musée",
+    "entre amis",
+    "pizzeria",
+    "pâtisserie"
+  ],
+  "trusted_circle": [
+    "67df46c49378791ae0a0f6e3",
+    "67df49179378791ae0a0fddf",
+    "67df46d79378791ae0a0f71a",
+    "67df4a219378791ae0a100fb",
+    "67df49469378791ae0a0fe6c",
+    "67df48149378791ae0a0fad9",
+    "67df47039378791ae0a0f7a2",
+    "67df49259378791ae0a0fe08",
+    "67df490b9378791ae0a0fdbd",
+    "67df4b779378791ae0a104dd",
+    "67df45db9378791ae0a0f41e",
+    "67df45dd9378791ae0a0f424",
+    "67df45e09378791ae0a0f42f",
+    "67df45e99378791ae0a0f448",
+    "67df45ed9378791ae0a0f457",
+    "67df45f79378791ae0a0f474",
+    "67df45f89378791ae0a0f478",
+    "67df45fa9378791ae0a0f47f",
+    "67df46029378791ae0a0f497",
+    "67df460c9378791ae0a0f4b6",
+    "67df46129378791ae0a0f4c8",
+    "67df461f9378791ae0a0f4f0",
+    "67df462c9378791ae0a0f518",
+    "67df462f9378791ae0a0f520",
+    "67df46319378791ae0a0f526",
+    "67df46369378791ae0a0f536",
+    "67df46379378791ae0a0f538",
+    "67df46399378791ae0a0f53e",
+    "67df463e9378791ae0a0f54e",
+    "67df46469378791ae0a0f566",
+    "67df464a9378791ae0a0f574",
+    "67df464c9378791ae0a0f578",
+    "67df46509378791ae0a0f585",
+    "67df46509378791ae0a0f586",
+    "67df46519378791ae0a0f589",
+    "67df46559378791ae0a0f594",
+    "67df46569378791ae0a0f598",
+    "67df46589378791ae0a0f59c",
+    "67df465c9378791ae0a0f5aa",
+    "67df46639378791ae0a0f5be",
+    "67df46689378791ae0a0f5ce",
+    "67df466e9378791ae0a0f5df",
+    "67df46739378791ae0a0f5ee",
+    "67df46769378791ae0a0f5f7",
+    "67df46769378791ae0a0f5f8",
+    "67df46779378791ae0a0f5fc",
+    "67df467d9378791ae0a0f60d",
+    "67df468a9378791ae0a0f635",
+    "67df469c9378791ae0a0f66b",
+    "67df46a59378791ae0a0f686",
+    "67df46a59378791ae0a0f687",
+    "67df46a69378791ae0a0f688",
+    "67df46b69378791ae0a0f6b9",
+    "67df46b89378791ae0a0f6be",
+    "67df46cc9378791ae0a0f6fa",
+    "67df46d29378791ae0a0f70b",
+    "67df46d39378791ae0a0f70f",
+    "67df46d69378791ae0a0f718",
+    "67df46dd9378791ae0a0f72e",
+    "67df46e49378791ae0a0f744",
+    "67df46e59378791ae0a0f746",
+    "67df46e69378791ae0a0f74a",
+    "67df46ea9378791ae0a0f754",
+    "67df46ec9378791ae0a0f75b",
+    "67df46f09378791ae0a0f767",
+    "67df46fb9378791ae0a0f78a",
+    "67df46fe9378791ae0a0f793",
+    "67df47009378791ae0a0f799",
+    "67df47019378791ae0a0f79c",
+    "67df47079378791ae0a0f7af",
+    "67df47099378791ae0a0f7b5",
+    "67df47159378791ae0a0f7d8",
+    "67df47199378791ae0a0f7e5",
+    "67df471a9378791ae0a0f7e7",
+    "67df471a9378791ae0a0f7e8",
+    "67df472a9378791ae0a0f81a",
+    "67df472c9378791ae0a0f81f",
+    "67df47359378791ae0a0f839",
+    "67df47389378791ae0a0f843",
+    "67df473b9378791ae0a0f84c",
+    "67df47419378791ae0a0f85d",
+    "67df474b9378791ae0a0f87c",
+    "67df47519378791ae0a0f88f",
+    "67df47559378791ae0a0f898",
+    "67df47579378791ae0a0f89d",
+    "67df47629378791ae0a0f8c1",
+    "67df47659378791ae0a0f8c9",
+    "67df47719378791ae0a0f8ed",
+    "67df47809378791ae0a0f91c",
+    "67df47819378791ae0a0f91f",
+    "67df47849378791ae0a0f927",
+    "67df47869378791ae0a0f92b",
+    "67df478a9378791ae0a0f939",
+    "67df478e9378791ae0a0f945",
+    "67df47909378791ae0a0f949",
+    "67df47969378791ae0a0f95d",
+    "67df47979378791ae0a0f95e",
+    "67df479a9378791ae0a0f966",
+    "67df47a39378791ae0a0f984",
+    "67df47a99378791ae0a0f995",
+    "67df47ad9378791ae0a0f9a2",
+    "67df47ae9378791ae0a0f9a4",
+    "67df47b09378791ae0a0f9ab",
+    "67df47b89378791ae0a0f9c4",
+    "67df47bd9378791ae0a0f9d1",
+    "67df47bf9378791ae0a0f9d8",
+    "67df47c59378791ae0a0f9e8",
+    "67df47c69378791ae0a0f9ec",
+    "67df47c89378791ae0a0f9f2",
+    "67df47ca9378791ae0a0f9f8",
+    "67df47ce9378791ae0a0fa06",
+    "67df47d69378791ae0a0fa1c",
+    "67df47db9378791ae0a0fa2d",
+    "67df47e69378791ae0a0fa4e",
+    "67df47ee9378791ae0a0fa65",
+    "67df47ee9378791ae0a0fa66",
+    "67df47f09378791ae0a0fa6d",
+    "67df47f39378791ae0a0fa75",
+    "67df47f49378791ae0a0fa79",
+    "67df47f59378791ae0a0fa7a",
+    "67df47fc9378791ae0a0fa8f",
+    "67df48039378791ae0a0faa5",
+    "67df48059378791ae0a0faaa",
+    "67df480a9378791ae0a0fab9",
+    "67df480d9378791ae0a0fac4",
+    "67df48129378791ae0a0fad3",
+    "67df48169378791ae0a0fadf",
+    "67df48179378791ae0a0fae0",
+    "67df48189378791ae0a0fae2",
+    "67df48189378791ae0a0fae3",
+    "67df48199378791ae0a0fae5",
+    "67df48249378791ae0a0fb08",
+    "67df48259378791ae0a0fb0b",
+    "67df482a9378791ae0a0fb1a",
+    "67df482b9378791ae0a0fb1d",
+    "67df482e9378791ae0a0fb26",
+    "67df48329378791ae0a0fb32",
+    "67df48369378791ae0a0fb3d",
+    "67df483a9378791ae0a0fb4a",
+    "67df483c9378791ae0a0fb50",
+    "67df48479378791ae0a0fb71",
+    "67df484d9378791ae0a0fb81",
+    "67df48569378791ae0a0fb9c",
+    "67df48579378791ae0a0fba1",
+    "67df48599378791ae0a0fba6",
+    "67df485c9378791ae0a0fbb1",
+    "67df48649378791ae0a0fbc7",
+    "67df48649378791ae0a0fbc9",
+    "67df486f9378791ae0a0fbe9",
+    "67df48729378791ae0a0fbf1",
+    "67df48749378791ae0a0fbf8",
+    "67df487f9378791ae0a0fc19",
+    "67df48839378791ae0a0fc24",
+    "67df488b9378791ae0a0fc3d",
+    "67df488c9378791ae0a0fc42",
+    "67df489f9378791ae0a0fc79",
+    "67df489f9378791ae0a0fc7a",
+    "67df48a29378791ae0a0fc82",
+    "67df48a89378791ae0a0fc94",
+    "67df48ac9378791ae0a0fca0",
+    "67df48b89378791ae0a0fcc5",
+    "67df48c19378791ae0a0fcdf",
+    "67df48c79378791ae0a0fcf2",
+    "67df48ca9378791ae0a0fcfc",
+    "67df48d59378791ae0a0fd1c",
+    "67df48d99378791ae0a0fd28",
+    "67df48da9378791ae0a0fd29",
+    "67df48da9378791ae0a0fd2b",
+    "67df48dc9378791ae0a0fd2f",
+    "67df48eb9378791ae0a0fd5a",
+    "67df48f09378791ae0a0fd6c",
+    "67df48f29378791ae0a0fd72",
+    "67df48f99378791ae0a0fd87",
+    "67df48fd9378791ae0a0fd91",
+    "67df491b9378791ae0a0fdea",
+    "67df49219378791ae0a0fdfd",
+    "67df49249378791ae0a0fe05",
+    "67df49269378791ae0a0fe0b",
+    "67df49289378791ae0a0fe13",
+    "67df49429378791ae0a0fe62",
+    "67df49489378791ae0a0fe72",
+    "67df494d9378791ae0a0fe81",
+    "67df494e9378791ae0a0fe83",
+    "67df494e9378791ae0a0fe85",
+    "67df49509378791ae0a0fe89",
+    "67df49509378791ae0a0fe8a",
+    "67df49519378791ae0a0fe8e",
+    "67df495b9378791ae0a0fea9",
+    "67df49649378791ae0a0fec5",
+    "67df49659378791ae0a0fec8",
+    "67df496d9378791ae0a0fedf",
+    "67df49719378791ae0a0feeb",
+    "67df49719378791ae0a0feed",
+    "67df49789378791ae0a0ff00",
+    "67df497b9378791ae0a0ff0c",
+    "67df497f9378791ae0a0ff16",
+    "67df49819378791ae0a0ff1d",
+    "67df49869378791ae0a0ff2c",
+    "67df498a9378791ae0a0ff38",
+    "67df49b29378791ae0a0ffae",
+    "67df49b39378791ae0a0ffb2",
+    "67df49bc9378791ae0a0ffcc",
+    "67df49c79378791ae0a0ffef",
+    "67df49ca9378791ae0a0fff6",
+    "67df49d79378791ae0a1001c",
+    "67df49d79378791ae0a1001d",
+    "67df49e09378791ae0a10038",
+    "67df49f59378791ae0a10076",
+    "67df4a029378791ae0a1009d",
+    "67df4a0b9378791ae0a100ba",
+    "67df4a0e9378791ae0a100c1",
+    "67df4a0f9378791ae0a100c6",
+    "67df4a189378791ae0a100df",
+    "67df4a1a9378791ae0a100e6",
+    "67df4a249378791ae0a10103",
+    "67df4a329378791ae0a1012b",
+    "67df4a3c9378791ae0a10148",
+    "67df4a469378791ae0a10165",
+    "67df4a499378791ae0a10170",
+    "67df4a589378791ae0a1019c",
+    "67df4a5b9378791ae0a101a4",
+    "67df4a5c9378791ae0a101a5",
+    "67df4a5e9378791ae0a101ac",
+    "67df4a629378791ae0a101b9",
+    "67df4a689378791ae0a101cb",
+    "67df4a6c9378791ae0a101d5",
+    "67df4a6e9378791ae0a101dd",
+    "67df4a729378791ae0a101e7",
+    "67df4a739378791ae0a101eb",
+    "67df4a789378791ae0a101f7",
+    "67df4a799378791ae0a101fb",
+    "67df4a7a9378791ae0a101fe",
+    "67df4a7b9378791ae0a10200",
+    "67df4a839378791ae0a10215",
+    "67df4a849378791ae0a10219",
+    "67df4a8b9378791ae0a1022e",
+    "67df4a8e9378791ae0a10239",
+    "67df4a8f9378791ae0a1023c",
+    "67df4a989378791ae0a10255",
+    "67df4a9c9378791ae0a10260",
+    "67df4a9c9378791ae0a10262",
+    "67df4aa49378791ae0a10279",
+    "67df4aa89378791ae0a10284",
+    "67df4aae9378791ae0a10296",
+    "67df4ab49378791ae0a102a8",
+    "67df4ab59378791ae0a102aa",
+    "67df4ab79378791ae0a102b1",
+    "67df4ab89378791ae0a102b4",
+    "67df4abb9378791ae0a102bd",
+    "67df4ac09378791ae0a102cb",
+    "67df4ac19378791ae0a102ce",
+    "67df4ac89378791ae0a102e3",
+    "67df4ad49378791ae0a10304",
+    "67df4adc9378791ae0a1031d",
+    "67df4add9378791ae0a1031f",
+    "67df4add9378791ae0a10321",
+    "67df4adf9378791ae0a10326",
+    "67df4ae09378791ae0a10327",
+    "67df4ae59378791ae0a10337",
+    "67df4aeb9378791ae0a1034b",
+    "67df4aef9378791ae0a10354",
+    "67df4af09378791ae0a10357",
+    "67df4af49378791ae0a10362",
+    "67df4af69378791ae0a1036a",
+    "67df4af89378791ae0a10370",
+    "67df4af99378791ae0a10371",
+    "67df4aff9378791ae0a10381",
+    "67df4aff9378791ae0a10383",
+    "67df4b0d9378791ae0a103aa",
+    "67df4b0e9378791ae0a103ae",
+    "67df4b0f9378791ae0a103b2",
+    "67df4b139378791ae0a103bd",
+    "67df4b169378791ae0a103c5",
+    "67df4b179378791ae0a103ca",
+    "67df4b1e9378791ae0a103dd",
+    "67df4b289378791ae0a103fc",
+    "67df4b2b9378791ae0a10405",
+    "67df4b2f9378791ae0a10410",
+    "67df4b399378791ae0a1042b",
+    "67df4b419378791ae0a10443",
+    "67df4b419378791ae0a10444",
+    "67df4b459378791ae0a1044d",
+    "67df4b599378791ae0a10485",
+    "67df4b5b9378791ae0a1048a",
+    "67df4b7d9378791ae0a104eb",
+    "67df4b8a9378791ae0a10510",
+    "67df4b8c9378791ae0a10515",
+    "67df4b8e9378791ae0a1051b",
+    "67df4b8f9378791ae0a1051d",
+    "67df4b939378791ae0a10528",
+    "67df4b9e9378791ae0a10548",
+    "67df4ba29378791ae0a10554",
+    "67df4ba39378791ae0a10557",
+    "67df4ba49378791ae0a10558",
+    "67df4ba49378791ae0a1055a",
+    "67df4ba69378791ae0a1055f",
+    "67df4ba89378791ae0a10564",
+    "67df4ba99378791ae0a10568",
+    "67df4bac9378791ae0a10570",
+    "67df4baf9378791ae0a10578",
+    "67df4bbb9378791ae0a1059a",
+    "67df4bc29378791ae0a105ae",
+    "67df4bc69378791ae0a105bc",
+    "67df4bc69378791ae0a105bd",
+    "67df4bca9378791ae0a105c8",
+    "67df4bcd9378791ae0a105d0",
+    "67df4bd99378791ae0a105f1",
+    "67df4be59378791ae0a10613",
+    "67df4be99378791ae0a10620",
+    "67df4bea9378791ae0a10622",
+    "67df4beb9378791ae0a10624",
+    "67df4bf59378791ae0a10642",
+    "67df4bfa9378791ae0a10652",
+    "67df4bfd9378791ae0a1065a",
+    "67df4bff9378791ae0a10661",
+    "67df4c009378791ae0a10662",
+    "67df4c069378791ae0a10674",
+    "67df4c0a9378791ae0a1067f",
+    "67df4c109378791ae0a10693",
+    "67df4c149378791ae0a1069c",
+    "67df4c1a9378791ae0a106ae",
+    "67df4c1b9378791ae0a106b2",
+    "67df4c249378791ae0a106cd",
+    "67df4c259378791ae0a106ce",
+    "67df4c259378791ae0a106cf",
+    "67df4c2b9378791ae0a106e0",
+    "67df4c2e9378791ae0a106ea",
+    "67df4c359378791ae0a106fe"
+  ],
+  "sector_preferences": {
+    "food": {
+      "avg_spending": 33,
+      "vegan": true,
+      "carbon_aware": true
+    },
+    "culture": {
+      "preferred_styles": [
+        "street_art",
+        "photography",
+        "impressionism"
+      ],
+      "event_types": [
+        "concert",
+        "dance"
+      ]
+    }
+  },
+  "interaction_metrics": {
+    "total_interactions": 342,
+    "comments_given": 118,
+    "choices_given": 93,
+    "shares_given": 41
+  },
+  "consumption_behavior": {
+    "varies_preferences": true,
+    "tries_new_content": true
+  },
+  "frequent_locations": [
+    {
+      "id": "675adf65da75cfe37235ca07",
+      "name": "Seventeen",
+      "type": "restaurant",
+      "coordinates": [
+        2.227809199999999,
+        48.8211223
+      ],
+      "address": "17 Rue Marcel Allégot, 92190 Meudon, France",
+      "visits": [
+        {
+          "date": "2025-03-23T00:00:55.217400",
+          "duration_minutes": 137
+        },
+        {
+          "date": "2025-02-25T00:00:55.217419",
+          "duration_minutes": 69
+        }
+      ]
+    },
+    {
+      "id": "677c385df2ed9423773524d8",
+      "name": "Auditorium du Théâtre de Longjumeau",
+      "type": "leisure",
+      "coordinates": [
+        2.2995448,
+        48.6951111
+      ],
+      "address": "Rue de la Peupleraie, 91160 Longjumeau",
+      "visits": [
+        {
+          "date": "2025-03-19T00:00:55.217441",
+          "duration_minutes": 222
+        },
+        {
+          "date": "2025-03-03T00:00:55.217450",
+          "duration_minutes": 95
+        },
+        {
+          "date": "2025-03-19T00:00:55.217458",
+          "duration_minutes": 60
+        }
+      ]
+    },
+    {
+      "id": "677ab78ef526a921e9ae3e7d",
+      "name": "Beaumont Palace",
+      "type": "leisure",
+      "coordinates": [
+        2.2834984,
+        49.1415938
+      ],
+      "address": "6 avenue anatole France, 95260 Beaumont sur oise",
+      "visits": [
+        {
+          "date": "2025-03-01T00:00:55.217470",
+          "duration_minutes": 189
+        },
+        {
+          "date": "2025-03-06T00:00:55.217478",
+          "duration_minutes": 166
+        },
+        {
+          "date": "2025-03-19T00:00:55.217485",
+          "duration_minutes": 123
+        }
+      ]
+    },
+    {
+      "id": "677c389df2ed9423773524fe",
+      "name": "Caveau de la Huchette",
+      "type": "leisure",
+      "coordinates": [
+        2.3435951,
+        48.8525731
+      ],
+      "address": "5 rue de la Huchette, 75005 Paris",
+      "visits": [
+        {
+          "date": "2025-02-21T00:00:55.217497",
+          "duration_minutes": 164
+        }
+      ]
+    },
+    {
+      "id": "677c388bf2ed9423773524f6",
+      "name": "Canal Saint Martin",
+      "type": "leisure",
+      "coordinates": [
+        2.3603689,
+        48.8785618
+      ],
+      "address": "Canal Saint Martin , 75010 Paris",
+      "visits": [
+        {
+          "date": "2025-02-25T00:00:55.217509",
+          "duration_minutes": 197
+        }
+      ]
+    }
+  ],
+  "affinity_producers": [
+    {
+      "id": "675adf64da75cfe37235c995",
+      "name": "Bella 92",
+      "type": "restaurant",
+      "affinity_score": 0.64
+    },
+    {
+      "id": "675adf64da75cfe37235c7e3",
+      "name": "Les Crayères des Montquartiers",
+      "type": "restaurant",
+      "affinity_score": 0.89
+    },
+    {
+      "id": "675adf64da75cfe37235c97a",
+      "name": "Trait'Tendance",
+      "type": "restaurant",
+      "affinity_score": 0.79
+    },
+    {
+      "id": "675adf64da75cfe37235c9ad",
+      "name": "Issy Guinguette",
+      "type": "restaurant",
+      "affinity_score": 0.85
+    },
+    {
+      "id": "675adf63da75cfe37235c7b4",
+      "name": "Crêperie Le Belem",
+      "type": "restaurant",
+      "affinity_score": 0.95
+    },
+    {
+      "id": "675adf64da75cfe37235c9a1",
+      "name": "Le Percy",
+      "type": "restaurant",
+      "affinity_score": 0.7
+    },
+    {
+      "id": "675adf64da75cfe37235c998",
+      "name": "Tokyo Restaurant",
+      "type": "restaurant",
+      "affinity_score": 0.71
+    },
+    {
+      "id": "675adf64da75cfe37235c7dd",
+      "name": "Am",
+      "type": "restaurant",
+      "affinity_score": 0.91
+    },
+    {
+      "id": "677ab7a0f526a921e9ae3e83",
+      "name": "Théâtre Espace Marais",
+      "type": "leisure",
+      "affinity_score": 0.89
+    },
+    {
+      "id": "677abb8ff526a921e9ae3e91",
+      "name": "La Divine Comédie - Salle 1",
+      "type": "leisure",
+      "affinity_score": 0.65
+    },
+    {
+      "id": "677abbeaf526a921e9ae3e9e",
+      "name": "Théâtre du Nord Ouest",
+      "type": "leisure",
+      "affinity_score": 0.8
+    }
+  ],
+  "search_keywords": [],
+  "is_star": false,
+  "followers_count": 15,
+  "influence_score": 40,
+  "posts": [],
+  "following": [
+    "67df46c49378791ae0a0f6e3",
+    "67df49179378791ae0a0fddf",
+    "67df46d79378791ae0a0f71a",
+    "67df4a219378791ae0a100fb",
+    "67df49469378791ae0a0fe6c",
+    "67df48149378791ae0a0fad9",
+    "67df47039378791ae0a0f7a2",
+    "67df49259378791ae0a0fe08",
+    "67df490b9378791ae0a0fdbd",
+    "67df4b779378791ae0a104dd",
+    "67df45db9378791ae0a0f41e",
+    "67df45dd9378791ae0a0f424",
+    "67df45e09378791ae0a0f42f",
+    "67df45e99378791ae0a0f448",
+    "67df45ed9378791ae0a0f457",
+    "67df45f79378791ae0a0f474",
+    "67df45f89378791ae0a0f478",
+    "67df45fa9378791ae0a0f47f",
+    "67df46029378791ae0a0f497",
+    "67df460c9378791ae0a0f4b6",
+    "67df46129378791ae0a0f4c8",
+    "67df461f9378791ae0a0f4f0",
+    "67df462c9378791ae0a0f518",
+    "67df462f9378791ae0a0f520",
+    "67df46319378791ae0a0f526",
+    "67df46369378791ae0a0f536",
+    "67df46379378791ae0a0f538",
+    "67df46399378791ae0a0f53e",
+    "67df463e9378791ae0a0f54e",
+    "67df46469378791ae0a0f566",
+    "67df464a9378791ae0a0f574",
+    "67df464c9378791ae0a0f578",
+    "67df46509378791ae0a0f585",
+    "67df46509378791ae0a0f586",
+    "67df46519378791ae0a0f589",
+    "67df46559378791ae0a0f594",
+    "67df46569378791ae0a0f598",
+    "67df46589378791ae0a0f59c",
+    "67df465c9378791ae0a0f5aa",
+    "67df46639378791ae0a0f5be",
+    "67df46689378791ae0a0f5ce",
+    "67df466e9378791ae0a0f5df",
+    "67df46739378791ae0a0f5ee",
+    "67df46769378791ae0a0f5f7",
+    "67df46769378791ae0a0f5f8",
+    "67df46779378791ae0a0f5fc",
+    "67df467d9378791ae0a0f60d",
+    "67df468a9378791ae0a0f635",
+    "67df469c9378791ae0a0f66b",
+    "67df46a59378791ae0a0f686",
+    "67df46a59378791ae0a0f687",
+    "67df46a69378791ae0a0f688",
+    "67df46b69378791ae0a0f6b9",
+    "67df46b89378791ae0a0f6be",
+    "67df46cc9378791ae0a0f6fa",
+    "67df46d29378791ae0a0f70b",
+    "67df46d39378791ae0a0f70f",
+    "67df46d69378791ae0a0f718",
+    "67df46dd9378791ae0a0f72e",
+    "67df46e49378791ae0a0f744",
+    "67df46e59378791ae0a0f746",
+    "67df46e69378791ae0a0f74a",
+    "67df46ea9378791ae0a0f754",
+    "67df46ec9378791ae0a0f75b",
+    "67df46f09378791ae0a0f767",
+    "67df46fb9378791ae0a0f78a",
+    "67df46fe9378791ae0a0f793",
+    "67df47009378791ae0a0f799",
+    "67df47019378791ae0a0f79c",
+    "67df47079378791ae0a0f7af",
+    "67df47099378791ae0a0f7b5",
+    "67df47159378791ae0a0f7d8",
+    "67df47199378791ae0a0f7e5",
+    "67df471a9378791ae0a0f7e7",
+    "67df471a9378791ae0a0f7e8",
+    "67df472a9378791ae0a0f81a",
+    "67df472c9378791ae0a0f81f",
+    "67df47359378791ae0a0f839",
+    "67df47389378791ae0a0f843",
+    "67df473b9378791ae0a0f84c",
+    "67df47419378791ae0a0f85d",
+    "67df474b9378791ae0a0f87c",
+    "67df47519378791ae0a0f88f",
+    "67df47559378791ae0a0f898",
+    "67df47579378791ae0a0f89d",
+    "67df47629378791ae0a0f8c1",
+    "67df47659378791ae0a0f8c9",
+    "67df47719378791ae0a0f8ed",
+    "67df47809378791ae0a0f91c",
+    "67df47819378791ae0a0f91f",
+    "67df47849378791ae0a0f927",
+    "67df47869378791ae0a0f92b",
+    "67df478a9378791ae0a0f939",
+    "67df478e9378791ae0a0f945",
+    "67df47909378791ae0a0f949",
+    "67df47969378791ae0a0f95d",
+    "67df47979378791ae0a0f95e",
+    "67df479a9378791ae0a0f966",
+    "67df47a39378791ae0a0f984",
+    "67df47a99378791ae0a0f995",
+    "67df47ad9378791ae0a0f9a2",
+    "67df47ae9378791ae0a0f9a4",
+    "67df47b09378791ae0a0f9ab",
+    "67df47b89378791ae0a0f9c4",
+    "67df47bd9378791ae0a0f9d1",
+    "67df47bf9378791ae0a0f9d8",
+    "67df47c59378791ae0a0f9e8",
+    "67df47c69378791ae0a0f9ec",
+    "67df47c89378791ae0a0f9f2",
+    "67df47ca9378791ae0a0f9f8",
+    "67df47ce9378791ae0a0fa06",
+    "67df47d69378791ae0a0fa1c",
+    "67df47db9378791ae0a0fa2d",
+    "67df47e69378791ae0a0fa4e",
+    "67df47ee9378791ae0a0fa65",
+    "67df47ee9378791ae0a0fa66",
+    "67df47f09378791ae0a0fa6d",
+    "67df47f39378791ae0a0fa75",
+    "67df47f49378791ae0a0fa79",
+    "67df47f59378791ae0a0fa7a",
+    "67df47fc9378791ae0a0fa8f",
+    "67df48039378791ae0a0faa5",
+    "67df48059378791ae0a0faaa",
+    "67df480a9378791ae0a0fab9",
+    "67df480d9378791ae0a0fac4",
+    "67df48129378791ae0a0fad3",
+    "67df48169378791ae0a0fadf",
+    "67df48179378791ae0a0fae0",
+    "67df48189378791ae0a0fae2",
+    "67df48189378791ae0a0fae3",
+    "67df48199378791ae0a0fae5",
+    "67df48249378791ae0a0fb08",
+    "67df48259378791ae0a0fb0b",
+    "67df482a9378791ae0a0fb1a",
+    "67df482b9378791ae0a0fb1d",
+    "67df482e9378791ae0a0fb26",
+    "67df48329378791ae0a0fb32",
+    "67df48369378791ae0a0fb3d",
+    "67df483a9378791ae0a0fb4a",
+    "67df483c9378791ae0a0fb50",
+    "67df48479378791ae0a0fb71",
+    "67df484d9378791ae0a0fb81",
+    "67df48569378791ae0a0fb9c",
+    "67df48579378791ae0a0fba1",
+    "67df48599378791ae0a0fba6",
+    "67df485c9378791ae0a0fbb1",
+    "67df48649378791ae0a0fbc7",
+    "67df48649378791ae0a0fbc9",
+    "67df486f9378791ae0a0fbe9",
+    "67df48729378791ae0a0fbf1",
+    "67df48749378791ae0a0fbf8",
+    "67df487f9378791ae0a0fc19",
+    "67df48839378791ae0a0fc24",
+    "67df488b9378791ae0a0fc3d",
+    "67df488c9378791ae0a0fc42",
+    "67df489f9378791ae0a0fc79",
+    "67df489f9378791ae0a0fc7a",
+    "67df48a29378791ae0a0fc82",
+    "67df48a89378791ae0a0fc94",
+    "67df48ac9378791ae0a0fca0",
+    "67df48b89378791ae0a0fcc5",
+    "67df48c19378791ae0a0fcdf",
+    "67df48c79378791ae0a0fcf2",
+    "67df48ca9378791ae0a0fcfc",
+    "67df48d59378791ae0a0fd1c",
+    "67df48d99378791ae0a0fd28",
+    "67df48da9378791ae0a0fd29",
+    "67df48da9378791ae0a0fd2b",
+    "67df48dc9378791ae0a0fd2f",
+    "67df48eb9378791ae0a0fd5a",
+    "67df48f09378791ae0a0fd6c",
+    "67df48f29378791ae0a0fd72",
+    "67df48f99378791ae0a0fd87",
+    "67df48fd9378791ae0a0fd91",
+    "67df491b9378791ae0a0fdea",
+    "67df49219378791ae0a0fdfd",
+    "67df49249378791ae0a0fe05",
+    "67df49269378791ae0a0fe0b",
+    "67df49289378791ae0a0fe13",
+    "67df49429378791ae0a0fe62",
+    "67df49489378791ae0a0fe72",
+    "67df494d9378791ae0a0fe81",
+    "67df494e9378791ae0a0fe83",
+    "67df494e9378791ae0a0fe85",
+    "67df49509378791ae0a0fe89",
+    "67df49509378791ae0a0fe8a",
+    "67df49519378791ae0a0fe8e",
+    "67df495b9378791ae0a0fea9",
+    "67df49649378791ae0a0fec5",
+    "67df49659378791ae0a0fec8",
+    "67df496d9378791ae0a0fedf",
+    "67df49719378791ae0a0feeb",
+    "67df49719378791ae0a0feed",
+    "67df49789378791ae0a0ff00",
+    "67df497b9378791ae0a0ff0c",
+    "67df497f9378791ae0a0ff16",
+    "67df49819378791ae0a0ff1d",
+    "67df49869378791ae0a0ff2c",
+    "67df498a9378791ae0a0ff38",
+    "67df49b29378791ae0a0ffae",
+    "67df49b39378791ae0a0ffb2",
+    "67df49bc9378791ae0a0ffcc",
+    "67df49c79378791ae0a0ffef",
+    "67df49ca9378791ae0a0fff6",
+    "67df49d79378791ae0a1001c",
+    "67df49d79378791ae0a1001d",
+    "67df49e09378791ae0a10038",
+    "67df49f59378791ae0a10076",
+    "67df4a029378791ae0a1009d",
+    "67df4a0b9378791ae0a100ba",
+    "67df4a0e9378791ae0a100c1",
+    "67df4a0f9378791ae0a100c6",
+    "67df4a189378791ae0a100df",
+    "67df4a1a9378791ae0a100e6",
+    "67df4a249378791ae0a10103",
+    "67df4a329378791ae0a1012b",
+    "67df4a3c9378791ae0a10148",
+    "67df4a469378791ae0a10165",
+    "67df4a499378791ae0a10170",
+    "67df4a589378791ae0a1019c",
+    "67df4a5b9378791ae0a101a4",
+    "67df4a5c9378791ae0a101a5",
+    "67df4a5e9378791ae0a101ac",
+    "67df4a629378791ae0a101b9",
+    "67df4a689378791ae0a101cb",
+    "67df4a6c9378791ae0a101d5",
+    "67df4a6e9378791ae0a101dd",
+    "67df4a729378791ae0a101e7",
+    "67df4a739378791ae0a101eb",
+    "67df4a789378791ae0a101f7",
+    "67df4a799378791ae0a101fb",
+    "67df4a7a9378791ae0a101fe",
+    "67df4a7b9378791ae0a10200",
+    "67df4a839378791ae0a10215",
+    "67df4a849378791ae0a10219",
+    "67df4a8b9378791ae0a1022e",
+    "67df4a8e9378791ae0a10239",
+    "67df4a8f9378791ae0a1023c",
+    "67df4a989378791ae0a10255",
+    "67df4a9c9378791ae0a10260",
+    "67df4a9c9378791ae0a10262",
+    "67df4aa49378791ae0a10279",
+    "67df4aa89378791ae0a10284",
+    "67df4aae9378791ae0a10296",
+    "67df4ab49378791ae0a102a8",
+    "67df4ab59378791ae0a102aa",
+    "67df4ab79378791ae0a102b1",
+    "67df4ab89378791ae0a102b4",
+    "67df4abb9378791ae0a102bd",
+    "67df4ac09378791ae0a102cb",
+    "67df4ac19378791ae0a102ce",
+    "67df4ac89378791ae0a102e3",
+    "67df4ad49378791ae0a10304",
+    "67df4adc9378791ae0a1031d",
+    "67df4add9378791ae0a1031f",
+    "67df4add9378791ae0a10321",
+    "67df4adf9378791ae0a10326",
+    "67df4ae09378791ae0a10327",
+    "67df4ae59378791ae0a10337",
+    "67df4aeb9378791ae0a1034b",
+    "67df4aef9378791ae0a10354",
+    "67df4af09378791ae0a10357",
+    "67df4af49378791ae0a10362",
+    "67df4af69378791ae0a1036a",
+    "67df4af89378791ae0a10370",
+    "67df4af99378791ae0a10371",
+    "67df4aff9378791ae0a10381",
+    "67df4aff9378791ae0a10383",
+    "67df4b0d9378791ae0a103aa",
+    "67df4b0e9378791ae0a103ae",
+    "67df4b0f9378791ae0a103b2",
+    "67df4b139378791ae0a103bd",
+    "67df4b169378791ae0a103c5",
+    "67df4b179378791ae0a103ca",
+    "67df4b1e9378791ae0a103dd",
+    "67df4b289378791ae0a103fc",
+    "67df4b2b9378791ae0a10405",
+    "67df4b2f9378791ae0a10410",
+    "67df4b399378791ae0a1042b",
+    "67df4b419378791ae0a10443",
+    "67df4b419378791ae0a10444",
+    "67df4b459378791ae0a1044d",
+    "67df4b599378791ae0a10485",
+    "67df4b5b9378791ae0a1048a",
+    "67df4b7d9378791ae0a104eb",
+    "67df4b8a9378791ae0a10510",
+    "67df4b8c9378791ae0a10515",
+    "67df4b8e9378791ae0a1051b",
+    "67df4b8f9378791ae0a1051d",
+    "67df4b939378791ae0a10528",
+    "67df4b9e9378791ae0a10548",
+    "67df4ba29378791ae0a10554",
+    "67df4ba39378791ae0a10557",
+    "67df4ba49378791ae0a10558",
+    "67df4ba49378791ae0a1055a",
+    "67df4ba69378791ae0a1055f",
+    "67df4ba89378791ae0a10564",
+    "67df4ba99378791ae0a10568",
+    "67df4bac9378791ae0a10570",
+    "67df4baf9378791ae0a10578",
+    "67df4bbb9378791ae0a1059a",
+    "67df4bc29378791ae0a105ae",
+    "67df4bc69378791ae0a105bc",
+    "67df4bc69378791ae0a105bd",
+    "67df4bca9378791ae0a105c8",
+    "67df4bcd9378791ae0a105d0",
+    "67df4bd99378791ae0a105f1",
+    "67df4be59378791ae0a10613",
+    "67df4be99378791ae0a10620",
+    "67df4bea9378791ae0a10622",
+    "67df4beb9378791ae0a10624",
+    "67df4bf59378791ae0a10642",
+    "67df4bfa9378791ae0a10652",
+    "67df4bfd9378791ae0a1065a",
+    "67df4bff9378791ae0a10661",
+    "67df4c009378791ae0a10662",
+    "67df4c069378791ae0a10674",
+    "67df4c0a9378791ae0a1067f",
+    "67df4c109378791ae0a10693",
+    "67df4c149378791ae0a1069c",
+    "67df4c1a9378791ae0a106ae",
+    "67df4c1b9378791ae0a106b2",
+    "67df4c249378791ae0a106cd",
+    "67df4c259378791ae0a106ce",
+    "67df4c259378791ae0a106cf",
+    "67df4c2b9378791ae0a106e0",
+    "67df4c2e9378791ae0a106ea",
+    "67df4c359378791ae0a106fe"
+  ],
+  "followingProducers": [
+    "675adf64da75cfe37235c7e3",
+    "675adf64da75cfe37235c97a",
+    "675adf64da75cfe37235c9ad",
+    "675adf63da75cfe37235c7b4",
+    "675adf64da75cfe37235c998",
+    "675adf64da75cfe37235c7dd",
+    "677ab7a0f526a921e9ae3e83",
+    "677abbeaf526a921e9ae3e9e"
+  ],
+  "interests": [
+    "675adf64da75cfe37235c7e3",
+    "675adf64da75cfe37235c9ad",
+    "675adf63da75cfe37235c7b4",
+    "675adf64da75cfe37235c7dd",
+    "677ab7a0f526a921e9ae3e83"
+  ]
+}
+
+#### Document 2:
+{
+  "_id": "67df476f9378791ae0a0f8e8",
+  "name": "Emilie Gauthier",
+  "email": "emilie.gauthier@outlook.fr",
+  "password": "$2b$12$yFQX/jUDi6mpMmBVrFTOH.euxS8nD8a1M.5oOwBOQh1...",
+  "gender": "Non spécifié",
+  "age": 22,
+  "photo_url": "https://api.dicebear.com/6.x/adventurer/png?seed=1...",
+  "bio": "",
+  "location": {
+    "latitude": 48.840455577787445,
+    "longitude": 2.288840336849068
+  },
+  "preferred_content_format": {
+    "text": 0.33,
+    "image": 0.83,
+    "video": 0.47
+  },
+  "liked_tags": [
+    "tapas",
+    "crêperie",
+    "sushi",
+    "concert",
+    "théâtre",
+    "fast-food",
+    "rooftop"
+  ],
+  "trusted_circle": [
+    "67df4ae09378791ae0a10327",
+    "67df4a409378791ae0a10155",
+    "67df46c49378791ae0a0f6e2",
+    "67df47219378791ae0a0f7fe",
+    "67df491d9378791ae0a0fdf0",
+    "67df45dd9378791ae0a0f424",
+    "67df45e99378791ae0a0f449",
+    "67df45ed9378791ae0a0f457",
+    "67df45f79378791ae0a0f474",
+    "67df45f89378791ae0a0f478",
+    "67df45fa9378791ae0a0f47f",
+    "67df46019378791ae0a0f494",
+    "67df460c9378791ae0a0f4b6",
+    "67df461f9378791ae0a0f4f0",
+    "67df462d9378791ae0a0f51a",
+    "67df462f9378791ae0a0f520",
+    "67df46319378791ae0a0f526",
+    "67df46369378791ae0a0f536",
+    "67df46369378791ae0a0f537",
+    "67df46379378791ae0a0f538",
+    "67df46399378791ae0a0f53e",
+    "67df463c9378791ae0a0f549",
+    "67df463e9378791ae0a0f54e",
+    "67df463f9378791ae0a0f551",
+    "67df46469378791ae0a0f566",
+    "67df46489378791ae0a0f56d",
+    "67df464a9378791ae0a0f574",
+    "67df46509378791ae0a0f584",
+    "67df46509378791ae0a0f585",
+    "67df46559378791ae0a0f594",
+    "67df46569378791ae0a0f598",
+    "67df46589378791ae0a0f59c",
+    "67df465b9378791ae0a0f5a6",
+    "67df465c9378791ae0a0f5aa",
+    "67df46639378791ae0a0f5be",
+    "67df466d9378791ae0a0f5de",
+    "67df466e9378791ae0a0f5df",
+    "67df46739378791ae0a0f5ee",
+    "67df46739378791ae0a0f5ef",
+    "67df46769378791ae0a0f5f7",
+    "67df46769378791ae0a0f5f8",
+    "67df46779378791ae0a0f5fc",
+    "67df467b9378791ae0a0f607",
+    "67df467d9378791ae0a0f60d",
+    "67df468c9378791ae0a0f63b",
+    "67df468d9378791ae0a0f63d",
+    "67df468f9378791ae0a0f644",
+    "67df469b9378791ae0a0f667",
+    "67df469c9378791ae0a0f66b",
+    "67df46a49378791ae0a0f683",
+    "67df46a69378791ae0a0f688",
+    "67df46a79378791ae0a0f68b",
+    "67df46b69378791ae0a0f6b9",
+    "67df46b89378791ae0a0f6be",
+    "67df46d29378791ae0a0f70b",
+    "67df46d39378791ae0a0f70f",
+    "67df46d69378791ae0a0f718",
+    "67df46da9378791ae0a0f725",
+    "67df46db9378791ae0a0f727",
+    "67df46e59378791ae0a0f746",
+    "67df46e69378791ae0a0f74a",
+    "67df46ea9378791ae0a0f754",
+    "67df46eb9378791ae0a0f758",
+    "67df46ec9378791ae0a0f75b",
+    "67df46f09378791ae0a0f767",
+    "67df46fb9378791ae0a0f78a",
+    "67df46fe9378791ae0a0f793",
+    "67df47019378791ae0a0f79c",
+    "67df47049378791ae0a0f7a6",
+    "67df47059378791ae0a0f7a8",
+    "67df47079378791ae0a0f7af",
+    "67df47099378791ae0a0f7b5",
+    "67df47199378791ae0a0f7e5",
+    "67df472a9378791ae0a0f81a",
+    "67df472c9378791ae0a0f81f",
+    "67df47349378791ae0a0f837",
+    "67df47359378791ae0a0f839",
+    "67df47389378791ae0a0f843",
+    "67df473b9378791ae0a0f84c",
+    "67df47419378791ae0a0f85d",
+    "67df47469378791ae0a0f86d",
+    "67df47519378791ae0a0f88f",
+    "67df47559378791ae0a0f898",
+    "67df47579378791ae0a0f89d",
+    "67df47609378791ae0a0f8b9",
+    "67df47629378791ae0a0f8c1",
+    "67df47719378791ae0a0f8ed",
+    "67df47809378791ae0a0f91c",
+    "67df47819378791ae0a0f91f",
+    "67df47849378791ae0a0f927",
+    "67df47869378791ae0a0f92b",
+    "67df478a9378791ae0a0f939",
+    "67df478e9378791ae0a0f945",
+    "67df47909378791ae0a0f949",
+    "67df47a39378791ae0a0f984",
+    "67df47a99378791ae0a0f995",
+    "67df47b09378791ae0a0f9ab",
+    "67df47bd9378791ae0a0f9d1",
+    "67df47bf9378791ae0a0f9d8",
+    "67df47c29378791ae0a0f9e1",
+    "67df47c59378791ae0a0f9e8",
+    "67df47c89378791ae0a0f9f2",
+    "67df47ce9378791ae0a0fa04",
+    "67df47ce9378791ae0a0fa06",
+    "67df47cf9378791ae0a0fa09",
+    "67df47d69378791ae0a0fa1c",
+    "67df47db9378791ae0a0fa2d",
+    "67df47e19378791ae0a0fa3f",
+    "67df47e69378791ae0a0fa4e",
+    "67df47ee9378791ae0a0fa65",
+    "67df47ee9378791ae0a0fa66",
+    "67df47f09378791ae0a0fa6d",
+    "67df47f39378791ae0a0fa75",
+    "67df47f49378791ae0a0fa79",
+    "67df47f59378791ae0a0fa7a",
+    "67df47fc9378791ae0a0fa8f",
+    "67df47ff9378791ae0a0fa99",
+    "67df48039378791ae0a0faa5",
+    "67df480d9378791ae0a0fac4",
+    "67df48119378791ae0a0fad0",
+    "67df48129378791ae0a0fad3",
+    "67df48169378791ae0a0fadf",
+    "67df48179378791ae0a0fae0",
+    "67df48189378791ae0a0fae3",
+    "67df48199378791ae0a0fae5",
+    "67df481c9378791ae0a0faef",
+    "67df48209378791ae0a0fafc",
+    "67df48259378791ae0a0fb0b",
+    "67df482a9378791ae0a0fb1a",
+    "67df482b9378791ae0a0fb1d",
+    "67df482c9378791ae0a0fb1e",
+    "67df48329378791ae0a0fb32",
+    "67df48369378791ae0a0fb3d",
+    "67df483a9378791ae0a0fb4a",
+    "67df48479378791ae0a0fb71",
+    "67df484a9378791ae0a0fb78",
+    "67df484d9378791ae0a0fb81",
+    "67df48569378791ae0a0fb9c",
+    "67df48599378791ae0a0fba6",
+    "67df48649378791ae0a0fbc7",
+    "67df48659378791ae0a0fbcb",
+    "67df486f9378791ae0a0fbe9",
+    "67df48729378791ae0a0fbf1",
+    "67df48779378791ae0a0fc00",
+    "67df48869378791ae0a0fc2d",
+    "67df48869378791ae0a0fc2f",
+    "67df488b9378791ae0a0fc3d",
+    "67df48969378791ae0a0fc5f",
+    "67df489f9378791ae0a0fc79",
+    "67df48a09378791ae0a0fc7e",
+    "67df48a29378791ae0a0fc82",
+    "67df48a29378791ae0a0fc83",
+    "67df48a49378791ae0a0fc88",
+    "67df48a69378791ae0a0fc8e",
+    "67df48a89378791ae0a0fc94",
+    "67df48a89378791ae0a0fc95",
+    "67df48ab9378791ae0a0fc9e",
+    "67df48c19378791ae0a0fcdf",
+    "67df48c49378791ae0a0fce8",
+    "67df48c79378791ae0a0fcf2",
+    "67df48c79378791ae0a0fcf3",
+    "67df48ca9378791ae0a0fcfb",
+    "67df48d59378791ae0a0fd1c",
+    "67df48d99378791ae0a0fd28",
+    "67df48da9378791ae0a0fd29",
+    "67df48da9378791ae0a0fd2b",
+    "67df48e09378791ae0a0fd3a",
+    "67df48e19378791ae0a0fd3f",
+    "67df48eb9378791ae0a0fd5a",
+    "67df48f49378791ae0a0fd78",
+    "67df48f89378791ae0a0fd82",
+    "67df48f99378791ae0a0fd87",
+    "67df48fd9378791ae0a0fd91",
+    "67df49069378791ae0a0fdac",
+    "67df490e9378791ae0a0fdc5",
+    "67df49199378791ae0a0fde6",
+    "67df49249378791ae0a0fe05",
+    "67df49289378791ae0a0fe13",
+    "67df49429378791ae0a0fe62",
+    "67df494e9378791ae0a0fe85",
+    "67df49509378791ae0a0fe89",
+    "67df49519378791ae0a0fe8e",
+    "67df495b9378791ae0a0fea9",
+    "67df495c9378791ae0a0feae",
+    "67df49649378791ae0a0fec5",
+    "67df49659378791ae0a0fec8",
+    "67df496d9378791ae0a0fedf",
+    "67df49719378791ae0a0feed",
+    "67df49789378791ae0a0ff00",
+    "67df497b9378791ae0a0ff0c",
+    "67df497c9378791ae0a0ff0e",
+    "67df49819378791ae0a0ff1d",
+    "67df49869378791ae0a0ff2c",
+    "67df49889378791ae0a0ff31",
+    "67df498a9378791ae0a0ff38",
+    "67df499f9378791ae0a0ff76",
+    "67df49ab9378791ae0a0ff9a",
+    "67df49b29378791ae0a0ffae",
+    "67df49b29378791ae0a0ffb0",
+    "67df49b99378791ae0a0ffc4",
+    "67df49bc9378791ae0a0ffcc",
+    "67df49c29378791ae0a0ffdd",
+    "67df49c79378791ae0a0ffef",
+    "67df49ca9378791ae0a0fff6",
+    "67df49d09378791ae0a10008",
+    "67df49d79378791ae0a1001c",
+    "67df49d79378791ae0a1001d",
+    "67df49f59378791ae0a10076",
+    "67df49f89378791ae0a10081",
+    "67df4a029378791ae0a1009d",
+    "67df4a099378791ae0a100b3",
+    "67df4a0d9378791ae0a100be",
+    "67df4a0e9378791ae0a100c1",
+    "67df4a159378791ae0a100d5",
+    "67df4a179378791ae0a100dc",
+    "67df4a219378791ae0a100fb",
+    "67df4a249378791ae0a10103",
+    "67df4a2a9378791ae0a10116",
+    "67df4a329378791ae0a1012b",
+    "67df4a3c9378791ae0a10148",
+    "67df4a469378791ae0a10165",
+    "67df4a499378791ae0a10170",
+    "67df4a539378791ae0a1018e",
+    "67df4a5b9378791ae0a101a4",
+    "67df4a5c9378791ae0a101a5",
+    "67df4a5e9378791ae0a101ac",
+    "67df4a689378791ae0a101cb",
+    "67df4a6b9378791ae0a101d3",
+    "67df4a6c9378791ae0a101d5",
+    "67df4a6c9378791ae0a101d7",
+    "67df4a6e9378791ae0a101dd",
+    "67df4a739378791ae0a101eb",
+    "67df4a779378791ae0a101f4",
+    "67df4a799378791ae0a101fb",
+    "67df4a7a9378791ae0a101fe",
+    "67df4a839378791ae0a10215",
+    "67df4a849378791ae0a10219",
+    "67df4a899378791ae0a10228",
+    "67df4a8b9378791ae0a1022e",
+    "67df4a8b9378791ae0a10230",
+    "67df4a8d9378791ae0a10235",
+    "67df4a8e9378791ae0a10239",
+    "67df4a8f9378791ae0a1023c",
+    "67df4a989378791ae0a10255",
+    "67df4a9c9378791ae0a10260",
+    "67df4a9c9378791ae0a10262",
+    "67df4aa49378791ae0a10279",
+    "67df4aa89378791ae0a10284",
+    "67df4aae9378791ae0a10297",
+    "67df4ab49378791ae0a102a8",
+    "67df4ab59378791ae0a102aa",
+    "67df4ab79378791ae0a102b1",
+    "67df4ab89378791ae0a102b4",
+    "67df4ab89378791ae0a102b5",
+    "67df4ac09378791ae0a102cb",
+    "67df4ac19378791ae0a102ce",
+    "67df4ac29378791ae0a102d2",
+    "67df4ac89378791ae0a102e3",
+    "67df4ac99378791ae0a102e7",
+    "67df4adc9378791ae0a1031d",
+    "67df4add9378791ae0a1031f",
+    "67df4add9378791ae0a10321",
+    "67df4ae59378791ae0a10337",
+    "67df4aeb9378791ae0a1034b",
+    "67df4aef9378791ae0a10354",
+    "67df4af09378791ae0a10357",
+    "67df4af19378791ae0a1035b",
+    "67df4af69378791ae0a1036a",
+    "67df4af89378791ae0a10370",
+    "67df4aff9378791ae0a10380",
+    "67df4aff9378791ae0a10381",
+    "67df4b0d9378791ae0a103aa",
+    "67df4b0f9378791ae0a103b2",
+    "67df4b159378791ae0a103c3",
+    "67df4b179378791ae0a103ca",
+    "67df4b1e9378791ae0a103dd",
+    "67df4b289378791ae0a103fc",
+    "67df4b2b9378791ae0a10405",
+    "67df4b2f9378791ae0a10410",
+    "67df4b359378791ae0a1041f",
+    "67df4b389378791ae0a10427",
+    "67df4b419378791ae0a10443",
+    "67df4b419378791ae0a10444",
+    "67df4b469378791ae0a10450",
+    "67df4b599378791ae0a10485",
+    "67df4b5b9378791ae0a1048a",
+    "67df4b5c9378791ae0a1048d",
+    "67df4b669378791ae0a104a9",
+    "67df4b7d9378791ae0a104eb",
+    "67df4b809378791ae0a104f5",
+    "67df4b8a9378791ae0a10510",
+    "67df4b8a9378791ae0a10511",
+    "67df4b8c9378791ae0a10515",
+    "67df4b8e9378791ae0a1051b",
+    "67df4b8f9378791ae0a1051d",
+    "67df4ba49378791ae0a10558",
+    "67df4ba49378791ae0a1055a",
+    "67df4ba59378791ae0a1055c",
+    "67df4ba69378791ae0a1055f",
+    "67df4ba89378791ae0a10564",
+    "67df4ba99378791ae0a10568",
+    "67df4bac9378791ae0a10570",
+    "67df4bad9378791ae0a10572",
+    "67df4baf9378791ae0a10578",
+    "67df4bbb9378791ae0a1059a",
+    "67df4bc29378791ae0a105ae",
+    "67df4bc29378791ae0a105af",
+    "67df4bc69378791ae0a105bc",
+    "67df4bc69378791ae0a105bd",
+    "67df4bc79378791ae0a105c0",
+    "67df4bca9378791ae0a105c8",
+    "67df4bcd9378791ae0a105d0",
+    "67df4bd49378791ae0a105e2",
+    "67df4be59378791ae0a10613",
+    "67df4be99378791ae0a10620",
+    "67df4beb9378791ae0a10625",
+    "67df4bf29378791ae0a10639",
+    "67df4bf59378791ae0a10642",
+    "67df4bfa9378791ae0a10652",
+    "67df4bfc9378791ae0a10658",
+    "67df4bff9378791ae0a10661",
+    "67df4c009378791ae0a10662",
+    "67df4c069378791ae0a10674",
+    "67df4c0a9378791ae0a1067f",
+    "67df4c109378791ae0a10693",
+    "67df4c149378791ae0a1069c",
+    "67df4c179378791ae0a106a5",
+    "67df4c1a9378791ae0a106ae",
+    "67df4c1b9378791ae0a106b2",
+    "67df4c239378791ae0a106ca",
+    "67df4c249378791ae0a106cd",
+    "67df4c259378791ae0a106ce",
+    "67df4c259378791ae0a106cf",
+    "67df4c2b9378791ae0a106e0",
+    "67df4c2e9378791ae0a106ea",
+    "67df4c359378791ae0a106fe"
+  ],
+  "sector_preferences": {
+    "food": {
+      "avg_spending": 79,
+      "vegan": false,
+      "carbon_aware": false
+    },
+    "culture": {
+      "preferred_styles": [
+        "classical_art",
+        "performance_art",
+        "sculpture"
+      ],
+      "event_types": [
+        "festival",
+        "exhibition"
+      ]
+    }
+  },
+  "interaction_metrics": {
+    "total_interactions": 252,
+    "comments_given": 69,
+    "choices_given": 42,
+    "shares_given": 30
+  },
+  "consumption_behavior": {
+    "varies_preferences": true,
+    "tries_new_content": true
+  },
+  "frequent_locations": [
+    {
+      "id": "675adf64da75cfe37235c9c2",
+      "name": "Gendarmerie Nationale - Cercle Mixte de l'Administ...",
+      "type": "restaurant",
+      "coordinates": [
+        2.2698459,
+        48.8146769
+      ],
+      "address": "4 Rue Claude Bernard, 92130 Issy-les-Moulineaux, F...",
+      "visits": [
+        {
+          "date": "2025-02-22T23:58:16.825595",
+          "duration_minutes": 100
+        }
+      ]
+    },
+    {
+      "id": "675adf65da75cfe37235ca5b",
+      "name": "Yespark",
+      "type": "restaurant",
+      "coordinates": [
+        2.234199400000001,
+        48.8276382
+      ],
+      "address": "30 Cr de l'Île Seguin, 92100 Boulogne-Billancourt,...",
+      "visits": [
+        {
+          "date": "2025-03-10T23:58:16.825619",
+          "duration_minutes": 160
+        },
+        {
+          "date": "2025-03-14T23:58:16.825628",
+          "duration_minutes": 152
+        },
+        {
+          "date": "2025-03-16T23:58:16.825636",
+          "duration_minutes": 74
+        },
+        {
+          "date": "2025-03-08T23:58:16.825643",
+          "duration_minutes": 35
+        },
+        {
+          "date": "2025-03-09T23:58:16.825650",
+          "duration_minutes": 167
+        }
+      ]
+    },
+    {
+      "id": "675adf64da75cfe37235c998",
+      "name": "Tokyo Restaurant",
+      "type": "restaurant",
+      "coordinates": [
+        2.2583118,
+        48.8120697
+      ],
+      "address": "92 Bis Av. Henri Barbusse, 92140 Clamart, France",
+      "visits": [
+        {
+          "date": "2025-02-24T23:58:16.825663",
+          "duration_minutes": 173
+        },
+        {
+          "date": "2025-03-11T23:58:16.825670",
+          "duration_minutes": 37
+        },
+        {
+          "date": "2025-02-23T23:58:16.825678",
+          "duration_minutes": 40
+        }
+      ]
+    },
+    {
+      "id": "675adf64da75cfe37235c99e",
+      "name": "Perle des Antilles",
+      "type": "restaurant",
+      "coordinates": [
+        2.2542387,
+        48.8188883
+      ],
+      "address": "123 Av. de Verdun, 92130 Issy-les-Moulineaux, Fran...",
+      "visits": [
+        {
+          "date": "2025-03-19T23:58:16.825689",
+          "duration_minutes": 60
+        },
+        {
+          "date": "2025-03-05T23:58:16.825697",
+          "duration_minutes": 121
+        },
+        {
+          "date": "2025-02-26T23:58:16.825704",
+          "duration_minutes": 112
+        },
+        {
+          "date": "2025-03-04T23:58:16.825711",
+          "duration_minutes": 44
+        },
+        {
+          "date": "2025-02-28T23:58:16.825719",
+          "duration_minutes": 46
+        }
+      ]
+    },
+    {
+      "id": "675adf65da75cfe37235ca40",
+      "name": "Franprix",
+      "type": "restaurant",
+      "coordinates": [
+        2.2284671,
+        48.8198641
+      ],
+      "address": "5 Rue Pierre Wacquant, 92190 Meudon, France",
+      "visits": [
+        {
+          "date": "2025-03-08T23:58:16.825730",
+          "duration_minutes": 43
+        },
+        {
+          "date": "2025-03-20T23:58:16.825737",
+          "duration_minutes": 162
+        },
+        {
+          "date": "2025-03-18T23:58:16.825744",
+          "duration_minutes": 72
+        },
+        {
+          "date": "2025-03-14T23:58:16.825752",
+          "duration_minutes": 139
+        },
+        {
+          "date": "2025-03-01T23:58:16.825759",
+          "duration_minutes": 138
+        }
+      ]
+    },
+    {
+      "id": "675adf65da75cfe37235ca3a",
+      "name": "Le Central Bellevue",
+      "type": "restaurant",
+      "coordinates": [
+        2.2287158,
+        48.82017500000001
+      ],
+      "address": "26 Rue Marcel Allégot, 92190 Meudon, France",
+      "visits": [
+        {
+          "date": "2025-03-01T23:58:16.825771",
+          "duration_minutes": 142
+        }
+      ]
+    },
+    {
+      "id": "675adf64da75cfe37235c980",
+      "name": "Simply Best Food",
+      "type": "restaurant",
+      "coordinates": [
+        2.2456879,
+        48.8183435
+      ],
+      "address": "4 Pl. Tony de Graaf, 92190 Meudon, France",
+      "visits": [
+        {
+          "date": "2025-03-08T23:58:16.825782",
+          "duration_minutes": 100
+        },
+        {
+          "date": "2025-03-13T23:58:16.825789",
+          "duration_minutes": 67
+        },
+        {
+          "date": "2025-03-12T23:58:16.825796",
+          "duration_minutes": 109
+        },
+        {
+          "date": "2025-03-03T23:58:16.825804",
+          "duration_minutes": 123
+        },
+        {
+          "date": "2025-03-05T23:58:16.825811",
+          "duration_minutes": 90
+        }
+      ]
+    },
+    {
+      "id": "675adf63da75cfe37235c7d4",
+      "name": "Quai de meudon",
+      "type": "restaurant",
+      "coordinates": [
+        2.2393323,
+        48.8192315
+      ],
+      "address": "10 Rte des Gardes, 92190 Meudon, France",
+      "visits": [
+        {
+          "date": "2025-02-21T23:58:16.825823",
+          "duration_minutes": 165
+        },
+        {
+          "date": "2025-03-12T23:58:16.825830",
+          "duration_minutes": 53
+        },
+        {
+          "date": "2025-03-03T23:58:16.825837",
+          "duration_minutes": 91
+        },
+        {
+          "date": "2025-03-19T23:58:16.825844",
+          "duration_minutes": 103
+        }
+      ]
+    },
+    {
+      "id": "675adf65da75cfe37235ca4f",
+      "name": "La sublime porte",
+      "type": "restaurant",
+      "coordinates": [
+        2.2354792,
+        48.8251684
+      ],
+      "address": "48 Quai Georges Gorse, 92100 Boulogne-Billancourt,...",
+      "visits": [
+        {
+          "date": "2025-03-16T23:58:16.825856",
+          "duration_minutes": 78
+        },
+        {
+          "date": "2025-02-25T23:58:16.825863",
+          "duration_minutes": 85
+        },
+        {
+          "date": "2025-02-27T23:58:16.825871",
+          "duration_minutes": 43
+        },
+        {
+          "date": "2025-02-20T23:58:16.825878",
+          "duration_minutes": 135
+        },
+        {
+          "date": "2025-03-19T23:58:16.825885",
+          "duration_minutes": 50
+        }
+      ]
+    },
+    {
+      "id": "675adf65da75cfe37235ca52",
+      "name": "Societe Horizons Sud",
+      "type": "restaurant",
+      "coordinates": [
+        2.2345579,
+        48.8201294
+      ],
+      "address": "21 Rue de la Verrerie, 92190 Meudon, France",
+      "visits": [
+        {
+          "date": "2025-03-19T23:58:16.825896",
+          "duration_minutes": 115
+        },
+        {
+          "date": "2025-03-20T23:58:16.825904",
+          "duration_minutes": 157
+        },
+        {
+          "date": "2025-02-27T23:58:16.825912",
+          "duration_minutes": 64
+        },
+        {
+          "date": "2025-02-27T23:58:16.825919",
+          "duration_minutes": 92
+        },
+        {
+          "date": "2025-03-06T23:58:16.825926",
+          "duration_minutes": 131
+        }
+      ]
+    },
+    {
+      "id": "675adf65da75cfe37235c9da",
+      "name": "Couscous d'Issy",
+      "type": "restaurant",
+      "coordinates": [
+        2.2763353,
+        48.81738550000001
+      ],
+      "address": "127 Av. du Général de Gaulle, 92130 Issy-les-Mouli...",
+      "visits": [
+        {
+          "date": "2025-03-08T23:58:16.825938",
+          "duration_minutes": 151
+        },
+        {
+          "date": "2025-03-02T23:58:16.825945",
+          "duration_minutes": 84
+        },
+        {
+          "date": "2025-03-17T23:58:16.825952",
+          "duration_minutes": 55
+        }
+      ]
+    },
+    {
+      "id": "677c3853f2ed9423773524d1",
+      "name": "Atelier de la Bonne Graine",
+      "type": "leisure",
+      "coordinates": [
+        2.3773408,
+        48.8521674
+      ],
+      "address": "16 passage de la Bonne Graine , 75011 Paris",
+      "visits": [
+        {
+          "date": "2025-03-21T23:58:16.825964",
+          "duration_minutes": 239
+        },
+        {
+          "date": "2025-03-06T23:58:16.825972",
+          "duration_minutes": 167
+        }
+      ]
+    }
+  ],
+  "affinity_producers": [
+    {
+      "id": "675adf63da75cfe37235c7d7",
+      "name": "Pizza O'Klm81",
+      "type": "restaurant",
+      "affinity_score": 0.9
+    },
+    {
+      "id": "675adf64da75cfe37235c989",
+      "name": "Nonna Pizza",
+      "type": "restaurant",
+      "affinity_score": 0.76
+    },
+    {
+      "id": "675adf64da75cfe37235c9bc",
+      "name": "Maison Avoise",
+      "type": "restaurant",
+      "affinity_score": 0.93
+    },
+    {
+      "id": "677ab79cf526a921e9ae3e82",
+      "name": "Théâtre Coluche",
+      "type": "leisure",
+      "affinity_score": 0.85
+    },
+    {
+      "id": "677c3839f2ed9423773524bf",
+      "name": "Adidas Arena",
+      "type": "leisure",
+      "affinity_score": 0.62
+    },
+    {
+      "id": "677abbeaf526a921e9ae3e9e",
+      "name": "Théâtre du Nord Ouest",
+      "type": "leisure",
+      "affinity_score": 0.92
+    },
+    {
+      "id": "677c3847f2ed9423773524c8",
+      "name": "Apollo Comedy - salle Apollo 200",
+      "type": "leisure",
+      "affinity_score": 0.74
+    },
+    {
+      "id": "677abb88f526a921e9ae3e8d",
+      "name": "Comédie Montorgueil",
+      "type": "leisure",
+      "affinity_score": 0.94
+    },
+    {
+      "id": "677abb94f526a921e9ae3e92",
+      "name": "La Reine Blanche - La Grande Salle",
+      "type": "leisure",
+      "affinity_score": 0.95
+    },
+    {
+      "id": "677ab79af526a921e9ae3e81",
+      "name": "Théâtre 14",
+      "type": "leisure",
+      "affinity_score": 0.81
+    },
+    {
+      "id": "677c383af2ed9423773524c0",
+      "name": "Aktéon Théâtre",
+      "type": "leisure",
+      "affinity_score": 0.66
+    }
+  ],
+  "search_keywords": [],
+  "is_star": false,
+  "followers_count": 22,
+  "influence_score": 26,
+  "posts": [],
+  "following": [
+    "67df4ae09378791ae0a10327",
+    "67df4a409378791ae0a10155",
+    "67df46c49378791ae0a0f6e2",
+    "67df47219378791ae0a0f7fe",
+    "67df491d9378791ae0a0fdf0",
+    "67df45dd9378791ae0a0f424",
+    "67df45e99378791ae0a0f449",
+    "67df45ed9378791ae0a0f457",
+    "67df45f79378791ae0a0f474",
+    "67df45f89378791ae0a0f478",
+    "67df45fa9378791ae0a0f47f",
+    "67df46019378791ae0a0f494",
+    "67df460c9378791ae0a0f4b6",
+    "67df461f9378791ae0a0f4f0",
+    "67df462d9378791ae0a0f51a",
+    "67df462f9378791ae0a0f520",
+    "67df46319378791ae0a0f526",
+    "67df46369378791ae0a0f536",
+    "67df46369378791ae0a0f537",
+    "67df46379378791ae0a0f538",
+    "67df46399378791ae0a0f53e",
+    "67df463c9378791ae0a0f549",
+    "67df463e9378791ae0a0f54e",
+    "67df463f9378791ae0a0f551",
+    "67df46469378791ae0a0f566",
+    "67df46489378791ae0a0f56d",
+    "67df464a9378791ae0a0f574",
+    "67df46509378791ae0a0f584",
+    "67df46509378791ae0a0f585",
+    "67df46559378791ae0a0f594",
+    "67df46569378791ae0a0f598",
+    "67df46589378791ae0a0f59c",
+    "67df465b9378791ae0a0f5a6",
+    "67df465c9378791ae0a0f5aa",
+    "67df46639378791ae0a0f5be",
+    "67df466d9378791ae0a0f5de",
+    "67df466e9378791ae0a0f5df",
+    "67df46739378791ae0a0f5ee",
+    "67df46739378791ae0a0f5ef",
+    "67df46769378791ae0a0f5f7",
+    "67df46769378791ae0a0f5f8",
+    "67df46779378791ae0a0f5fc",
+    "67df467b9378791ae0a0f607",
+    "67df467d9378791ae0a0f60d",
+    "67df468c9378791ae0a0f63b",
+    "67df468d9378791ae0a0f63d",
+    "67df468f9378791ae0a0f644",
+    "67df469b9378791ae0a0f667",
+    "67df469c9378791ae0a0f66b",
+    "67df46a49378791ae0a0f683",
+    "67df46a69378791ae0a0f688",
+    "67df46a79378791ae0a0f68b",
+    "67df46b69378791ae0a0f6b9",
+    "67df46b89378791ae0a0f6be",
+    "67df46d29378791ae0a0f70b",
+    "67df46d39378791ae0a0f70f",
+    "67df46d69378791ae0a0f718",
+    "67df46da9378791ae0a0f725",
+    "67df46db9378791ae0a0f727",
+    "67df46e59378791ae0a0f746",
+    "67df46e69378791ae0a0f74a",
+    "67df46ea9378791ae0a0f754",
+    "67df46eb9378791ae0a0f758",
+    "67df46ec9378791ae0a0f75b",
+    "67df46f09378791ae0a0f767",
+    "67df46fb9378791ae0a0f78a",
+    "67df46fe9378791ae0a0f793",
+    "67df47019378791ae0a0f79c",
+    "67df47049378791ae0a0f7a6",
+    "67df47059378791ae0a0f7a8",
+    "67df47079378791ae0a0f7af",
+    "67df47099378791ae0a0f7b5",
+    "67df47199378791ae0a0f7e5",
+    "67df472a9378791ae0a0f81a",
+    "67df472c9378791ae0a0f81f",
+    "67df47349378791ae0a0f837",
+    "67df47359378791ae0a0f839",
+    "67df47389378791ae0a0f843",
+    "67df473b9378791ae0a0f84c",
+    "67df47419378791ae0a0f85d",
+    "67df47469378791ae0a0f86d",
+    "67df47519378791ae0a0f88f",
+    "67df47559378791ae0a0f898",
+    "67df47579378791ae0a0f89d",
+    "67df47609378791ae0a0f8b9",
+    "67df47629378791ae0a0f8c1",
+    "67df47719378791ae0a0f8ed",
+    "67df47809378791ae0a0f91c",
+    "67df47819378791ae0a0f91f",
+    "67df47849378791ae0a0f927",
+    "67df47869378791ae0a0f92b",
+    "67df478a9378791ae0a0f939",
+    "67df478e9378791ae0a0f945",
+    "67df47909378791ae0a0f949",
+    "67df47a39378791ae0a0f984",
+    "67df47a99378791ae0a0f995",
+    "67df47b09378791ae0a0f9ab",
+    "67df47bd9378791ae0a0f9d1",
+    "67df47bf9378791ae0a0f9d8",
+    "67df47c29378791ae0a0f9e1",
+    "67df47c59378791ae0a0f9e8",
+    "67df47c89378791ae0a0f9f2",
+    "67df47ce9378791ae0a0fa04",
+    "67df47ce9378791ae0a0fa06",
+    "67df47cf9378791ae0a0fa09",
+    "67df47d69378791ae0a0fa1c",
+    "67df47db9378791ae0a0fa2d",
+    "67df47e19378791ae0a0fa3f",
+    "67df47e69378791ae0a0fa4e",
+    "67df47ee9378791ae0a0fa65",
+    "67df47ee9378791ae0a0fa66",
+    "67df47f09378791ae0a0fa6d",
+    "67df47f39378791ae0a0fa75",
+    "67df47f49378791ae0a0fa79",
+    "67df47f59378791ae0a0fa7a",
+    "67df47fc9378791ae0a0fa8f",
+    "67df47ff9378791ae0a0fa99",
+    "67df48039378791ae0a0faa5",
+    "67df480d9378791ae0a0fac4",
+    "67df48119378791ae0a0fad0",
+    "67df48129378791ae0a0fad3",
+    "67df48169378791ae0a0fadf",
+    "67df48179378791ae0a0fae0",
+    "67df48189378791ae0a0fae3",
+    "67df48199378791ae0a0fae5",
+    "67df481c9378791ae0a0faef",
+    "67df48209378791ae0a0fafc",
+    "67df48259378791ae0a0fb0b",
+    "67df482a9378791ae0a0fb1a",
+    "67df482b9378791ae0a0fb1d",
+    "67df482c9378791ae0a0fb1e",
+    "67df48329378791ae0a0fb32",
+    "67df48369378791ae0a0fb3d",
+    "67df483a9378791ae0a0fb4a",
+    "67df48479378791ae0a0fb71",
+    "67df484a9378791ae0a0fb78",
+    "67df484d9378791ae0a0fb81",
+    "67df48569378791ae0a0fb9c",
+    "67df48599378791ae0a0fba6",
+    "67df48649378791ae0a0fbc7",
+    "67df48659378791ae0a0fbcb",
+    "67df486f9378791ae0a0fbe9",
+    "67df48729378791ae0a0fbf1",
+    "67df48779378791ae0a0fc00",
+    "67df48869378791ae0a0fc2d",
+    "67df48869378791ae0a0fc2f",
+    "67df488b9378791ae0a0fc3d",
+    "67df48969378791ae0a0fc5f",
+    "67df489f9378791ae0a0fc79",
+    "67df48a09378791ae0a0fc7e",
+    "67df48a29378791ae0a0fc82",
+    "67df48a29378791ae0a0fc83",
+    "67df48a49378791ae0a0fc88",
+    "67df48a69378791ae0a0fc8e",
+    "67df48a89378791ae0a0fc94",
+    "67df48a89378791ae0a0fc95",
+    "67df48ab9378791ae0a0fc9e",
+    "67df48c19378791ae0a0fcdf",
+    "67df48c49378791ae0a0fce8",
+    "67df48c79378791ae0a0fcf2",
+    "67df48c79378791ae0a0fcf3",
+    "67df48ca9378791ae0a0fcfb",
+    "67df48d59378791ae0a0fd1c",
+    "67df48d99378791ae0a0fd28",
+    "67df48da9378791ae0a0fd29",
+    "67df48da9378791ae0a0fd2b",
+    "67df48e09378791ae0a0fd3a",
+    "67df48e19378791ae0a0fd3f",
+    "67df48eb9378791ae0a0fd5a",
+    "67df48f49378791ae0a0fd78",
+    "67df48f89378791ae0a0fd82",
+    "67df48f99378791ae0a0fd87",
+    "67df48fd9378791ae0a0fd91",
+    "67df49069378791ae0a0fdac",
+    "67df490e9378791ae0a0fdc5",
+    "67df49199378791ae0a0fde6",
+    "67df49249378791ae0a0fe05",
+    "67df49289378791ae0a0fe13",
+    "67df49429378791ae0a0fe62",
+    "67df494e9378791ae0a0fe85",
+    "67df49509378791ae0a0fe89",
+    "67df49519378791ae0a0fe8e",
+    "67df495b9378791ae0a0fea9",
+    "67df495c9378791ae0a0feae",
+    "67df49649378791ae0a0fec5",
+    "67df49659378791ae0a0fec8",
+    "67df496d9378791ae0a0fedf",
+    "67df49719378791ae0a0feed",
+    "67df49789378791ae0a0ff00",
+    "67df497b9378791ae0a0ff0c",
+    "67df497c9378791ae0a0ff0e",
+    "67df49819378791ae0a0ff1d",
+    "67df49869378791ae0a0ff2c",
+    "67df49889378791ae0a0ff31",
+    "67df498a9378791ae0a0ff38",
+    "67df499f9378791ae0a0ff76",
+    "67df49ab9378791ae0a0ff9a",
+    "67df49b29378791ae0a0ffae",
+    "67df49b29378791ae0a0ffb0",
+    "67df49b99378791ae0a0ffc4",
+    "67df49bc9378791ae0a0ffcc",
+    "67df49c29378791ae0a0ffdd",
+    "67df49c79378791ae0a0ffef",
+    "67df49ca9378791ae0a0fff6",
+    "67df49d09378791ae0a10008",
+    "67df49d79378791ae0a1001c",
+    "67df49d79378791ae0a1001d",
+    "67df49f59378791ae0a10076",
+    "67df49f89378791ae0a10081",
+    "67df4a029378791ae0a1009d",
+    "67df4a099378791ae0a100b3",
+    "67df4a0d9378791ae0a100be",
+    "67df4a0e9378791ae0a100c1",
+    "67df4a159378791ae0a100d5",
+    "67df4a179378791ae0a100dc",
+    "67df4a219378791ae0a100fb",
+    "67df4a249378791ae0a10103",
+    "67df4a2a9378791ae0a10116",
+    "67df4a329378791ae0a1012b",
+    "67df4a3c9378791ae0a10148",
+    "67df4a469378791ae0a10165",
+    "67df4a499378791ae0a10170",
+    "67df4a539378791ae0a1018e",
+    "67df4a5b9378791ae0a101a4",
+    "67df4a5c9378791ae0a101a5",
+    "67df4a5e9378791ae0a101ac",
+    "67df4a689378791ae0a101cb",
+    "67df4a6b9378791ae0a101d3",
+    "67df4a6c9378791ae0a101d5",
+    "67df4a6c9378791ae0a101d7",
+    "67df4a6e9378791ae0a101dd",
+    "67df4a739378791ae0a101eb",
+    "67df4a779378791ae0a101f4",
+    "67df4a799378791ae0a101fb",
+    "67df4a7a9378791ae0a101fe",
+    "67df4a839378791ae0a10215",
+    "67df4a849378791ae0a10219",
+    "67df4a899378791ae0a10228",
+    "67df4a8b9378791ae0a1022e",
+    "67df4a8b9378791ae0a10230",
+    "67df4a8d9378791ae0a10235",
+    "67df4a8e9378791ae0a10239",
+    "67df4a8f9378791ae0a1023c",
+    "67df4a989378791ae0a10255",
+    "67df4a9c9378791ae0a10260",
+    "67df4a9c9378791ae0a10262",
+    "67df4aa49378791ae0a10279",
+    "67df4aa89378791ae0a10284",
+    "67df4aae9378791ae0a10297",
+    "67df4ab49378791ae0a102a8",
+    "67df4ab59378791ae0a102aa",
+    "67df4ab79378791ae0a102b1",
+    "67df4ab89378791ae0a102b4",
+    "67df4ab89378791ae0a102b5",
+    "67df4ac09378791ae0a102cb",
+    "67df4ac19378791ae0a102ce",
+    "67df4ac29378791ae0a102d2",
+    "67df4ac89378791ae0a102e3",
+    "67df4ac99378791ae0a102e7",
+    "67df4adc9378791ae0a1031d",
+    "67df4add9378791ae0a1031f",
+    "67df4add9378791ae0a10321",
+    "67df4ae59378791ae0a10337",
+    "67df4aeb9378791ae0a1034b",
+    "67df4aef9378791ae0a10354",
+    "67df4af09378791ae0a10357",
+    "67df4af19378791ae0a1035b",
+    "67df4af69378791ae0a1036a",
+    "67df4af89378791ae0a10370",
+    "67df4aff9378791ae0a10380",
+    "67df4aff9378791ae0a10381",
+    "67df4b0d9378791ae0a103aa",
+    "67df4b0f9378791ae0a103b2",
+    "67df4b159378791ae0a103c3",
+    "67df4b179378791ae0a103ca",
+    "67df4b1e9378791ae0a103dd",
+    "67df4b289378791ae0a103fc",
+    "67df4b2b9378791ae0a10405",
+    "67df4b2f9378791ae0a10410",
+    "67df4b359378791ae0a1041f",
+    "67df4b389378791ae0a10427",
+    "67df4b419378791ae0a10443",
+    "67df4b419378791ae0a10444",
+    "67df4b469378791ae0a10450",
+    "67df4b599378791ae0a10485",
+    "67df4b5b9378791ae0a1048a",
+    "67df4b5c9378791ae0a1048d",
+    "67df4b669378791ae0a104a9",
+    "67df4b7d9378791ae0a104eb",
+    "67df4b809378791ae0a104f5",
+    "67df4b8a9378791ae0a10510",
+    "67df4b8a9378791ae0a10511",
+    "67df4b8c9378791ae0a10515",
+    "67df4b8e9378791ae0a1051b",
+    "67df4b8f9378791ae0a1051d",
+    "67df4ba49378791ae0a10558",
+    "67df4ba49378791ae0a1055a",
+    "67df4ba59378791ae0a1055c",
+    "67df4ba69378791ae0a1055f",
+    "67df4ba89378791ae0a10564",
+    "67df4ba99378791ae0a10568",
+    "67df4bac9378791ae0a10570",
+    "67df4bad9378791ae0a10572",
+    "67df4baf9378791ae0a10578",
+    "67df4bbb9378791ae0a1059a",
+    "67df4bc29378791ae0a105ae",
+    "67df4bc29378791ae0a105af",
+    "67df4bc69378791ae0a105bc",
+    "67df4bc69378791ae0a105bd",
+    "67df4bc79378791ae0a105c0",
+    "67df4bca9378791ae0a105c8",
+    "67df4bcd9378791ae0a105d0",
+    "67df4bd49378791ae0a105e2",
+    "67df4be59378791ae0a10613",
+    "67df4be99378791ae0a10620",
+    "67df4beb9378791ae0a10625",
+    "67df4bf29378791ae0a10639",
+    "67df4bf59378791ae0a10642",
+    "67df4bfa9378791ae0a10652",
+    "67df4bfc9378791ae0a10658",
+    "67df4bff9378791ae0a10661",
+    "67df4c009378791ae0a10662",
+    "67df4c069378791ae0a10674",
+    "67df4c0a9378791ae0a1067f",
+    "67df4c109378791ae0a10693",
+    "67df4c149378791ae0a1069c",
+    "67df4c179378791ae0a106a5",
+    "67df4c1a9378791ae0a106ae",
+    "67df4c1b9378791ae0a106b2",
+    "67df4c239378791ae0a106ca",
+    "67df4c249378791ae0a106cd",
+    "67df4c259378791ae0a106ce",
+    "67df4c259378791ae0a106cf",
+    "67df4c2b9378791ae0a106e0",
+    "67df4c2e9378791ae0a106ea",
+    "67df4c359378791ae0a106fe"
+  ],
+  "followingProducers": [
+    "675adf63da75cfe37235c7d7",
+    "675adf64da75cfe37235c989",
+    "675adf64da75cfe37235c9bc",
+    "677ab79cf526a921e9ae3e82",
+    "677abbeaf526a921e9ae3e9e",
+    "677c3847f2ed9423773524c8",
+    "677abb88f526a921e9ae3e8d",
+    "677abb94f526a921e9ae3e92",
+    "677ab79af526a921e9ae3e81"
+  ],
+  "interests": [
+    "675adf63da75cfe37235c7d7",
+    "675adf64da75cfe37235c9bc",
+    "677ab79cf526a921e9ae3e82",
+    "677abbeaf526a921e9ae3e9e",
+    "677abb88f526a921e9ae3e8d",
+    "677abb94f526a921e9ae3e92",
+    "677ab79af526a921e9ae3e81"
+  ]
+}
+
+## BASE DE DONNÉES: test
+### Collections:
+- conversations
+- Users
+
+### Échantillons de la collection `conversations` :
+Aucun document disponible.
+
+### Échantillons de la collection `Users` :
+Aucun document disponible.
+
+## BASE DE DONNÉES: admin
+Aucune collection trouvée.
+
+## BASE DE DONNÉES: local
+### Collections:
+- oplog.rs
+
+### Échantillons de la collection `oplog.rs` :
+#### Document 1:
+{
+  "lsid": {
+    "id": "9bf4e38d-6511-4643-8f0b-297d3797735b",
+    "uid": "ddqot68vLpBUPnOuqFj2cdClv/dv/vF9ZVSwknYHEsE="
+  },
+  "txnNumber": 4428,
+  "op": "u",
+  "ns": "Loisir&Culture.Loisir_Paris_Evenements",
+  "ui": "0386ad0f-5a77-4c1c-9e39-08b68226b14a",
+  "o": {
+    "$v": 2,
+    "diff": {
+      "u": {
+        "note_ai": 8,
+        "notes_globales": {
+          "aspects": {
+            "qualite_generale": 8,
+            "interet": 9,
+            "originalite": 7
+          },
+          "emotions": [],
+          "appréciation_globale": "Pas de synthèse disponible"
+        }
+      }
+    }
+  },
+  "o2": {
+    "_id": "677bf6bb7e700e2764ce6da1"
+  },
+  "stmtId": 0,
+  "ts": {
+    "$timestamp": "7484303241417588743"
+  },
+  "t": 252,
+  "v": 2,
+  "wall": "2025-03-21T16:39:01.465Z",
+  "prevOpTime": {
+    "ts": {
+      "$timestamp": "0"
+    },
+    "t": -1
+  }
+}
+
+✅ Rapport d'export terminé
+🔒 Connexion fermée

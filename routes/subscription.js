@@ -17,6 +17,40 @@ const Producer = producerDb.model(
   'producers'
 );
 
+// Définition des niveaux d'abonnement et leurs caractéristiques
+const subscriptionLevels = {
+  'gratuit': {
+    price: 0,
+    name: 'Gratuit',
+    features: ['Profil lieu', 'Poster', 'Voir les posts clients', 'Reco IA 1x/semaine', 'Stats basiques']
+  },
+  'starter': {
+    price: 5,
+    name: 'Starter',
+    features: ['Recos IA quotidiennes', 'Stats avancées', 'Accès au feed de tendances locales']
+  },
+  'pro': {
+    price: 10,
+    name: 'Pro',
+    features: ['Boosts illimités sur la map/feed', 'Accès à la Heatmap & Copilot IA', 'Campagnes simples']
+  },
+  'legend': {
+    price: 15,
+    name: 'Legend',
+    features: ['Classement public', 'Ambassadeurs', 'Campagnes avancées (ciblage fin)', 'Visuels IA stylisés']
+  }
+};
+
+// Fonction pour mapper l'ancien plan au nouveau système
+function mapLegacyPlanToNew(oldPlan) {
+  switch(oldPlan) {
+    case 'bronze': return 'starter';
+    case 'silver': return 'pro';
+    case 'gold': return 'legend';
+    default: return 'gratuit';
+  }
+}
+
 // 📌 Route pour initier un paiement
 router.post('/create-payment-intent', async (req, res) => {
   try {
@@ -35,6 +69,11 @@ router.post('/create-payment-intent', async (req, res) => {
       return res.status(404).json({ error: "Producer not found" });
     }
 
+    // Convertir l'ancien plan vers le nouveau système si nécessaire
+    const newPlan = plan.startsWith('bronze') || plan.startsWith('silver') || plan.startsWith('gold') 
+      ? mapLegacyPlanToNew(plan)
+      : plan;
+
     // ✅ Créer un paiement avec Stripe
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amount * 100, // Montant en cents
@@ -46,9 +85,10 @@ router.post('/create-payment-intent', async (req, res) => {
     await Producer.findByIdAndUpdate(validProducerId, {
       $set: {
         subscription: {
-          plan: plan, // "bronze", "silver", "gold"
-          active: false, // Activation après paiement réussi
+          plan: newPlan, // "gratuit", "starter", "pro", "legend"
+          active: plan === 'gratuit' ? true : false, // Gratuit est toujours actif
           createdAt: new Date(),
+          features: subscriptionLevels[newPlan]?.features || []
         }
       }
     });
@@ -78,9 +118,45 @@ router.get('/producer/:id/subscription', async (req, res) => {
       return res.status(404).json({ error: "Producer not found" });
     }
 
-    res.json({ subscription: producer.subscription });
+    // Si le producteur n'a pas d'abonnement, on lui attribue le niveau gratuit par défaut
+    if (!producer.subscription) {
+      const defaultSubscription = {
+        plan: 'gratuit',
+        active: true,
+        createdAt: new Date(),
+        features: subscriptionLevels.gratuit.features
+      };
+      
+      // Sauvegarder cette information dans la base de données
+      await Producer.findByIdAndUpdate(validProducerId, {
+        $set: { subscription: defaultSubscription }
+      });
+      
+      res.json({ subscription: defaultSubscription });
+    } else {
+      // Enrichir l'abonnement avec les informations du niveau
+      const plan = producer.subscription.plan || 'gratuit';
+      const enrichedSubscription = {
+        ...producer.subscription,
+        details: subscriptionLevels[plan] || subscriptionLevels.gratuit,
+        // Assurer que les features sont toujours présentes
+        features: producer.subscription.features || subscriptionLevels[plan]?.features || []
+      };
+      
+      res.json({ subscription: enrichedSubscription });
+    }
   } catch (error) {
     console.error("❌ Erreur serveur lors de la récupération de l'abonnement :", error);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// 📌 Nouvelle route pour obtenir tous les niveaux d'abonnement
+router.get('/levels', (req, res) => {
+  try {
+    res.json({ levels: subscriptionLevels });
+  } catch (error) {
+    console.error("❌ Erreur lors de la récupération des niveaux d'abonnement :", error);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -99,13 +175,33 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
   if (event.type === 'payment_intent.succeeded') {
     const paymentIntent = event.data.object;
+    const amountPaid = paymentIntent.amount / 100;
 
-    // ✅ Trouver le producteur correspondant au montant payé
-    const producer = await Producer.findOne({ "subscription.plan": paymentIntent.amount / 100 });
+    // Déterminer le niveau d'abonnement en fonction du montant payé
+    let planLevel = 'gratuit';
+    if (amountPaid >= 15) {
+      planLevel = 'legend';
+    } else if (amountPaid >= 10) {
+      planLevel = 'pro';
+    } else if (amountPaid >= 5) {
+      planLevel = 'starter';
+    }
+
+    // ✅ Trouver le producteur correspondant à ce paiement
+    const producer = await Producer.findOne({ 
+      "subscription.plan": { $in: [planLevel, 'bronze', 'silver', 'gold'] },
+      "subscription.active": false
+    }).sort({ "subscription.createdAt": -1 });
 
     if (producer) {
-      await Producer.findByIdAndUpdate(producer._id, { $set: { "subscription.active": true } });
-      console.log(`✅ Abonnement activé pour le producteur: ${producer._id}`);
+      await Producer.findByIdAndUpdate(producer._id, { 
+        $set: { 
+          "subscription.active": true,
+          "subscription.plan": planLevel,
+          "subscription.features": subscriptionLevels[planLevel].features
+        } 
+      });
+      console.log(`✅ Abonnement ${planLevel} activé pour le producteur: ${producer._id}`);
     } else {
       console.warn("⚠️ Aucun producteur trouvé pour ce paiement.");
     }
