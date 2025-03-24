@@ -8,8 +8,8 @@ dotenv.config();
 const mongoUri = process.env.MONGO_URI;
 const outputFilePath = path.join(__dirname, `mongodb_report_${new Date().toISOString().replace(/:/g, '-')}.txt`);
 
-const DEFAULT_SAMPLE_LIMIT = 2;
-const LARGE_SAMPLE_LIMIT = 4;
+const DEFAULT_SAMPLE_LIMIT = 1;
+const LARGE_SAMPLE_LIMIT = 3;
 const MAX_STRING_LENGTH = 50;
 
 const largeSampleDbNames = ['choice_app', 'Loisir&Culture'];
