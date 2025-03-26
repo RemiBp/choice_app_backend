@@ -5,7 +5,7 @@ const geolib = require('../utils/geolib');
 
 // Import models
 const LocationHistory = require('../models/location-history');
-const Restaurant = require('../models/restaurant');
+const Restaurant = require('../models/Restaurant');
 const Event = require('../models/event');
 const Choice = require('../models/choice');
 
