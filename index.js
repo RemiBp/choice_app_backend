@@ -18,9 +18,10 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: ['http://localhost:3000', 'http://10.0.2.2:3000', 'http://10.0.2.2:5000'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  credentials: true
 }));
 app.use(express.json());
 app.use((req, res, next) => {
@@ -87,6 +88,8 @@ module.exports = { choiceAppDb, testDb };
   const locationHistoryRoutes = require('./routes/location-history'); // Routes pour la vérification de l'historique des visites
   const friendsRoutes = require('./routes/friends'); // Routes pour les amis et leurs activités
   const choicesRoutes = require('./routes/choices'); // Routes pour la création et vérification des choices
+  const producerFeedRoutes = require('./routes/producerFeed'); // Routes pour le feed des producteurs
+  const growthAnalyticsRoutes = require('./routes/growthAnalytics'); // Routes pour les analyses de croissance et de portée
 
   // Configuration des routes
   app.use('/api/leisureProducers', leisureProducerRoutes);
@@ -108,6 +111,8 @@ module.exports = { choiceAppDb, testDb };
   app.use('/api/media', mediaRoutes); // Routes pour l'upload de médias et photos de profil
   app.use('/api/location-history', locationHistoryRoutes); // Routes pour la vérification de l'historique des visites
   app.use('/api/friends', friendsRoutes); // Routes pour les amis et leurs activités
+  app.use('/api/producer-feed', producerFeedRoutes); // Routes pour le feed des producteurs
+  app.use('/api/growth-analytics', growthAnalyticsRoutes); // Routes pour les analyses de croissance
 
 // Intégration du service d'automatisation des posts
 const postAutomationService = require('./services/postAutomationService');

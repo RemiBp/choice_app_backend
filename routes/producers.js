@@ -264,7 +264,7 @@ router.post('/conversations/new-message', async (req, res) => {
 });
 
 
-// Endpoint : Récupérer les conversations d’un producteur
+// Endpoint : Récupérer les conversations d'un producteur
 router.get('/:producerId/conversations', async (req, res) => {
   const { producerId } = req.params;
 
@@ -304,9 +304,6 @@ router.get('/:producerId/venue-posts', async (req, res) => {
       return res.status(404).json({ message: 'Producteur non trouvé.' });
     }
 
-    // Récupérer les posts du producteur (avec pagination)
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
     // Connexion à la base de données principale pour les posts
     const choiceAppDb = mongoose.createConnection(process.env.MONGO_URI, {
       dbName: 'ChoiceApp',
@@ -319,45 +316,53 @@ router.get('/:producerId/venue-posts', async (req, res) => {
       new mongoose.Schema({}, { strict: false }),
       'Posts'
     );
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    // Chercher les posts publiés par ou concernant ce producteur
-    const posts = await Post.find({
+    // Récupérer les posts associés à ce producteur
+    const venuePosts = await Post.find({
+      producer_id: producerId,
+      // Ne pas inclure les posts automatisés dans cette section
       $or: [
-        { producer_id: producerId },                  // Posts publiés par le producteur
-        { 'location._id': producerId }                // Posts taggant ce lieu
+        { is_automated: { $exists: false } },
+        { is_automated: false }
       ]
     })
-    .sort({ time_posted: -1 })                        // Du plus récent au plus ancien
+    .sort({ time_posted: -1 })
     .skip(skip)
     .limit(parseInt(limit))
     .lean();
-    
-    // Ajouter des détails du producteur à chaque post
-    const enrichedPosts = posts.map(post => ({
+
+    // Ajouter des informations supplémentaires pour l'affichage
+    const enrichedPosts = venuePosts.map(post => ({
       ...post,
-      authorName: producer.name || 'Lieu sans nom',
-      authorAvatar: producer.photo || '',
-      isProducerPost: true
+      isProducerPost: true,
+      isLeisureProducer: false, // Dans ce contexte, c'est toujours un restaurant
+      author_name: producer.name || 'Restaurant',
+      author_avatar: producer.photo || '',
+      author_id: producerId,
     }));
-    
-    // Déterminer s'il y a plus de posts à charger
+
+    // Récupérer le nombre total de posts pour la pagination
     const totalPosts = await Post.countDocuments({
+      producer_id: producerId,
       $or: [
-        { producer_id: producerId },
-        { 'location._id': producerId }
+        { is_automated: { $exists: false } },
+        { is_automated: false }
       ]
     });
-    
-    const hasMore = totalPosts > skip + enrichedPosts.length;
-    
-    res.json({
+
+    res.status(200).json({
       items: enrichedPosts,
-      hasMore,
-      totalCount: totalPosts
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total_pages: Math.ceil(totalPosts / parseInt(limit)),
+      total: totalPosts,
+      hasMore: skip + enrichedPosts.length < totalPosts
     });
-  } catch (error) {
-    console.error('❌ Erreur lors de la récupération des posts du lieu :', error);
-    res.status(500).json({ message: 'Erreur lors de la récupération du feed: ' + error.message });
+  } catch (err) {
+    console.error('❌ Erreur lors de la récupération des posts du lieu :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
   }
 });
 
@@ -519,20 +524,41 @@ router.get('/:producerId/interactions', async (req, res) => {
 router.get('/:producerId/local-trends', async (req, res) => {
   try {
     const { producerId } = req.params;
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, radius = 5000 } = req.query;
     
     // Vérifier si l'ID est valide
     if (!mongoose.isValidObjectId(producerId)) {
       return res.status(400).json({ message: 'ID de producteur invalide.' });
     }
-    
-    // Récupérer le producteur pour obtenir sa localisation
+
+    // Récupérer le producteur
     const producer = await Producer.findById(producerId);
     if (!producer) {
       return res.status(404).json({ message: 'Producteur non trouvé.' });
     }
+
+    // Récupérer les coordonnées du lieu
+    const coordinates = producer.gps_coordinates?.coordinates || [0, 0];
     
-    // Connexion à la base de données principale
+    // Récupérer les producteurs à proximité (concurrents)
+    const nearbyProducers = await Producer.find({
+      _id: { $ne: producerId }, // Exclure le producteur lui-même
+      gps_coordinates: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: coordinates
+          },
+          $maxDistance: parseInt(radius)
+        }
+      },
+      // Filtrer par catégorie similaire
+      category: { $in: producer.category || [] }
+    })
+    .limit(5)
+    .lean();
+
+    // Connexion à la base de données principale pour les posts
     const choiceAppDb = mongoose.createConnection(process.env.MONGO_URI, {
       dbName: 'ChoiceApp',
       useNewUrlParser: true,
@@ -544,88 +570,120 @@ router.get('/:producerId/local-trends', async (req, res) => {
       new mongoose.Schema({}, { strict: false }),
       'Posts'
     );
+
+    // Récupérer les posts populaires de la région
+    const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    // Récupérer la localisation du producteur
-    const coordinates = producer.gps_coordinates?.coordinates;
-    
-    // Si les coordonnées sont disponibles, rechercher les posts à proximité
-    let localPosts = [];
-    if (coordinates && coordinates.length === 2) {
-      const [longitude, latitude] = coordinates;
-      const radius = 10000; // 10km (en mètres)
-      
-      // Rechercher des posts dans un rayon de 10km
-      const skip = (parseInt(page) - 1) * parseInt(limit);
-      
-      localPosts = await Post.find({
-        'location.coordinates': {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: [longitude, latitude]
-            },
-            $maxDistance: radius
-          }
+    // Récupérer les posts tendance dans la région
+    const popularPosts = await Post.find({
+      // Posts avec coordonnées dans le rayon
+      'location.coordinates': {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: coordinates
+          },
+          $maxDistance: parseInt(radius)
         }
-      })
-      .sort({ time_posted: -1, likes_count: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean();
-    } else {
-      // Si pas de coordonnées, retourner les posts les plus populaires récents
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+      },
+      // Posts avec un engagement élevé
+      $or: [
+        { likes_count: { $gte: 5 } },
+        { comments: { $size: { $gte: 3 } } }
+      ]
+    })
+    .sort({ time_posted: -1, likes_count: -1 })
+    .skip(skip)
+    .limit(parseInt(limit) - nearbyProducers.length) // Laisser de la place pour les concurrents
+    .lean();
+
+    // Créer des "posts" à partir des données des concurrents
+    const competitorPosts = nearbyProducers.map(competitor => {
+      // Calculer la distance entre le producteur et le concurrent
+      const distance = calculateDistance(
+        coordinates[1], // latitude
+        coordinates[0], // longitude
+        competitor.gps_coordinates?.coordinates[1] || 0,
+        competitor.gps_coordinates?.coordinates[0] || 0
+      );
       
-      // Récupérer les posts les plus populaires récents
-      localPosts = await Post.find({})
-        .sort({ likes_count: -1, time_posted: -1 })
-        .skip(skip)
-        .limit(parseInt(limit))
-        .lean();
-    }
-    
-    // Ajouter un flag pour indiquer que ce sont des tendances locales
-    const enrichedPosts = localPosts.map(post => ({
-      ...post,
-      isTrend: true,
-      trendReason: post.likes_count > 10 ? 'Populaire dans votre région' : 'Récent dans votre région'
-    }));
-    
-    // Calculer s'il y a plus de posts à charger
-    const totalCount = await Post.countDocuments({
-      'location.coordinates': coordinates && coordinates.length === 2
-        ? {
-            $near: {
-              $geometry: {
-                type: 'Point',
-                coordinates: coordinates
-              },
-              $maxDistance: 10000 // 10km
-            }
-          }
-        : { $exists: true }
+      return {
+        _id: `competitor_${competitor._id}`,
+        producer_id: competitor._id,
+        content: `${competitor.name} est un établissement concurrent à ${Math.round(distance * 10) / 10} km. Ils proposent ${competitor.category?.join(', ') || 'une offre similaire'}.`,
+        author_name: 'Tendances Locales',
+        author_avatar: '',
+        posted_at: new Date().toISOString(),
+        time_posted: new Date().toISOString(),
+        isProducerPost: true,
+        is_competitor: true,
+        is_trending: true,
+        likes_count: 0,
+        comments: [],
+        location: {
+          name: competitor.name,
+          address: competitor.address,
+          coordinates: competitor.gps_coordinates?.coordinates || [0, 0],
+          distance: `${Math.round(distance * 10) / 10} km`
+        },
+        media: competitor.photos || [],
+        tags: competitor.category || []
+      };
     });
+
+    // Combiner et enrichir tous les posts
+    const allTrendPosts = [...competitorPosts, ...popularPosts];
     
-    const hasMore = totalCount > (parseInt(page) - 1) * parseInt(limit) + enrichedPosts.length;
-    
-    // Ajouter un message d'analyse IA
-    const aiMessage = {
-      _id: 'ai-trends-' + Date.now(),
-      type: 'ai_message',
-      content: `Basé sur l'analyse de votre région, nous avons identifié ${totalCount} publications récentes. ${enrichedPosts.length > 0 ? `Les sujets tendance incluent: ${Array.from(new Set(enrichedPosts.slice(0, 3).map(p => p.content?.slice(0, 30) + '...'))).join(', ')}` : 'Aucune tendance significative n\'a été identifiée pour le moment.'}`,
-      timestamp: new Date()
-    };
-    
-    res.json({
-      items: [aiMessage, ...enrichedPosts],
-      hasMore,
-      totalCount
+    // Trier par nouveauté et engagement
+    allTrendPosts.sort((a, b) => {
+      // Privilégier les posts tendance
+      if (a.is_trending && !b.is_trending) return -1;
+      if (!a.is_trending && b.is_trending) return 1;
+      
+      // Puis par date et engagement
+      const dateA = new Date(a.time_posted || a.posted_at);
+      const dateB = new Date(b.time_posted || b.posted_at);
+      const likesA = a.likes_count || 0;
+      const likesB = b.likes_count || 0;
+      
+      // Score combiné
+      const scoreA = dateA.getTime() / 1000 + likesA * 3600; // 1 like = 1 heure de fraîcheur
+      const scoreB = dateB.getTime() / 1000 + likesB * 3600;
+      
+      return scoreB - scoreA;
     });
-  } catch (error) {
-    console.error('❌ Erreur lors de la récupération des tendances locales :', error);
-    res.status(500).json({ message: 'Erreur lors de la récupération des tendances: ' + error.message });
+
+    // Limiter au nombre demandé
+    const resultPosts = allTrendPosts.slice(0, parseInt(limit));
+
+    res.status(200).json({
+      items: resultPosts,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      hasMore: false // Pas de pagination pour les tendances locales
+    });
+  } catch (err) {
+    console.error('❌ Erreur lors de la récupération des tendances locales :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
   }
 });
+
+// Fonction utilitaire pour calculer la distance entre deux points géographiques
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Rayon de la Terre en km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  return R * c; // Distance en km
+}
+
+function deg2rad(deg) {
+  return deg * (Math.PI/180);
+}
 
 // Endpoint : Récupérer les informations sur interestedUsers, choiceUsers, following, et followers d'un producteur
 // Endpoint : Récupérer les relations (followers, following, interestedUsers, choiceUsers) d'un producteur
