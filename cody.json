@@ -1,0 +1,22 @@
+{
+  "include": [
+    "routes/",
+    "controllers/",
+    "services/",
+    "models/",
+    "utils/",
+    "config/",
+    "index.js"
+  ],
+  "enableCodeActions": true,
+  "autoApply": true,
+  "commands": {
+    "editCode": true,
+    "inlineEdit": true,
+    "inlineChat": true
+  },
+  "personalization": {
+    "enabled": true,
+    "followImports": true
+  }
+}

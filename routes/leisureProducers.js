@@ -485,4 +485,45 @@ router.get('/conversations/:id/messages', async (req, res) => {
   }
 });
 
+// Endpoint : Mettre à jour la photo de profil d'un producteur de loisirs
+router.put('/:id/photo', async (req, res) => {
+  const { id } = req.params;
+  const { photoUrl } = req.body;
+
+  try {
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'ID de producteur invalide.' });
+    }
+
+    if (!photoUrl || typeof photoUrl !== 'string') {
+      return res.status(400).json({ message: 'URL de photo valide requise.' });
+    }
+
+    console.log(`📷 Mise à jour de la photo de profil pour le producteur : ${id}`);
+    
+    // Rechercher et mettre à jour le producteur
+    const updatedProducer = await LeisureProducer.findByIdAndUpdate(
+      id,
+      { photo: photoUrl },
+      { new: true } // Retourne le document mis à jour
+    );
+
+    if (!updatedProducer) {
+      return res.status(404).json({ message: 'Producteur de loisirs non trouvé.' });
+    }
+
+    res.status(200).json({
+      message: 'Photo de profil mise à jour avec succès.',
+      producer: {
+        _id: updatedProducer._id,
+        lieu: updatedProducer.lieu,
+        photo: updatedProducer.photo
+      }
+    });
+  } catch (err) {
+    console.error('❌ Erreur lors de la mise à jour de la photo de profil :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
+
 module.exports = router;

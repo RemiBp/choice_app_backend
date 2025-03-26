@@ -9,8 +9,8 @@ const mongoUri = process.env.MONGO_URI;
 const outputFilePath = path.join(__dirname, `mongodb_report_${new Date().toISOString().replace(/:/g, '-')}.txt`);
 
 const DEFAULT_SAMPLE_LIMIT = 1;
-const LARGE_SAMPLE_LIMIT = 2;
-const MAX_STRING_LENGTH = 50;
+const LARGE_SAMPLE_LIMIT = 1;
+const MAX_STRING_LENGTH = 20;
 
 const largeSampleDbNames = ['choice_app', 'Loisir&Culture'];
 
@@ -85,10 +85,22 @@ async function exportMongoDBData() {
             continue;
           }
 
-          const documents = await collection
-            .aggregate([{ $sample: { size: actualLimit } }])
-            .toArray();
+          let documents;
 
+          if (dbName === 'Restauration_Officielle') {
+            // 2ᵉ document (index 1) de chaque collection
+            documents = await collection.find({}).skip(1).limit(1).toArray();
+          } else if (dbName === 'Loisir&Culture' && col.name === 'Loisir_Paris_Evenements') {
+            // 500ᵉ document (index 499) de cette collection spécifique
+            documents = await collection.find({}).skip(501).limit(1).toArray();
+          } else {
+            // comportement par défaut (échantillon aléatoire)
+            documents = await collection
+              .aggregate([{ $sample: { size: actualLimit } }])
+              .toArray();
+          }
+
+       
           documents.forEach((doc, index) => {
             const truncated = truncateLongStrings(doc);
             writeToFile(`#### Document ${index + 1}:`);

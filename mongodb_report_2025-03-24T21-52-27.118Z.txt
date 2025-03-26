@@ -1,0 +1,4865 @@
+# MongoDB Export - 2025-03-24T21:52:27.119Z
+
+🔄 Connexion à MongoDB Atlas...
+✅ Connexion réussie à MongoDB Atlas!
+
+## BASES DE DONNÉES DISPONIBLES:
+- Beauty_Wellness (0.08 MB)
+- Loisir&Culture (42.57 MB)
+- Nightclub (0.24 MB)
+- Restauration_Officielle (21.29 MB)
+- choice_app (48.49 MB)
+- test (0.02 MB)
+- admin (0.33 MB)
+- local (8494.73 MB)
+
+## BASE DE DONNÉES: Beauty_Wellness
+### Collections:
+- BeautyPlaces
+
+### Échantillons de la collection `BeautyPlaces` :
+#### Document 1:
+{
+  "_id": "67b79315b1274f704c3b...",
+  "place_id": "ChIJfWF9U-N65kcRRkf1...",
+  "address": "16 Cours de l'Île Se...",
+  "category": "Soins esthétiques et...",
+  "gps_coordinates": {
+    "lat": 48.8282181,
+    "lng": 2.2347415
+  },
+  "maps_url": "https://www.google.c...",
+  "name": "Lagrange apart'HOTEL...",
+  "rating": 3.4,
+  "reviews": [
+    {
+      "author_name": "Angus Macfadyen",
+      "author_url": "https://www.google.c...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleus...",
+      "rating": 2,
+      "relative_time_description": "8 months ago",
+      "text": "The staff are always...",
+      "time": 1717435463,
+      "translated": false
+    },
+    {
+      "author_name": "but ya",
+      "author_url": "https://www.google.c...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleus...",
+      "rating": 1,
+      "relative_time_description": "2 years ago",
+      "text": "This was one of the ...",
+      "time": 1667645581,
+      "translated": false
+    },
+    {
+      "author_name": "Rebeka Dove",
+      "author_url": "https://www.google.c...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleus...",
+      "rating": 4,
+      "relative_time_description": "a year ago",
+      "text": "Good location, warm ...",
+      "time": 1698418973,
+      "translated": false
+    },
+    {
+      "author_name": "Markus Semar",
+      "author_url": "https://www.google.c...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleus...",
+      "rating": 5,
+      "relative_time_description": "a year ago",
+      "text": "Now, for that price ...",
+      "time": 1699528267,
+      "translated": false
+    },
+    {
+      "author_name": "Vinny Sagar",
+      "author_url": "https://www.google.c...",
+      "language": "en",
+      "original_language": "en",
+      "profile_photo_url": "https://lh3.googleus...",
+      "rating": 1,
+      "relative_time_description": "6 years ago",
+      "text": "It's a run down hote...",
+      "time": 1532096661,
+      "translated": false
+    }
+  ],
+  "sub_category": "spa",
+  "user_ratings_total": 362,
+  "website": "https://www.lagrange..."
+}
+
+## BASE DE DONNÉES: Loisir&Culture
+### Collections:
+- Loisir_Paris_Evenements
+- Configuration
+- Loisir_Paris_Producers
+
+### Échantillons de la collection `Loisir_Paris_Evenements` :
+#### Document 1:
+{
+  "_id": "677b26428d64f5ede8b1...",
+  "intitulé": "Qui a hacké Garoutzi...",
+  "catégorie": "Théâtre » Comédie",
+  "détail": "Découvrez l'intellig...",
+  "lieu": "La Scène Parisienne ...",
+  "lien_lieu": "https://www.billetre...",
+  "date_debut": "07/01/2025",
+  "date_fin": "25/02/2025",
+  "horaires": [
+    {
+      "jour": "Mardi",
+      "heure": "19h30"
+    }
+  ],
+  "prix_reduit": "15€50",
+  "ancien_prix": "20€00",
+  "note": "Note non disponible",
+  "image": "https://www.billetre...",
+  "site_url": "https://www.billetre...",
+  "purchase_url": "https://www.billetre...",
+  "catégories_prix": [
+    {
+      "Catégorie": "Placement libre",
+      "Prix": [
+        "15,50 €",
+        "20,00 €"
+      ]
+    }
+  ],
+  "commentaires": [
+    {
+      "titre": "-Une pièce sur l'IA ...",
+      "note": "10/10",
+      "contenu": "Cette pièce pose ave..."
+    },
+    {
+      "titre": "-Très belle découver...",
+      "note": "9/10",
+      "contenu": "La pièce \"Qui a hack..."
+    },
+    {
+      "titre": "-Très bonne piece",
+      "note": "9/10",
+      "contenu": "Piece \"intelligente\"..."
+    },
+    {
+      "titre": "-À exploser de rire",
+      "note": "9/10",
+      "contenu": "Génial, on s est bie..."
+    },
+    {
+      "titre": "-Voyage temporo spat...",
+      "note": "10/10",
+      "contenu": "Une pièce qui permet..."
+    },
+    {
+      "titre": "-Frais et bon",
+      "note": "9/10",
+      "contenu": "Adoré, bien joué, th..."
+    },
+    {
+      "titre": "-Fascinant, intellig...",
+      "note": "10/10",
+      "contenu": "Que vous soyez déjà ..."
+    },
+    {
+      "titre": "-Bravo",
+      "note": "10/10",
+      "contenu": "Pièce très drôle tou..."
+    },
+    {
+      "titre": "-Surprise",
+      "note": "9/10",
+      "contenu": "Sujet d'actualité tr..."
+    },
+    {
+      "titre": "-Superbe",
+      "note": "10/10",
+      "contenu": "On a passé un super ..."
+    },
+    {
+      "titre": "-Audacieux et talent...",
+      "note": "9/10",
+      "contenu": "Excellente pièce qui..."
+    },
+    {
+      "titre": "-L'incarnation d'une...",
+      "note": "10/10",
+      "contenu": "Une Intelligence Art..."
+    },
+    {
+      "titre": "-Pièce à voir sans m...",
+      "note": "10/10",
+      "contenu": "Excellente pièce ! U..."
+    },
+    {
+      "titre": "-Super",
+      "note": "10/10",
+      "contenu": "Une super pièce où o..."
+    },
+    {
+      "titre": "-Une garoutzia génia...",
+      "note": "10/10",
+      "contenu": "J'avais peur de ne r..."
+    },
+    {
+      "titre": "-Un très bon moment ...",
+      "note": "9/10",
+      "contenu": "La mise en scène de ..."
+    },
+    {
+      "titre": "-Une IA intimiste",
+      "note": "9/10",
+      "contenu": "Une approche intimis..."
+    },
+    {
+      "titre": "-Une histoire qu'on ...",
+      "note": "10/10",
+      "contenu": "La pièce est super, ..."
+    }
+  ],
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3445581,
+      48.8741584
+    ]
+  },
+  "note_ai": 8.5,
+  "notes_globales": {
+    "aspects": {},
+    "emotions": [],
+    "appréciation_globale": "Pas de synthèse disp..."
+  }
+}
+
+### Échantillons de la collection `Configuration` :
+#### Document 1:
+{
+  "_id": "67e1679aaa05fe1db141...",
+  "type": "billetreduc_ai_statu...",
+  "ai_processed": true,
+  "processed_date": "2025-03-24T14:09:30...."
+}
+
+### Échantillons de la collection `Loisir_Paris_Producers` :
+#### Document 1:
+{
+  "_id": "677c39abf2ed94237735...",
+  "lieu": "La Bonbonnière Vaugi...",
+  "adresse": "226 Rue de Vaugirard...",
+  "description": "Bar/ Restaurant de 8...",
+  "evenements": [
+    {
+      "intitulé": "Y a-t-il un comique ...",
+      "catégorie": "Spectacles » Stand-u...",
+      "lien_evenement": "/Loisir_Paris_Evenem..."
+    }
+  ],
+  "lien_lieu": "https://www.billetre...",
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3047305,
+      48.8408478
+    ]
+  },
+  "nombre_evenements": 1,
+  "source": "billetreduc",
+  "image": "data:image/jpeg;base...",
+  "lien_google_maps": "https://www.google.c...",
+  "note_google": "4,5\n(150)",
+  "photos": [
+    "data:image/jpeg;base..."
+  ],
+  "posts": [
+    "67e0d39bc0b97dd38671..."
+  ]
+}
+
+## BASE DE DONNÉES: Nightclub
+### Collections:
+- Nightclub_Paris_Producers
+- Nightclub_Paris_Producers2
+
+### Échantillons de la collection `Nightclub_Paris_Producers` :
+#### Document 1:
+{
+  "_id": "677bf518f2ed94237735...",
+  "name": "Le Hobo Paris",
+  "address": "67 rue Pierre Charro...",
+  "categories": [
+    "Boîtes de nuit"
+  ],
+  "comments": [],
+  "days_and_hours": [
+    {
+      "day": "Tue",
+      "time": "Fermé"
+    },
+    {
+      "day": "Wed",
+      "time": "11:30 PM - 5:30 AM (..."
+    },
+    {
+      "day": "Thu",
+      "time": "11:30 PM - 5:30 AM (..."
+    },
+    {
+      "day": "Fri",
+      "time": "11:30 PM - 5:30 AM (..."
+    },
+    {
+      "day": "Sat",
+      "time": "11:30 PM - 5:30 AM (..."
+    },
+    {
+      "day": "Sun",
+      "time": "11:30 PM - 6:00 AM (..."
+    }
+  ],
+  "description": "Description non disp...",
+  "images": [
+    "https://s3-media0.fl...",
+    "https://s3-media0.fl...",
+    "https://s3-media0.fl...",
+    "https://s3-media0.fl...",
+    "https://s3-media0.fl...",
+    "https://image.mux.co..."
+  ],
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      2.3044996,
+      48.8702408
+    ]
+  },
+  "note": 5.8,
+  "website_url": null
+}
+
+### Échantillons de la collection `Nightclub_Paris_Producers2` :
+#### Document 1:
+{
+  "_id": "67a091d734cba9dcea75...",
+  "site_url": "https://shotgun.live...",
+  "ancien_prix": "",
+  "catégorie": "hard",
+  "catégories_prix": [],
+  "commentaires": [],
+  "détail": "░░░░░░░ LINE-UP ░░░░...",
+  "horaires": [
+    {
+      "jour": "ven",
+      "heure": "23:00 - 07:00"
+    }
+  ],
+  "image": "https://res.cloudina...",
+  "intitulé": "Nexus X Agony : Luci...",
+  "lien_lieu": "https://shotgun.live...",
+  "lieu": "Nexus",
+  "lineup": [
+    {
+      "nom": "Luciid",
+      "image": "https://res.cloudina..."
+    },
+    {
+      "nom": "Kloud",
+      "image": "https://res.cloudina..."
+    },
+    {
+      "nom": "CEEJAY",
+      "image": "https://res.cloudina..."
+    },
+    {
+      "nom": "HOEHENANGST",
+      "image": "https://res.cloudina..."
+    }
+  ],
+  "location": {
+    "adresse": "100 Av. du Général L..."
+  },
+  "note": "Note non disponible",
+  "prix_reduit": "Prix non disponible",
+  "prochaines_dates": "ven 28 févr.",
+  "purchase_url": "https://shotgun.live..."
+}
+
+## BASE DE DONNÉES: Restauration_Officielle
+### Collections:
+- producers
+- Restauration_Producers
+- chat_messages
+- users
+- Posts
+
+### Échantillons de la collection `producers` :
+#### Document 1:
+{
+  "_id": "675adf63da75cfe37235...",
+  "place_id": "ChIJg-Fbo_l75kcRooWz...",
+  "name": "Olivia",
+  "verified": false,
+  "photo": "https://maps.googlea...",
+  "description": "Bienvenue chez Olivi...",
+  "address": "2 Pl. Stalingrad, 92...",
+  "gps_coordinates": {
+    "type": "Point",
+    "coordinates": [
+      2.2340738,
+      48.8148807
+    ]
+  },
+  "category": [
+    "meal_takeaway",
+    "restaurant"
+  ],
+  "opening_hours": [
+    "Monday: 9:00 AM – 12...",
+    "Tuesday: 9:00 AM – 1...",
+    "Wednesday: 9:00 AM –...",
+    "Thursday: 9:00 AM – ...",
+    "Friday: 9:00 AM – 12...",
+    "Saturday: 9:00 AM – ...",
+    "Sunday: 9:00 AM – 12..."
+  ],
+  "phone_number": "01 45 34 13 38",
+  "website": "https://olivia-meudo...",
+  "notes_globales": {
+    "service": 8.56,
+    "lieu": 8.26,
+    "portions": 7.66,
+    "ambiance": 7.96
+  },
+  "abonnés": 0,
+  "photos": [
+    "https://maps.googlea...",
+    "https://maps.googlea...",
+    "https://maps.googlea...",
+    "https://maps.googlea...",
+    "https://maps.googlea...",
+    "https://maps.googlea...",
+    "https://maps.googlea...",
+    "https://maps.googlea...",
+    "https://maps.googlea...",
+    "https://maps.googlea..."
+  ],
+  "__v": 0,
+  "business_status": "OPERATIONAL",
+  "international_phone_number": "+33 1 45 34 13 38",
+  "maps_url": "https://www.google.c...",
+  "popular_times": [
+    {
+      "name": "Monday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        11,
+        27,
+        47,
+        69,
+        71,
+        57,
+        36,
+        22,
+        22,
+        33,
+        52,
+        72,
+        75,
+        54,
+        27
+      ]
+    },
+    {
+      "name": "Tuesday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        14,
+        31,
+        47,
+        71,
+        70,
+        53,
+        36,
+        33,
+        40,
+        53,
+        72,
+        82,
+        77,
+        54,
+        41
+      ]
+    },
+    {
+      "name": "Wednesday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        27,
+        37,
+        52,
+        67,
+        77,
+        64,
+        49,
+        36,
+        38,
+        54,
+        74,
+        82,
+        72,
+        47,
+        30
+      ]
+    },
+    {
+      "name": "Thursday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        21,
+        32,
+        50,
+        75,
+        78,
+        62,
+        45,
+        37,
+        41,
+        57,
+        80,
+        97,
+        92,
+        73,
+        50
+      ]
+    },
+    {
+      "name": "Friday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        16,
+        27,
+        52,
+        85,
+        90,
+        66,
+        40,
+        39,
+        52,
+        74,
+        94,
+        100,
+        90,
+        64,
+        36
+      ]
+    },
+    {
+      "name": "Saturday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        22,
+        42,
+        70,
+        89,
+        94,
+        77,
+        57,
+        50,
+        51,
+        73,
+        90,
+        96,
+        86,
+        62,
+        42
+      ]
+    },
+    {
+      "name": "Sunday",
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        20,
+        32,
+        51,
+        78,
+        93,
+        90,
+        71,
+        60,
+        66,
+        78,
+        83,
+        85,
+        69,
+        53,
+        34
+      ]
+    }
+  ],
+  "price_level": 2,
+  "rating": 4.4,
+  "serves_vegetarian_food": "Non spécifié",
+  "service_options": {
+    "dine_in": "Disponible",
+    "takeout": "Disponible",
+    "delivery": "Disponible"
+  },
+  "structured_data": {
+    "Menus Globaux": [
+      {
+        "nom": "MENU ENFANT",
+        "prix": "14.00€",
+        "inclus": [
+          {
+            "catégorie": "Plats",
+            "items": [
+              {
+                "nom": "Pizza bambino ou rig...",
+                "description": "Pizza bambino ou rig...",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              }
+            ]
+          },
+          {
+            "catégorie": "Accompagnements",
+            "items": [
+              {
+                "nom": "Boisson et boule de ...",
+                "description": "Boisson et boule de ...",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              }
+            ]
+          }
+        ],
+        "_id": "67980ae89b52d4d3eec6..."
+      },
+      {
+        "nom": "GLACES",
+        "prix": "6.00€ - 8.00€",
+        "inclus": [
+          {
+            "catégorie": "GLACES",
+            "items": [
+              {
+                "nom": "Glace",
+                "description": "Parfums : café, choc...",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              }
+            ]
+          },
+          {
+            "catégorie": "Desserts",
+            "items": [
+              {
+                "nom": "Dolce vita",
+                "description": "Sorbets cassis, mang...",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              },
+              {
+                "nom": "Minetta",
+                "description": "Stracciatella, vanil...",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              },
+              {
+                "nom": "La Bella Hélèna",
+                "description": "Chocolat, parfum crè...",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              }
+            ]
+          }
+        ],
+        "_id": "67980ae89b52d4d3eec6..."
+      },
+      {
+        "nom": "BIÈRES",
+        "prix": "",
+        "inclus": [
+          {
+            "catégorie": "PRESSION",
+            "items": [
+              {
+                "nom": "Peroni",
+                "description": "",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              },
+              {
+                "nom": "St Stefanus Ambrée",
+                "description": "",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              },
+              {
+                "nom": "Bière du moment",
+                "description": "",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              }
+            ]
+          },
+          {
+            "catégorie": "BOUTEILLE",
+            "items": [
+              {
+                "nom": "Vedett Blanche - 33c...",
+                "description": "",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              },
+              {
+                "nom": "Moretti - 33 cl",
+                "description": "",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              },
+              {
+                "nom": "Chouffe - 33 cl",
+                "description": "",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              }
+            ]
+          }
+        ],
+        "_id": "67980ae89b52d4d3eec6..."
+      },
+      {
+        "nom": "VINS ITALIENS",
+        "prix": "",
+        "inclus": [
+          {
+            "catégorie": "VINS ROUGES ITALIENS",
+            "items": [
+              {
+                "nom": "Puglia IGT",
+                "description": "Diverso bio",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              },
+              {
+                "nom": "Reggiano Lambrusco D...",
+                "description": "",
+                "note": "7.8/10",
+                "prix": "",
+                "_id": "67980ae89b52d4d3eec6..."
+              }
+            ]
+          }
+        ],
+        "_id": "67980ae89b52d4d3eec6..."
+      }
+    ],
+    "Items Indépendants": [
+      {
+        "catégorie": "ANTIPASTI",
+        "items": [
+          {
+            "nom": "Focaccia Fine",
+            "description": "Stracciatella, pesto...",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 280,
+              "carbohydrates": 50,
+              "proteins": 10,
+              "fats": 40,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Gamberoni en tempura",
+            "description": "Persillade et ricott...",
+            "prix": 14,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Croustillant de Pole...",
+            "description": "En patates douces et...",
+            "prix": 12,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Entrées",
+        "items": [
+          {
+            "nom": "Beignets d'aubergine",
+            "description": "Sauce napolitaine",
+            "prix": 11,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 30,
+              "proteins": 5,
+              "fats": 15,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Arancini di parma pa...",
+            "description": "Sauce napolitaine",
+            "prix": 13,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 30,
+              "proteins": 15,
+              "fats": 55,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Saumon gravlax à l'I...",
+            "description": "Betterave chioggia e...",
+            "prix": 14,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 5,
+              "proteins": 25,
+              "fats": 70,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 3.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Plats",
+        "items": [
+          {
+            "nom": "Planche de charcuter...",
+            "description": "Légumes et fromages ...",
+            "prix": 19,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 300,
+              "carbohydrates": 5,
+              "proteins": 20,
+              "fats": 25,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Mozzarella",
+            "description": "",
+            "prix": "",
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 280,
+              "carbohydrates": 1.5,
+              "proteins": 28,
+              "fats": 17,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 10.6,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Burrata et tomates d...",
+            "description": "Basilic, huile d’oli...",
+            "prix": 16,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 5,
+              "proteins": 15,
+              "fats": 80,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "D",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Burrata et légumes m...",
+            "description": "Asperges, courgettes...",
+            "prix": 18,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 150,
+              "carbohydrates": 10,
+              "proteins": 8,
+              "fats": 7,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Duo de burrata \"natu...",
+            "description": "Foccacia et poire Rô...",
+            "prix": "",
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 15,
+              "proteins": 10,
+              "fats": 18,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 3.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Entrées",
+        "items": [
+          {
+            "nom": "Foccacia et poire Rô...",
+            "description": "Foccacia et poire Rô...",
+            "prix": 23,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 45,
+              "proteins": 5,
+              "fats": 7,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Plats",
+        "items": [
+          {
+            "nom": "Tartufo",
+            "description": "Nouvelle description",
+            "prix": 19,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 5,
+              "proteins": 15,
+              "fats": 20,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 5.2,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Norvegese",
+            "description": "Saumon, crème de sor...",
+            "prix": 21,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 180,
+              "carbohydrates": 4.5,
+              "proteins": 20,
+              "fats": 10,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 3.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Ravioli ricotta épin...",
+            "description": "Crème de sauge, parm...",
+            "prix": 17,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 30,
+              "proteins": 15,
+              "fats": 10,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Lasagna bolognese al...",
+            "description": "Roquette, parmesan",
+            "prix": 19,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 200,
+              "carbohydrates": 20,
+              "proteins": 25,
+              "fats": 55,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Risotto aux gambas g...",
+            "description": "Crème de spianata",
+            "prix": 26,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 150,
+              "carbohydrates": 25,
+              "proteins": 15,
+              "fats": 10,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Linguine aux deux sa...",
+            "description": "Linguine aux deux sa...",
+            "prix": "Non spécifié",
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 180,
+              "carbohydrates": 25,
+              "proteins": 15,
+              "fats": 10,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Entrées",
+        "items": [
+          {
+            "nom": "Crème d'aneth et par...",
+            "description": "Crème d'aneth et par...",
+            "prix": 21,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 300,
+              "carbohydrates": 5,
+              "proteins": 8,
+              "fats": 25,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Linguine alle vongol...",
+            "description": "Coques, huile d'oliv...",
+            "prix": 23,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 160,
+              "carbohydrates": 24,
+              "proteins": 8,
+              "fats": 4,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Linguine carbonara",
+            "description": "Chips de guanchale",
+            "prix": 19,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 450,
+              "carbohydrates": 40,
+              "proteins": 20,
+              "fats": 40,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 5.2,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Plats",
+        "items": [
+          {
+            "nom": "Tortelloni aux cèpes",
+            "description": "Crème de truffe, str...",
+            "prix": 22,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 30,
+              "proteins": 15,
+              "fats": 55,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Rigatoni All'arrabbi...",
+            "description": "Quenelle de straccia...",
+            "prix": 18,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 160,
+              "carbohydrates": 25,
+              "proteins": 5,
+              "fats": 3,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Rigatoni au gorgonzo...",
+            "description": "Roquette, noix & jam...",
+            "prix": 21,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 350,
+              "carbohydrates": 35,
+              "proteins": 15,
+              "fats": 20,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Rigatoni al tartufo",
+            "description": "Et sa burrata truffé...",
+            "prix": 26,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 350,
+              "carbohydrates": 35,
+              "proteins": 10,
+              "fats": 20,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Risotto au homard Vi...",
+            "description": "En persillade et asp...",
+            "prix": "",
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 200,
+              "carbohydrates": 25,
+              "proteins": 15,
+              "fats": 8,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "INSALATE",
+        "items": [
+          {
+            "nom": "L'Olivia",
+            "description": "Tomates d'antan, avo...",
+            "prix": 19,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 150,
+              "carbohydrates": 5,
+              "proteins": 10,
+              "fats": 8,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Taleggio",
+            "description": "Nems de taleggio, to...",
+            "prix": 20,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "La San Daniele",
+            "description": "Jambon San Daniele, ...",
+            "prix": 21,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Polpo et gamberoni",
+            "description": "Pommes vitelote, oig...",
+            "prix": 21,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Carpaccio de bœuf",
+            "description": "Roquette et parmesan...",
+            "prix": "N/A",
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 150,
+              "carbohydrates": 1,
+              "proteins": 20,
+              "fats": 8,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Entrées",
+        "items": [
+          {
+            "nom": "Roquette et parmesan...",
+            "description": "Roquette et parmesan...",
+            "prix": 18,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 150,
+              "carbohydrates": 3.5,
+              "proteins": 8,
+              "fats": 12,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Vitello Tonnato",
+            "description": "Aux légumes marinés",
+            "prix": 21,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 180,
+              "carbohydrates": 5,
+              "proteins": 25,
+              "fats": 70,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Tartare des pouilles",
+            "description": "Pesto rouge, parmesa...",
+            "prix": 19,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 10,
+              "proteins": 15,
+              "fats": 75,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "D",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Supplément burrata 5...",
+            "description": "Supplément burrata 5...",
+            "prix": "",
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 2,
+              "proteins": 18,
+              "fats": 20,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 6,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Plats",
+        "items": [
+          {
+            "nom": "La milanaise extra t...",
+            "description": "Belle tranche dans l...",
+            "prix": 20,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 2,
+              "proteins": 20,
+              "fats": 18,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 5.2,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Saltimbocca croustil...",
+            "description": "Sauce poivre, amaret...",
+            "prix": 22,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 10,
+              "proteins": 25,
+              "fats": 65,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Filet de boeuf châte...",
+            "description": "Sauce gorgonzola, fu...",
+            "prix": 32,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 2,
+              "proteins": 25,
+              "fats": 16,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 15,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Le Frenchy Burger",
+            "description": "Bœuf",
+            "prix": "",
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 20,
+              "proteins": 15,
+              "fats": 18,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 3.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Plats",
+        "items": [
+          {
+            "nom": "Bœuf grillé, rebloch...",
+            "description": "Bœuf grillé, rebloch...",
+            "prix": 18,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 5,
+              "proteins": 20,
+              "fats": 15,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 6.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "L'Italien Burger au ...",
+            "description": "Bœuf grillé, gorgonz...",
+            "prix": 19,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 5,
+              "proteins": 20,
+              "fats": 15,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 5.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Foie de veau à la Ve...",
+            "description": "Persillade et capona...",
+            "prix": 22,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 160,
+              "carbohydrates": 5,
+              "proteins": 20,
+              "fats": 7,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 6.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Tagliata de volaille",
+            "description": "Crème de piquillos e...",
+            "prix": 21,
+            "note": 5.35,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 200,
+              "carbohydrates": 15,
+              "proteins": 20,
+              "fats": 10,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Sauté de veau au cit...",
+            "description": "Et olives de taggias...",
+            "prix": 21,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 150,
+              "carbohydrates": 15,
+              "proteins": 20,
+              "fats": 65,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 3.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Polpo à la plancha f...",
+            "description": "Risotto en spianata",
+            "prix": 25,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Mi-cuit de thon au s...",
+            "description": "Sauce gremolata, cap...",
+            "prix": "non spécifié",
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 184,
+              "carbohydrates": 3.8,
+              "proteins": 20.5,
+              "fats": 9.5,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 3.2,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "PIZZE",
+        "items": [
+          {
+            "nom": "Margherita",
+            "description": "Tomate, Mozzarella, ...",
+            "prix": 13,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 10,
+              "proteins": 15,
+              "fats": 75,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "D",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Napolitaine",
+            "description": "Tomate, mozzarella, ...",
+            "prix": 15,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 180,
+              "carbohydrates": 5,
+              "proteins": 15,
+              "fats": 10,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Pizza",
+        "items": [
+          {
+            "nom": "Végétarienne",
+            "description": "Mozzarella, tomates ...",
+            "prix": 16,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Regina Classica",
+            "description": "Tomate, mozzarella, ...",
+            "prix": 16,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 150,
+              "carbohydrates": 5,
+              "proteins": 10,
+              "fats": 8,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Diavola Tomate",
+            "description": "Mozzarella, spianata...",
+            "prix": 16,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 5,
+              "proteins": 15,
+              "fats": 18,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Parma Tomate",
+            "description": "Mozzarella, tomates ...",
+            "prix": 17,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 150,
+              "carbohydrates": 5,
+              "proteins": 10,
+              "fats": 8,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Quatre saisons",
+            "description": "Tomate, mozzarella, ...",
+            "prix": 18,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Calzone",
+            "description": "Tomate, mozzarella, ...",
+            "prix": 16,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 24,
+              "proteins": 12,
+              "fats": 10,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Pizzas",
+        "items": [
+          {
+            "nom": "Ricotta",
+            "description": "Tomate, mozzarella, ...",
+            "prix": 17,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 174,
+              "carbohydrates": 6.3,
+              "proteins": 11.1,
+              "fats": 12.5,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Burrata",
+            "description": "Tomate, mozzarella, ...",
+            "prix": 19,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 220,
+              "carbohydrates": 4,
+              "proteins": 14,
+              "fats": 16,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Campione",
+            "description": "Tomate, mozzarella, ...",
+            "prix": 17,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 180,
+              "carbohydrates": 5.5,
+              "proteins": 12.3,
+              "fats": 11.8,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Tonnata",
+            "description": "Tomate, mozzarella, ...",
+            "prix": 18,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 157,
+              "carbohydrates": 3.6,
+              "proteins": 11.2,
+              "fats": 10.5,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.8,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Stracciatella Verde",
+            "description": "Crème de basilic, sp...",
+            "prix": 19,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 5,
+              "proteins": 15,
+              "fats": 20,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Rustica",
+            "description": "Crème, mozzarella, c...",
+            "prix": 16,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 280,
+              "carbohydrates": 10,
+              "proteins": 15,
+              "fats": 20,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Pizzas",
+        "items": [
+          {
+            "nom": "Quattro Formaggi",
+            "description": "Mozzarella, gorgonzo...",
+            "prix": 16,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 320,
+              "carbohydrates": 2,
+              "proteins": 20,
+              "fats": 25,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 6.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Cosa nostra",
+            "description": "Crème de cèpes, cham...",
+            "prix": 21,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Norvegese",
+            "description": "Crème, saumon frais,...",
+            "prix": 20,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 180,
+              "carbohydrates": 2,
+              "proteins": 20,
+              "fats": 10,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 3.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Donatella",
+            "description": "Crème, taleggio, pan...",
+            "prix": 19,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Truffo",
+            "description": "Crème fraîche, froma...",
+            "prix": 26,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Suppléments",
+        "items": [
+          {
+            "nom": "Ingrédients suppléme...",
+            "description": "",
+            "prix": 1.5,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Jambon de Parme",
+            "description": "",
+            "prix": 3,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "jambon de parme": 70,
+              "pomme de terre": 20,
+              "fromage": 10
+            },
+            "nutrition": {
+              "calories": 241,
+              "carbohydrates": 0,
+              "proteins": 25,
+              "fats": 16,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 5.6,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "DOLCI",
+        "items": [
+          {
+            "nom": "Salade de fruits fra...",
+            "description": "Glace citron, basili...",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 60,
+              "carbohydrates": 15,
+              "proteins": 1,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 0.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Olivia Tiramisu trad...",
+            "description": "",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 320,
+              "carbohydrates": 25,
+              "proteins": 5,
+              "fats": 20,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Moelleux au chocolat",
+            "description": "Glace stracciatella",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 350,
+              "carbohydrates": 40,
+              "proteins": 5,
+              "fats": 20,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 3.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Cheesecake speculoos",
+            "description": "Poire et caramel beu...",
+            "prix": 10,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 350,
+              "carbohydrates": 30,
+              "proteins": 5,
+              "fats": 65,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "D",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Mousse alla ciccioli...",
+            "description": "Cacao et amaretto bl...",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 300,
+              "carbohydrates": 25,
+              "proteins": 5,
+              "fats": 70,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "D",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Panna cotta vanille ...",
+            "description": "Coulis de fruits rou...",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 250,
+              "carbohydrates": 25,
+              "proteins": 5,
+              "fats": 15,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Pizza Nutella",
+            "description": "Noisettes grillées, ...",
+            "prix": "9.00€ (Pour 1) / 15....",
+            "note": 7.39,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 450,
+              "carbohydrates": 40,
+              "proteins": 8,
+              "fats": 52,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "D",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Café gourmand",
+            "description": "",
+            "prix": "",
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 280,
+              "carbohydrates": 25,
+              "proteins": 5,
+              "fats": 70,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 21,
+            "nutri_score": "D",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Boissons",
+        "items": [
+          {
+            "nom": "Café, Chocolat liége...",
+            "description": "",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 210,
+              "carbohydrates": 16,
+              "proteins": 3,
+              "fats": 15,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 5.2,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Desserts",
+        "items": [
+          {
+            "nom": "Chocolat, parfum crè...",
+            "description": "",
+            "prix": 10,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 450,
+              "carbohydrates": 40,
+              "proteins": 5,
+              "fats": 30,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 5.2,
+            "nutri_score": "D",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Glace vanille & ceri...",
+            "description": "",
+            "prix": 10,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 220,
+              "carbohydrates": 25,
+              "proteins": 4,
+              "fats": 12,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Sorbet citron basili...",
+            "description": "",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 150,
+              "carbohydrates": 35,
+              "proteins": 1,
+              "fats": 0.5,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "C",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Vanille, parfum crèm...",
+            "description": "",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Fromages",
+        "items": [
+          {
+            "nom": "Assortiment de froma...",
+            "description": "Taleggio, gorgonzola...",
+            "prix": 14,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 350,
+              "carbohydrates": 2,
+              "proteins": 20,
+              "fats": 28,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 9.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Taleggio",
+            "description": "",
+            "prix": 7,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 300,
+              "carbohydrates": 0,
+              "proteins": 20,
+              "fats": 25,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 13,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Gorgonzola",
+            "description": "",
+            "prix": 7,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 353,
+              "carbohydrates": 2.2,
+              "proteins": 18,
+              "fats": 29,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 13.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Cacciotta à la truff...",
+            "description": "",
+            "prix": 8,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 350,
+              "carbohydrates": 2,
+              "proteins": 18,
+              "fats": 30,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 5.2,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Eaux",
+        "items": [
+          {
+            "nom": "San Benedetto",
+            "description": "",
+            "prix": "",
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 0,
+              "carbohydrates": 0,
+              "proteins": 0,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 0,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Montepulcanio D'Abru...",
+        "items": [
+          {
+            "nom": "Fontevecchia bio",
+            "description": "",
+            "prix": 32,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Sicilia DOC",
+        "items": [
+          {
+            "nom": "Nero d'Avola - Amira",
+            "description": "",
+            "prix": 7,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 83,
+              "carbohydrates": 2.9,
+              "proteins": 0.1,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Chianti DOCG",
+        "items": [
+          {
+            "nom": "Sangiovese, Governo ...",
+            "description": "",
+            "prix": 10,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Salento IGT",
+        "items": [
+          {
+            "nom": "Castello Monaci Cori...",
+            "description": "",
+            "prix": 42,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 350,
+              "carbohydrates": 5,
+              "proteins": 20,
+              "fats": 25,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "A",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Bolla",
+        "items": [
+          {
+            "nom": "Le Poiane, Valpolice...",
+            "description": "",
+            "prix": 78,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 82,
+              "carbohydrates": 3.5,
+              "proteins": 0.5,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Barolo DOCG",
+        "items": [
+          {
+            "nom": "Ca'Bianca Piémont",
+            "description": "",
+            "prix": 95,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 0.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Brunello di Montalci...",
+        "items": [
+          {
+            "nom": "Sangiovese, Toscano",
+            "description": "",
+            "prix": 130,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 83,
+              "carbohydrates": 4,
+              "proteins": 2,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "VINS BLANCS ITALIENS",
+        "items": [
+          {
+            "nom": "Umbria IGT",
+            "description": "Bigi - Vipra Bianca",
+            "prix": 6.5,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 80,
+              "carbohydrates": 2.5,
+              "proteins": 0.5,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Orvieto DOC",
+            "description": "Bigi - Vigneto Torri...",
+            "prix": 8,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 80,
+              "carbohydrates": 0,
+              "proteins": 0,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Venezia DOC",
+            "description": "Pinot Grigio Blush",
+            "prix": 6.5,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 82,
+              "carbohydrates": 2.1,
+              "proteins": 0.6,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Chiaretto di bardoli...",
+            "description": "Corvina, Rondinella,...",
+            "prix": 38,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 82,
+              "carbohydrates": 0,
+              "proteins": 0,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "VINS ROSÉS ITALIENS",
+        "items": [
+          {
+            "nom": "Lambrusco Rosato DOC",
+            "description": "Eretico - Vin rosé p...",
+            "prix": 26,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 80,
+              "carbohydrates": 8,
+              "proteins": 0,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 1.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "VINS FRANÇAIS",
+        "items": [
+          {
+            "nom": "VINS ROUGES",
+            "description": "",
+            "prix": "12cl, 25cl, 75cl",
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 85,
+              "carbohydrates": 2.6,
+              "proteins": 0.1,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "VINS BLANCS",
+        "items": [
+          {
+            "nom": "Pays D’OC IGP Chardo...",
+            "description": null,
+            "prix": 5.5,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "pomme de terre": 40,
+              "bœuf": 30,
+              "sauce périgueux": 30
+            },
+            "nutrition": {
+              "calories": 83,
+              "carbohydrates": 0,
+              "proteins": 0,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Pouilly-fumé AOC",
+            "description": null,
+            "prix": 14,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "pomme de terre": 40,
+              "bœuf": 30,
+              "sauce périgueux": 30
+            },
+            "nutrition": {
+              "calories": 85,
+              "carbohydrates": 0,
+              "proteins": 0,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "VINS ROSÉS",
+        "items": [
+          {
+            "nom": "Côtes de Provence AO...",
+            "description": null,
+            "prix": 6.5,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "pomme de terre": 40,
+              "bœuf": 30,
+              "sauce périgueux": 30
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "APÉRITIFS",
+        "items": [
+          {
+            "nom": "Martini - 6cl",
+            "description": "Blanc ou rouge",
+            "prix": 6.5,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 175,
+              "carbohydrates": 0,
+              "proteins": 0,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Campari Orange - 16c...",
+            "description": "",
+            "prix": 6.5,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 43,
+              "carbohydrates": 4.8,
+              "proteins": 0,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 1.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Aperol Spritz - 25cl",
+            "description": "Prosecco, Apérol, or...",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 85,
+              "carbohydrates": 3.5,
+              "proteins": 0.1,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 1.2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Bergamotes Spritz - ...",
+            "description": "Prosecco, Italicus, ...",
+            "prix": 12,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 60,
+              "carbohydrates": 3.5,
+              "proteins": 0.3,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Negroni - 16cl",
+            "description": "",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 231,
+              "carbohydrates": 10.7,
+              "proteins": 0,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 0.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Americano - 16cl",
+            "description": "",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 1,
+              "carbohydrates": 0.2,
+              "proteins": 0,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 0.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Crodino - 17.5cl",
+            "description": "Sans alcool",
+            "prix": 6,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "DIGESTIFS",
+        "items": [
+          {
+            "nom": "Limoncello / Amarett...",
+            "description": "",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          },
+          {
+            "nom": "Grappa / Sambuca",
+            "description": "",
+            "prix": "",
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Calvados",
+        "items": [
+          {
+            "nom": "Calvados",
+            "description": "",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 231,
+              "carbohydrates": 0,
+              "proteins": 0,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Cognac / Armagnac",
+        "items": [
+          {
+            "nom": "Cognac / Armagnac",
+            "description": "",
+            "prix": 9,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 231,
+              "carbohydrates": 0,
+              "proteins": 0,
+              "fats": 0,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2.5,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      },
+      {
+        "catégorie": "Cognac XO / Armagnac...",
+        "items": [
+          {
+            "nom": "Cognac XO / Armagnac...",
+            "description": "",
+            "prix": 16,
+            "note": 7.8,
+            "portion_size": 1.07,
+            "ingredients": {
+              "ingrédient inconnu": 100
+            },
+            "nutrition": {
+              "calories": 100,
+              "carbohydrates": 20,
+              "proteins": 5,
+              "fats": 2,
+              "sodium": 0,
+              "fiber": 0,
+              "fruits_vegetables": 0
+            },
+            "carbon_footprint": 2,
+            "nutri_score": "B",
+            "_id": "679809c89b52d4d3eec5..."
+          }
+        ]
+      }
+    ]
+  },
+  "user_ratings_total": 657,
+  "posts": [
+    "677d977a4fc38a33b771...",
+    "677d9a394fc38a33b771...",
+    "677d9c5d4fc38a33b771...",
+    "67818db564f99a896e38...",
+    "67818dd964f99a896e38...",
+    "67818e1f64f99a896e38..."
+  ],
+  "choice": 0,
+  "conversations": [
+    "6787e8e2df276f5bc846..."
+  ],
+  "interestedUsers": [
+    "677db5b562dbd1a04ed6...",
+    "677db5b562dbd1a04ed6..."
+  ],
+  "choiceUsers": [
+    {
+      "userId": "677db5b562dbd1a04ed6..."
+    }
+  ],
+  "following": [
+    "677db5b562dbd1a04ed6..."
+  ],
+  "followers": [
+    "677db5b562dbd1a04ed6...",
+    "675adf63da75cfe37235..."
+  ],
+  "subscription": {
+    "plan": "pro",
+    "active": false,
+    "createdAt": "2025-03-24T13:25:18....",
+    "features": [
+      "Boosts illimités sur...",
+      "Accès à la Heatmap &...",
+      "Campagnes simples"
+    ]
+  }
+}
+
+### Échantillons de la collection `Restauration_Producers` :
+Aucun document disponible.
+
+### Échantillons de la collection `chat_messages` :
+Aucun document disponible.
+
+### Échantillons de la collection `users` :
+Aucun document disponible.
+
+### Échantillons de la collection `Posts` :
+Aucun document disponible.
+
+## BASE DE DONNÉES: choice_app
+### Collections:
+- users
+- chat_messages
+- ai_queries
+- Posts
+- posts
+- Users
+
+### Échantillons de la collection `users` :
+Aucun document disponible.
+
+### Échantillons de la collection `chat_messages` :
+Aucun document disponible.
+
+### Échantillons de la collection `ai_queries` :
+#### Document 1:
+{
+  "_id": "67e15e6e30d7e0fb7431...",
+  "userId": "677db5b562dbd1a04ed6...",
+  "producerId": null,
+  "query": "Recommande-moi des é...",
+  "intent": "recommendation",
+  "entities": [],
+  "mongoQuery": [
+    {
+      "collection": "User",
+      "query": {
+        "_id": "677db5b562dbd1a04ed6..."
+      },
+      "projection": {
+        "comments": 1
+      },
+      "limit": 1
+    },
+    {
+      "collection": "Producer",
+      "query": {
+        "rating": {
+          "$gte": 4
+        },
+        "category": {
+          "$in": []
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "name": 1,
+        "address": 1,
+        "rating": 1
+      },
+      "limit": 10,
+      "sort": {
+        "rating": -1
+      }
+    },
+    {
+      "collection": "Event",
+      "query": {
+        "date_debut": {
+          "$gte": "2023-10-01T00:00:00Z"
+        },
+        "category": {
+          "$in": []
+        }
+      },
+      "projection": {
+        "_id": 1,
+        "intitulé": 1,
+        "lieu": 1,
+        "date_debut": 1
+      },
+      "limit": 10,
+      "sort": {
+        "date_debut": 1
+      }
+    }
+  ],
+  "resultCount": 1,
+  "executionTimeMs": 14410,
+  "response": "Je suis désolé, mais...",
+  "timestamp": "2025-03-24T13:30:22....",
+  "__v": 0
+}
+
+### Échantillons de la collection `Posts` :
+#### Document 1:
+{
+  "_id": "67e0e38ac0b97dd38671...",
+  "content": "🎭 Producteur sans n...",
+  "time_posted": "2025-03-24T04:46:02....",
+  "is_automated": true,
+  "author": {
+    "id": "677c385df2ed94237735...",
+    "name": "Producteur",
+    "avatar": "/defaultAppAvatar.pn..."
+  },
+  "likes": 0,
+  "comments": 0,
+  "media": [
+    {
+      "type": "image",
+      "url": "data:image/jpeg;base...",
+      "width": 800,
+      "height": 600
+    },
+    {
+      "type": "image",
+      "url": "https://www.billetre...",
+      "width": 800,
+      "height": 600,
+      "is_event": true
+    }
+  ],
+  "isProducerPost": true,
+  "isLeisureProducer": true,
+  "producer_id": "677c385df2ed94237735...",
+  "referenced_event_id": "677be4247e700e2764ce...",
+  "__v": 0
+}
+
+### Échantillons de la collection `posts` :
+Aucun document disponible.
+
+### Échantillons de la collection `Users` :
+#### Document 1:
+{
+  "_id": "67df47879378791ae0a0...",
+  "name": "Sarah Blanc",
+  "email": "sarah.blanc@gmail.co...",
+  "password": "$2b$12$UrhKdeaULPgD3...",
+  "gender": "female",
+  "age": 49,
+  "photo_url": "https://api.dicebear...",
+  "bio": "",
+  "location": {
+    "latitude": 48.86191826736328,
+    "longitude": 2.392386081694559
+  },
+  "preferred_content_format": {
+    "text": 0.68,
+    "image": 0.77,
+    "video": 0.61
+  },
+  "liked_tags": [
+    "chinois",
+    "sans gluten",
+    "festival",
+    "coréen",
+    "nature",
+    "crêperie",
+    "thaïlandais",
+    "fruits de mer",
+    "sushi",
+    "romantique",
+    "littérature",
+    "écologie",
+    "rooftop",
+    "italien",
+    "vue"
+  ],
+  "trusted_circle": [
+    "67df49989378791ae0a0...",
+    "67df48f79378791ae0a0...",
+    "67df48559378791ae0a0...",
+    "67df47c69378791ae0a0...",
+    "67df48c19378791ae0a0...",
+    "67df4a109378791ae0a1...",
+    "67df49949378791ae0a0...",
+    "67df46979378791ae0a0...",
+    "67df45dd9378791ae0a0...",
+    "67df45e09378791ae0a0...",
+    "67df45e99378791ae0a0...",
+    "67df45f79378791ae0a0...",
+    "67df46019378791ae0a0...",
+    "67df46029378791ae0a0...",
+    "67df460c9378791ae0a0...",
+    "67df46129378791ae0a0...",
+    "67df462c9378791ae0a0...",
+    "67df462f9378791ae0a0...",
+    "67df46319378791ae0a0...",
+    "67df46369378791ae0a0...",
+    "67df46369378791ae0a0...",
+    "67df46379378791ae0a0...",
+    "67df46399378791ae0a0...",
+    "67df463c9378791ae0a0...",
+    "67df463e9378791ae0a0...",
+    "67df46469378791ae0a0...",
+    "67df46489378791ae0a0...",
+    "67df464a9378791ae0a0...",
+    "67df46509378791ae0a0...",
+    "67df46509378791ae0a0...",
+    "67df46509378791ae0a0...",
+    "67df46519378791ae0a0...",
+    "67df46559378791ae0a0...",
+    "67df46569378791ae0a0...",
+    "67df465b9378791ae0a0...",
+    "67df465c9378791ae0a0...",
+    "67df46639378791ae0a0...",
+    "67df46689378791ae0a0...",
+    "67df466e9378791ae0a0...",
+    "67df46769378791ae0a0...",
+    "67df46769378791ae0a0...",
+    "67df46779378791ae0a0...",
+    "67df467b9378791ae0a0...",
+    "67df467d9378791ae0a0...",
+    "67df468c9378791ae0a0...",
+    "67df468d9378791ae0a0...",
+    "67df469c9378791ae0a0...",
+    "67df46a59378791ae0a0...",
+    "67df46a59378791ae0a0...",
+    "67df46a69378791ae0a0...",
+    "67df46a79378791ae0a0...",
+    "67df46b49378791ae0a0...",
+    "67df46b69378791ae0a0...",
+    "67df46b89378791ae0a0...",
+    "67df46cc9378791ae0a0...",
+    "67df46d29378791ae0a0...",
+    "67df46d39378791ae0a0...",
+    "67df46d69378791ae0a0...",
+    "67df46da9378791ae0a0...",
+    "67df46db9378791ae0a0...",
+    "67df46dd9378791ae0a0...",
+    "67df46e59378791ae0a0...",
+    "67df46e69378791ae0a0...",
+    "67df46ea9378791ae0a0...",
+    "67df46eb9378791ae0a0...",
+    "67df46ec9378791ae0a0...",
+    "67df46f09378791ae0a0...",
+    "67df46f69378791ae0a0...",
+    "67df46fb9378791ae0a0...",
+    "67df47009378791ae0a0...",
+    "67df47019378791ae0a0...",
+    "67df47049378791ae0a0...",
+    "67df47079378791ae0a0...",
+    "67df47099378791ae0a0...",
+    "67df47159378791ae0a0...",
+    "67df47199378791ae0a0...",
+    "67df471a9378791ae0a0...",
+    "67df471a9378791ae0a0...",
+    "67df472a9378791ae0a0...",
+    "67df47319378791ae0a0...",
+    "67df47349378791ae0a0...",
+    "67df47389378791ae0a0...",
+    "67df47469378791ae0a0...",
+    "67df474b9378791ae0a0...",
+    "67df47559378791ae0a0...",
+    "67df47609378791ae0a0...",
+    "67df47659378791ae0a0...",
+    "67df47809378791ae0a0...",
+    "67df47819378791ae0a0...",
+    "67df47849378791ae0a0...",
+    "67df47869378791ae0a0...",
+    "67df478a9378791ae0a0...",
+    "67df478d9378791ae0a0...",
+    "67df478e9378791ae0a0...",
+    "67df47909378791ae0a0...",
+    "67df47969378791ae0a0...",
+    "67df47979378791ae0a0...",
+    "67df479a9378791ae0a0...",
+    "67df47a39378791ae0a0...",
+    "67df47a99378791ae0a0...",
+    "67df47ad9378791ae0a0...",
+    "67df47ae9378791ae0a0...",
+    "67df47b09378791ae0a0...",
+    "67df47b89378791ae0a0...",
+    "67df47bd9378791ae0a0...",
+    "67df47c29378791ae0a0...",
+    "67df47c59378791ae0a0...",
+    "67df47c69378791ae0a0...",
+    "67df47ca9378791ae0a0...",
+    "67df47ce9378791ae0a0...",
+    "67df47ce9378791ae0a0...",
+    "67df47cf9378791ae0a0...",
+    "67df47d69378791ae0a0...",
+    "67df47db9378791ae0a0...",
+    "67df47e69378791ae0a0...",
+    "67df47ee9378791ae0a0...",
+    "67df47f09378791ae0a0...",
+    "67df47f49378791ae0a0...",
+    "67df47f59378791ae0a0...",
+    "67df47fc9378791ae0a0...",
+    "67df47ff9378791ae0a0...",
+    "67df48039378791ae0a0...",
+    "67df480a9378791ae0a0...",
+    "67df480d9378791ae0a0...",
+    "67df48119378791ae0a0...",
+    "67df48129378791ae0a0...",
+    "67df48169378791ae0a0...",
+    "67df48179378791ae0a0...",
+    "67df48189378791ae0a0...",
+    "67df48189378791ae0a0...",
+    "67df48199378791ae0a0...",
+    "67df48209378791ae0a0...",
+    "67df48249378791ae0a0...",
+    "67df48259378791ae0a0...",
+    "67df482a9378791ae0a0...",
+    "67df482b9378791ae0a0...",
+    "67df482e9378791ae0a0...",
+    "67df48329378791ae0a0...",
+    "67df48369378791ae0a0...",
+    "67df483a9378791ae0a0...",
+    "67df48439378791ae0a0...",
+    "67df48479378791ae0a0...",
+    "67df484a9378791ae0a0...",
+    "67df484c9378791ae0a0...",
+    "67df484d9378791ae0a0...",
+    "67df48519378791ae0a0...",
+    "67df48559378791ae0a0...",
+    "67df48569378791ae0a0...",
+    "67df48579378791ae0a0...",
+    "67df48599378791ae0a0...",
+    "67df485c9378791ae0a0...",
+    "67df48649378791ae0a0...",
+    "67df48649378791ae0a0...",
+    "67df48659378791ae0a0...",
+    "67df486e9378791ae0a0...",
+    "67df486f9378791ae0a0...",
+    "67df48719378791ae0a0...",
+    "67df48839378791ae0a0...",
+    "67df488b9378791ae0a0...",
+    "67df488b9378791ae0a0...",
+    "67df488c9378791ae0a0...",
+    "67df48969378791ae0a0...",
+    "67df489c9378791ae0a0...",
+    "67df489f9378791ae0a0...",
+    "67df489f9378791ae0a0...",
+    "67df48a29378791ae0a0...",
+    "67df48a49378791ae0a0...",
+    "67df48a89378791ae0a0...",
+    "67df48a89378791ae0a0...",
+    "67df48ab9378791ae0a0...",
+    "67df48b89378791ae0a0...",
+    "67df48c19378791ae0a0...",
+    "67df48c49378791ae0a0...",
+    "67df48c79378791ae0a0...",
+    "67df48c79378791ae0a0...",
+    "67df48ca9378791ae0a0...",
+    "67df48ca9378791ae0a0...",
+    "67df48d59378791ae0a0...",
+    "67df48d99378791ae0a0...",
+    "67df48da9378791ae0a0...",
+    "67df48da9378791ae0a0...",
+    "67df48dc9378791ae0a0...",
+    "67df48e09378791ae0a0...",
+    "67df48eb9378791ae0a0...",
+    "67df48f09378791ae0a0...",
+    "67df48f29378791ae0a0...",
+    "67df48f89378791ae0a0...",
+    "67df48f99378791ae0a0...",
+    "67df48fd9378791ae0a0...",
+    "67df49069378791ae0a0...",
+    "67df490e9378791ae0a0...",
+    "67df49199378791ae0a0...",
+    "67df491b9378791ae0a0...",
+    "67df49249378791ae0a0...",
+    "67df49269378791ae0a0...",
+    "67df492f9378791ae0a0...",
+    "67df49319378791ae0a0...",
+    "67df49429378791ae0a0...",
+    "67df49489378791ae0a0...",
+    "67df494d9378791ae0a0...",
+    "67df494e9378791ae0a0...",
+    "67df49509378791ae0a0...",
+    "67df49509378791ae0a0...",
+    "67df49519378791ae0a0...",
+    "67df495c9378791ae0a0...",
+    "67df49659378791ae0a0...",
+    "67df496d9378791ae0a0...",
+    "67df49719378791ae0a0...",
+    "67df49789378791ae0a0...",
+    "67df497c9378791ae0a0...",
+    "67df497f9378791ae0a0...",
+    "67df49889378791ae0a0...",
+    "67df498a9378791ae0a0...",
+    "67df498c9378791ae0a0...",
+    "67df49ab9378791ae0a0...",
+    "67df49b29378791ae0a0...",
+    "67df49b29378791ae0a0...",
+    "67df49b39378791ae0a0...",
+    "67df49b99378791ae0a0...",
+    "67df49bd9378791ae0a0...",
+    "67df49bf9378791ae0a0...",
+    "67df49c79378791ae0a0...",
+    "67df49d09378791ae0a1...",
+    "67df49d19378791ae0a1...",
+    "67df49d79378791ae0a1...",
+    "67df49e69378791ae0a1...",
+    "67df49f59378791ae0a1...",
+    "67df49f89378791ae0a1...",
+    "67df49fd9378791ae0a1...",
+    "67df4a029378791ae0a1...",
+    "67df4a099378791ae0a1...",
+    "67df4a0b9378791ae0a1...",
+    "67df4a0d9378791ae0a1...",
+    "67df4a0e9378791ae0a1...",
+    "67df4a119378791ae0a1...",
+    "67df4a159378791ae0a1...",
+    "67df4a189378791ae0a1...",
+    "67df4a1a9378791ae0a1...",
+    "67df4a1f9378791ae0a1...",
+    "67df4a249378791ae0a1...",
+    "67df4a2a9378791ae0a1...",
+    "67df4a3c9378791ae0a1...",
+    "67df4a469378791ae0a1...",
+    "67df4a539378791ae0a1...",
+    "67df4a5b9378791ae0a1...",
+    "67df4a5e9378791ae0a1...",
+    "67df4a629378791ae0a1...",
+    "67df4a6c9378791ae0a1...",
+    "67df4a709378791ae0a1...",
+    "67df4a789378791ae0a1...",
+    "67df4a799378791ae0a1...",
+    "67df4a7a9378791ae0a1...",
+    "67df4a839378791ae0a1...",
+    "67df4a849378791ae0a1...",
+    "67df4a8f9378791ae0a1...",
+    "67df4a919378791ae0a1...",
+    "67df4a989378791ae0a1...",
+    "67df4a9c9378791ae0a1...",
+    "67df4a9c9378791ae0a1...",
+    "67df4aa89378791ae0a1...",
+    "67df4aae9378791ae0a1...",
+    "67df4ab49378791ae0a1...",
+    "67df4ab59378791ae0a1...",
+    "67df4ab79378791ae0a1...",
+    "67df4ab89378791ae0a1...",
+    "67df4ab89378791ae0a1...",
+    "67df4ac09378791ae0a1...",
+    "67df4ac19378791ae0a1...",
+    "67df4ac29378791ae0a1...",
+    "67df4ac79378791ae0a1...",
+    "67df4ac99378791ae0a1...",
+    "67df4ad49378791ae0a1...",
+    "67df4adc9378791ae0a1...",
+    "67df4add9378791ae0a1...",
+    "67df4ae09378791ae0a1...",
+    "67df4aef9378791ae0a1...",
+    "67df4af09378791ae0a1...",
+    "67df4af89378791ae0a1...",
+    "67df4afe9378791ae0a1...",
+    "67df4aff9378791ae0a1...",
+    "67df4aff9378791ae0a1...",
+    "67df4b0d9378791ae0a1...",
+    "67df4b0e9378791ae0a1...",
+    "67df4b139378791ae0a1...",
+    "67df4b159378791ae0a1...",
+    "67df4b169378791ae0a1...",
+    "67df4b179378791ae0a1...",
+    "67df4b1e9378791ae0a1...",
+    "67df4b2b9378791ae0a1...",
+    "67df4b2f9378791ae0a1...",
+    "67df4b359378791ae0a1...",
+    "67df4b369378791ae0a1...",
+    "67df4b389378791ae0a1...",
+    "67df4b399378791ae0a1...",
+    "67df4b3d9378791ae0a1...",
+    "67df4b3e9378791ae0a1...",
+    "67df4b459378791ae0a1...",
+    "67df4b4d9378791ae0a1...",
+    "67df4b599378791ae0a1...",
+    "67df4b5b9378791ae0a1...",
+    "67df4b689378791ae0a1...",
+    "67df4b8a9378791ae0a1...",
+    "67df4b8a9378791ae0a1...",
+    "67df4b8c9378791ae0a1...",
+    "67df4b8e9378791ae0a1...",
+    "67df4b939378791ae0a1...",
+    "67df4ba19378791ae0a1...",
+    "67df4ba29378791ae0a1...",
+    "67df4ba49378791ae0a1...",
+    "67df4ba49378791ae0a1...",
+    "67df4ba59378791ae0a1...",
+    "67df4ba69378791ae0a1...",
+    "67df4ba89378791ae0a1...",
+    "67df4ba99378791ae0a1...",
+    "67df4bac9378791ae0a1...",
+    "67df4baf9378791ae0a1...",
+    "67df4bbb9378791ae0a1...",
+    "67df4bc29378791ae0a1...",
+    "67df4bc69378791ae0a1...",
+    "67df4bc69378791ae0a1...",
+    "67df4bc79378791ae0a1...",
+    "67df4bca9378791ae0a1...",
+    "67df4bcd9378791ae0a1...",
+    "67df4be59378791ae0a1...",
+    "67df4be99378791ae0a1...",
+    "67df4bea9378791ae0a1...",
+    "67df4bf29378791ae0a1...",
+    "67df4bf59378791ae0a1...",
+    "67df4bfb9378791ae0a1...",
+    "67df4bff9378791ae0a1...",
+    "67df4c009378791ae0a1...",
+    "67df4c0a9378791ae0a1...",
+    "67df4c149378791ae0a1...",
+    "67df4c179378791ae0a1...",
+    "67df4c1a9378791ae0a1...",
+    "67df4c239378791ae0a1...",
+    "67df4c249378791ae0a1...",
+    "67df4c259378791ae0a1...",
+    "67df4c259378791ae0a1...",
+    "67df4c2b9378791ae0a1...",
+    "67df4c2e9378791ae0a1..."
+  ],
+  "sector_preferences": {
+    "food": {
+      "avg_spending": 17,
+      "vegan": false,
+      "carbon_aware": false
+    },
+    "culture": {
+      "preferred_styles": [
+        "street_art",
+        "photography",
+        "modern_art",
+        "classical_art"
+      ],
+      "event_types": [
+        "exhibition",
+        "stand_up",
+        "concert",
+        "festival"
+      ]
+    }
+  },
+  "interaction_metrics": {
+    "total_interactions": 199,
+    "comments_given": 56,
+    "choices_given": 41,
+    "shares_given": 24
+  },
+  "consumption_behavior": {
+    "varies_preferences": true,
+    "tries_new_content": true
+  },
+  "frequent_locations": [
+    {
+      "id": "675adf65da75cfe37235...",
+      "name": "La Salle A Manger",
+      "type": "restaurant",
+      "coordinates": [
+        2.219810100000001,
+        48.8249752
+      ],
+      "address": "12 Av. de la Divisio...",
+      "visits": [
+        {
+          "date": "2025-02-20T23:58:20....",
+          "duration_minutes": 86
+        },
+        {
+          "date": "2025-03-16T23:58:20....",
+          "duration_minutes": 44
+        }
+      ]
+    },
+    {
+      "id": "675adf64da75cfe37235...",
+      "name": "Le Percy",
+      "type": "restaurant",
+      "coordinates": [
+        2.2576865,
+        48.8151967
+      ],
+      "address": "146 Av. Henri Barbus...",
+      "visits": [
+        {
+          "date": "2025-03-03T23:58:20....",
+          "duration_minutes": 117
+        },
+        {
+          "date": "2025-03-04T23:58:20....",
+          "duration_minutes": 119
+        }
+      ]
+    },
+    {
+      "id": "677c3873f2ed94237735...",
+      "name": "Blondes Ogresses",
+      "type": "leisure",
+      "coordinates": [
+        2.3522,
+        48.8566
+      ],
+      "address": "",
+      "visits": [
+        {
+          "date": "2025-03-06T23:58:20....",
+          "duration_minutes": 180
+        },
+        {
+          "date": "2025-03-19T23:58:20....",
+          "duration_minutes": 67
+        }
+      ]
+    },
+    {
+      "id": "677c3841f2ed94237735...",
+      "name": "Amaluna",
+      "type": "leisure",
+      "coordinates": [
+        2.362583,
+        48.8881622
+      ],
+      "address": "12 Espl. Nathalie Sa...",
+      "visits": [
+        {
+          "date": "2025-03-15T23:58:20....",
+          "duration_minutes": 64
+        }
+      ]
+    },
+    {
+      "id": "677c3855f2ed94237735...",
+      "name": "Athénée - Théâtre Lo...",
+      "type": "leisure",
+      "coordinates": [
+        2.329142,
+        48.8715804
+      ],
+      "address": "Square de l'Opéra - ...",
+      "visits": [
+        {
+          "date": "2025-03-06T23:58:20....",
+          "duration_minutes": 107
+        }
+      ]
+    }
+  ],
+  "affinity_producers": [
+    {
+      "id": "675adf64da75cfe37235...",
+      "name": "Bella Familia Pizza",
+      "type": "restaurant",
+      "affinity_score": 0.91
+    },
+    {
+      "id": "675adf64da75cfe37235...",
+      "name": "TAJMAHAL Express",
+      "type": "restaurant",
+      "affinity_score": 0.86
+    },
+    {
+      "id": "675adf64da75cfe37235...",
+      "name": "Markar - Cuisine lev...",
+      "type": "restaurant",
+      "affinity_score": 0.91
+    },
+    {
+      "id": "675adf63da75cfe37235...",
+      "name": "La Table de Meudon",
+      "type": "restaurant",
+      "affinity_score": 0.68
+    },
+    {
+      "id": "675adf64da75cfe37235...",
+      "name": "Bang King",
+      "type": "restaurant",
+      "affinity_score": 0.87
+    },
+    {
+      "id": "675adf63da75cfe37235...",
+      "name": "Quai de meudon",
+      "type": "restaurant",
+      "affinity_score": 0.92
+    },
+    {
+      "id": "677abbdef526a921e9ae...",
+      "name": "Théâtre de Nesle - g...",
+      "type": "leisure",
+      "affinity_score": 0.74
+    },
+    {
+      "id": "677c3845f2ed94237735...",
+      "name": "Apollo Comedy - sall...",
+      "type": "leisure",
+      "affinity_score": 0.81
+    },
+    {
+      "id": "677abbeaf526a921e9ae...",
+      "name": "Théâtre du Nord Oues...",
+      "type": "leisure",
+      "affinity_score": 0.9
+    },
+    {
+      "id": "677c384df2ed94237735...",
+      "name": "Artishow Cabaret",
+      "type": "leisure",
+      "affinity_score": 0.61
+    },
+    {
+      "id": "676d7973356e6bbc522c...",
+      "name": "Comédie Bastille",
+      "type": "leisure",
+      "affinity_score": 0.92
+    },
+    {
+      "id": "677c383cf2ed94237735...",
+      "name": "Aktéon Théâtre Montr...",
+      "type": "leisure",
+      "affinity_score": 0.65
+    }
+  ],
+  "search_keywords": [],
+  "is_star": false,
+  "followers_count": 6,
+  "influence_score": 41,
+  "posts": [],
+  "following": [
+    "67df49989378791ae0a0...",
+    "67df48f79378791ae0a0...",
+    "67df48559378791ae0a0...",
+    "67df47c69378791ae0a0...",
+    "67df48c19378791ae0a0...",
+    "67df4a109378791ae0a1...",
+    "67df49949378791ae0a0...",
+    "67df46979378791ae0a0...",
+    "67df45dd9378791ae0a0...",
+    "67df45e09378791ae0a0...",
+    "67df45e99378791ae0a0...",
+    "67df45f79378791ae0a0...",
+    "67df46019378791ae0a0...",
+    "67df46029378791ae0a0...",
+    "67df460c9378791ae0a0...",
+    "67df46129378791ae0a0...",
+    "67df462c9378791ae0a0...",
+    "67df462f9378791ae0a0...",
+    "67df46319378791ae0a0...",
+    "67df46369378791ae0a0...",
+    "67df46369378791ae0a0...",
+    "67df46379378791ae0a0...",
+    "67df46399378791ae0a0...",
+    "67df463c9378791ae0a0...",
+    "67df463e9378791ae0a0...",
+    "67df46469378791ae0a0...",
+    "67df46489378791ae0a0...",
+    "67df464a9378791ae0a0...",
+    "67df46509378791ae0a0...",
+    "67df46509378791ae0a0...",
+    "67df46509378791ae0a0...",
+    "67df46519378791ae0a0...",
+    "67df46559378791ae0a0...",
+    "67df46569378791ae0a0...",
+    "67df465b9378791ae0a0...",
+    "67df465c9378791ae0a0...",
+    "67df46639378791ae0a0...",
+    "67df46689378791ae0a0...",
+    "67df466e9378791ae0a0...",
+    "67df46769378791ae0a0...",
+    "67df46769378791ae0a0...",
+    "67df46779378791ae0a0...",
+    "67df467b9378791ae0a0...",
+    "67df467d9378791ae0a0...",
+    "67df468c9378791ae0a0...",
+    "67df468d9378791ae0a0...",
+    "67df469c9378791ae0a0...",
+    "67df46a59378791ae0a0...",
+    "67df46a59378791ae0a0...",
+    "67df46a69378791ae0a0...",
+    "67df46a79378791ae0a0...",
+    "67df46b49378791ae0a0...",
+    "67df46b69378791ae0a0...",
+    "67df46b89378791ae0a0...",
+    "67df46cc9378791ae0a0...",
+    "67df46d29378791ae0a0...",
+    "67df46d39378791ae0a0...",
+    "67df46d69378791ae0a0...",
+    "67df46da9378791ae0a0...",
+    "67df46db9378791ae0a0...",
+    "67df46dd9378791ae0a0...",
+    "67df46e59378791ae0a0...",
+    "67df46e69378791ae0a0...",
+    "67df46ea9378791ae0a0...",
+    "67df46eb9378791ae0a0...",
+    "67df46ec9378791ae0a0...",
+    "67df46f09378791ae0a0...",
+    "67df46f69378791ae0a0...",
+    "67df46fb9378791ae0a0...",
+    "67df47009378791ae0a0...",
+    "67df47019378791ae0a0...",
+    "67df47049378791ae0a0...",
+    "67df47079378791ae0a0...",
+    "67df47099378791ae0a0...",
+    "67df47159378791ae0a0...",
+    "67df47199378791ae0a0...",
+    "67df471a9378791ae0a0...",
+    "67df471a9378791ae0a0...",
+    "67df472a9378791ae0a0...",
+    "67df47319378791ae0a0...",
+    "67df47349378791ae0a0...",
+    "67df47389378791ae0a0...",
+    "67df47469378791ae0a0...",
+    "67df474b9378791ae0a0...",
+    "67df47559378791ae0a0...",
+    "67df47609378791ae0a0...",
+    "67df47659378791ae0a0...",
+    "67df47809378791ae0a0...",
+    "67df47819378791ae0a0...",
+    "67df47849378791ae0a0...",
+    "67df47869378791ae0a0...",
+    "67df478a9378791ae0a0...",
+    "67df478d9378791ae0a0...",
+    "67df478e9378791ae0a0...",
+    "67df47909378791ae0a0...",
+    "67df47969378791ae0a0...",
+    "67df47979378791ae0a0...",
+    "67df479a9378791ae0a0...",
+    "67df47a39378791ae0a0...",
+    "67df47a99378791ae0a0...",
+    "67df47ad9378791ae0a0...",
+    "67df47ae9378791ae0a0...",
+    "67df47b09378791ae0a0...",
+    "67df47b89378791ae0a0...",
+    "67df47bd9378791ae0a0...",
+    "67df47c29378791ae0a0...",
+    "67df47c59378791ae0a0...",
+    "67df47c69378791ae0a0...",
+    "67df47ca9378791ae0a0...",
+    "67df47ce9378791ae0a0...",
+    "67df47ce9378791ae0a0...",
+    "67df47cf9378791ae0a0...",
+    "67df47d69378791ae0a0...",
+    "67df47db9378791ae0a0...",
+    "67df47e69378791ae0a0...",
+    "67df47ee9378791ae0a0...",
+    "67df47f09378791ae0a0...",
+    "67df47f49378791ae0a0...",
+    "67df47f59378791ae0a0...",
+    "67df47fc9378791ae0a0...",
+    "67df47ff9378791ae0a0...",
+    "67df48039378791ae0a0...",
+    "67df480a9378791ae0a0...",
+    "67df480d9378791ae0a0...",
+    "67df48119378791ae0a0...",
+    "67df48129378791ae0a0...",
+    "67df48169378791ae0a0...",
+    "67df48179378791ae0a0...",
+    "67df48189378791ae0a0...",
+    "67df48189378791ae0a0...",
+    "67df48199378791ae0a0...",
+    "67df48209378791ae0a0...",
+    "67df48249378791ae0a0...",
+    "67df48259378791ae0a0...",
+    "67df482a9378791ae0a0...",
+    "67df482b9378791ae0a0...",
+    "67df482e9378791ae0a0...",
+    "67df48329378791ae0a0...",
+    "67df48369378791ae0a0...",
+    "67df483a9378791ae0a0...",
+    "67df48439378791ae0a0...",
+    "67df48479378791ae0a0...",
+    "67df484a9378791ae0a0...",
+    "67df484c9378791ae0a0...",
+    "67df484d9378791ae0a0...",
+    "67df48519378791ae0a0...",
+    "67df48559378791ae0a0...",
+    "67df48569378791ae0a0...",
+    "67df48579378791ae0a0...",
+    "67df48599378791ae0a0...",
+    "67df485c9378791ae0a0...",
+    "67df48649378791ae0a0...",
+    "67df48649378791ae0a0...",
+    "67df48659378791ae0a0...",
+    "67df486e9378791ae0a0...",
+    "67df486f9378791ae0a0...",
+    "67df48719378791ae0a0...",
+    "67df48839378791ae0a0...",
+    "67df488b9378791ae0a0...",
+    "67df488b9378791ae0a0...",
+    "67df488c9378791ae0a0...",
+    "67df48969378791ae0a0...",
+    "67df489c9378791ae0a0...",
+    "67df489f9378791ae0a0...",
+    "67df489f9378791ae0a0...",
+    "67df48a29378791ae0a0...",
+    "67df48a49378791ae0a0...",
+    "67df48a89378791ae0a0...",
+    "67df48a89378791ae0a0...",
+    "67df48ab9378791ae0a0...",
+    "67df48b89378791ae0a0...",
+    "67df48c19378791ae0a0...",
+    "67df48c49378791ae0a0...",
+    "67df48c79378791ae0a0...",
+    "67df48c79378791ae0a0...",
+    "67df48ca9378791ae0a0...",
+    "67df48ca9378791ae0a0...",
+    "67df48d59378791ae0a0...",
+    "67df48d99378791ae0a0...",
+    "67df48da9378791ae0a0...",
+    "67df48da9378791ae0a0...",
+    "67df48dc9378791ae0a0...",
+    "67df48e09378791ae0a0...",
+    "67df48eb9378791ae0a0...",
+    "67df48f09378791ae0a0...",
+    "67df48f29378791ae0a0...",
+    "67df48f89378791ae0a0...",
+    "67df48f99378791ae0a0...",
+    "67df48fd9378791ae0a0...",
+    "67df49069378791ae0a0...",
+    "67df490e9378791ae0a0...",
+    "67df49199378791ae0a0...",
+    "67df491b9378791ae0a0...",
+    "67df49249378791ae0a0...",
+    "67df49269378791ae0a0...",
+    "67df492f9378791ae0a0...",
+    "67df49319378791ae0a0...",
+    "67df49429378791ae0a0...",
+    "67df49489378791ae0a0...",
+    "67df494d9378791ae0a0...",
+    "67df494e9378791ae0a0...",
+    "67df49509378791ae0a0...",
+    "67df49509378791ae0a0...",
+    "67df49519378791ae0a0...",
+    "67df495c9378791ae0a0...",
+    "67df49659378791ae0a0...",
+    "67df496d9378791ae0a0...",
+    "67df49719378791ae0a0...",
+    "67df49789378791ae0a0...",
+    "67df497c9378791ae0a0...",
+    "67df497f9378791ae0a0...",
+    "67df49889378791ae0a0...",
+    "67df498a9378791ae0a0...",
+    "67df498c9378791ae0a0...",
+    "67df49ab9378791ae0a0...",
+    "67df49b29378791ae0a0...",
+    "67df49b29378791ae0a0...",
+    "67df49b39378791ae0a0...",
+    "67df49b99378791ae0a0...",
+    "67df49bd9378791ae0a0...",
+    "67df49bf9378791ae0a0...",
+    "67df49c79378791ae0a0...",
+    "67df49d09378791ae0a1...",
+    "67df49d19378791ae0a1...",
+    "67df49d79378791ae0a1...",
+    "67df49e69378791ae0a1...",
+    "67df49f59378791ae0a1...",
+    "67df49f89378791ae0a1...",
+    "67df49fd9378791ae0a1...",
+    "67df4a029378791ae0a1...",
+    "67df4a099378791ae0a1...",
+    "67df4a0b9378791ae0a1...",
+    "67df4a0d9378791ae0a1...",
+    "67df4a0e9378791ae0a1...",
+    "67df4a119378791ae0a1...",
+    "67df4a159378791ae0a1...",
+    "67df4a189378791ae0a1...",
+    "67df4a1a9378791ae0a1...",
+    "67df4a1f9378791ae0a1...",
+    "67df4a249378791ae0a1...",
+    "67df4a2a9378791ae0a1...",
+    "67df4a3c9378791ae0a1...",
+    "67df4a469378791ae0a1...",
+    "67df4a539378791ae0a1...",
+    "67df4a5b9378791ae0a1...",
+    "67df4a5e9378791ae0a1...",
+    "67df4a629378791ae0a1...",
+    "67df4a6c9378791ae0a1...",
+    "67df4a709378791ae0a1...",
+    "67df4a789378791ae0a1...",
+    "67df4a799378791ae0a1...",
+    "67df4a7a9378791ae0a1...",
+    "67df4a839378791ae0a1...",
+    "67df4a849378791ae0a1...",
+    "67df4a8f9378791ae0a1...",
+    "67df4a919378791ae0a1...",
+    "67df4a989378791ae0a1...",
+    "67df4a9c9378791ae0a1...",
+    "67df4a9c9378791ae0a1...",
+    "67df4aa89378791ae0a1...",
+    "67df4aae9378791ae0a1...",
+    "67df4ab49378791ae0a1...",
+    "67df4ab59378791ae0a1...",
+    "67df4ab79378791ae0a1...",
+    "67df4ab89378791ae0a1...",
+    "67df4ab89378791ae0a1...",
+    "67df4ac09378791ae0a1...",
+    "67df4ac19378791ae0a1...",
+    "67df4ac29378791ae0a1...",
+    "67df4ac79378791ae0a1...",
+    "67df4ac99378791ae0a1...",
+    "67df4ad49378791ae0a1...",
+    "67df4adc9378791ae0a1...",
+    "67df4add9378791ae0a1...",
+    "67df4ae09378791ae0a1...",
+    "67df4aef9378791ae0a1...",
+    "67df4af09378791ae0a1...",
+    "67df4af89378791ae0a1...",
+    "67df4afe9378791ae0a1...",
+    "67df4aff9378791ae0a1...",
+    "67df4aff9378791ae0a1...",
+    "67df4b0d9378791ae0a1...",
+    "67df4b0e9378791ae0a1...",
+    "67df4b139378791ae0a1...",
+    "67df4b159378791ae0a1...",
+    "67df4b169378791ae0a1...",
+    "67df4b179378791ae0a1...",
+    "67df4b1e9378791ae0a1...",
+    "67df4b2b9378791ae0a1...",
+    "67df4b2f9378791ae0a1...",
+    "67df4b359378791ae0a1...",
+    "67df4b369378791ae0a1...",
+    "67df4b389378791ae0a1...",
+    "67df4b399378791ae0a1...",
+    "67df4b3d9378791ae0a1...",
+    "67df4b3e9378791ae0a1...",
+    "67df4b459378791ae0a1...",
+    "67df4b4d9378791ae0a1...",
+    "67df4b599378791ae0a1...",
+    "67df4b5b9378791ae0a1...",
+    "67df4b689378791ae0a1...",
+    "67df4b8a9378791ae0a1...",
+    "67df4b8a9378791ae0a1...",
+    "67df4b8c9378791ae0a1...",
+    "67df4b8e9378791ae0a1...",
+    "67df4b939378791ae0a1...",
+    "67df4ba19378791ae0a1...",
+    "67df4ba29378791ae0a1...",
+    "67df4ba49378791ae0a1...",
+    "67df4ba49378791ae0a1...",
+    "67df4ba59378791ae0a1...",
+    "67df4ba69378791ae0a1...",
+    "67df4ba89378791ae0a1...",
+    "67df4ba99378791ae0a1...",
+    "67df4bac9378791ae0a1...",
+    "67df4baf9378791ae0a1...",
+    "67df4bbb9378791ae0a1...",
+    "67df4bc29378791ae0a1...",
+    "67df4bc69378791ae0a1...",
+    "67df4bc69378791ae0a1...",
+    "67df4bc79378791ae0a1...",
+    "67df4bca9378791ae0a1...",
+    "67df4bcd9378791ae0a1...",
+    "67df4be59378791ae0a1...",
+    "67df4be99378791ae0a1...",
+    "67df4bea9378791ae0a1...",
+    "67df4bf29378791ae0a1...",
+    "67df4bf59378791ae0a1...",
+    "67df4bfb9378791ae0a1...",
+    "67df4bff9378791ae0a1...",
+    "67df4c009378791ae0a1...",
+    "67df4c0a9378791ae0a1...",
+    "67df4c149378791ae0a1...",
+    "67df4c179378791ae0a1...",
+    "67df4c1a9378791ae0a1...",
+    "67df4c239378791ae0a1...",
+    "67df4c249378791ae0a1...",
+    "67df4c259378791ae0a1...",
+    "67df4c259378791ae0a1...",
+    "67df4c2b9378791ae0a1...",
+    "67df4c2e9378791ae0a1..."
+  ],
+  "followingProducers": [
+    "675adf64da75cfe37235...",
+    "675adf64da75cfe37235...",
+    "675adf64da75cfe37235...",
+    "675adf64da75cfe37235...",
+    "675adf63da75cfe37235...",
+    "677abbdef526a921e9ae...",
+    "677c3845f2ed94237735...",
+    "677abbeaf526a921e9ae...",
+    "676d7973356e6bbc522c..."
+  ],
+  "interests": [
+    "675adf64da75cfe37235...",
+    "675adf64da75cfe37235...",
+    "675adf64da75cfe37235...",
+    "675adf64da75cfe37235...",
+    "675adf63da75cfe37235...",
+    "677c3845f2ed94237735...",
+    "677abbeaf526a921e9ae...",
+    "676d7973356e6bbc522c..."
+  ]
+}
+
+## BASE DE DONNÉES: test
+### Collections:
+- Users
+- conversations
+
+### Échantillons de la collection `Users` :
+Aucun document disponible.
+
+### Échantillons de la collection `conversations` :
+Aucun document disponible.
+
+## BASE DE DONNÉES: admin
+Aucune collection trouvée.
+
+## BASE DE DONNÉES: local
+### Collections:
+- oplog.rs
+
+### Échantillons de la collection `oplog.rs` :
+#### Document 1:
+{
+  "lsid": {
+    "id": "177b72d5-d34d-447e-8...",
+    "uid": "ddqot68vLpBUPnOuqFj2..."
+  },
+  "txnNumber": 14562,
+  "op": "u",
+  "ns": "choice_app.Users",
+  "ui": "cce25067-74f9-4f1c-9...",
+  "o": {
+    "$v": 2,
+    "diff": {
+      "u": {
+        "frequent_locations": [
+          {
+            "id": "675adf65da75cfe37235...",
+            "name": "Franprix",
+            "type": "restaurant",
+            "coordinates": [
+              2.2284671,
+              48.8198641
+            ],
+            "address": "5 Rue Pierre Wacquan...",
+            "visits": [
+              {
+                "date": "2025-02-24T23:57:13....",
+                "duration_minutes": 154
+              },
+              {
+                "date": "2025-03-01T23:57:13....",
+                "duration_minutes": 102
+              }
+            ]
+          },
+          {
+            "id": "675adf64da75cfe37235...",
+            "name": "Restaurant Les Papil...",
+            "type": "restaurant",
+            "coordinates": [
+              2.2529302,
+              48.8188857
+            ],
+            "address": "41 All. Sainte-Lucie...",
+            "visits": [
+              {
+                "date": "2025-03-22T23:57:13....",
+                "duration_minutes": 133
+              },
+              {
+                "date": "2025-03-02T23:57:13....",
+                "duration_minutes": 43
+              },
+              {
+                "date": "2025-02-20T23:57:13....",
+                "duration_minutes": 132
+              },
+              {
+                "date": "2025-03-17T23:57:13....",
+                "duration_minutes": 152
+              },
+              {
+                "date": "2025-03-14T23:57:13....",
+                "duration_minutes": 100
+              }
+            ]
+          },
+          {
+            "id": "675adf65da75cfe37235...",
+            "name": "Octave Le restaurant",
+            "type": "restaurant",
+            "coordinates": [
+              2.2302886,
+              48.82554379999999
+            ],
+            "address": "1 Île Seguin, 92100 ...",
+            "visits": [
+              {
+                "date": "2025-03-04T23:57:13....",
+                "duration_minutes": 74
+              },
+              {
+                "date": "2025-02-27T23:57:13....",
+                "duration_minutes": 156
+              },
+              {
+                "date": "2025-03-06T23:57:13....",
+                "duration_minutes": 75
+              }
+            ]
+          },
+          {
+            "id": "675adf64da75cfe37235...",
+            "name": "Daikichi",
+            "type": "restaurant",
+            "coordinates": [
+              2.251331,
+              48.8189366
+            ],
+            "address": "28 Rue du Dr Lombard...",
+            "visits": [
+              {
+                "date": "2025-03-13T23:57:13....",
+                "duration_minutes": 34
+              },
+              {
+                "date": "2025-03-18T23:57:13....",
+                "duration_minutes": 129
+              },
+              {
+                "date": "2025-03-09T23:57:13....",
+                "duration_minutes": 57
+              },
+              {
+                "date": "2025-02-27T23:57:13....",
+                "duration_minutes": 143
+              },
+              {
+                "date": "2025-03-14T23:57:13....",
+                "duration_minutes": 80
+              }
+            ]
+          },
+          {
+            "id": "675adf65da75cfe37235...",
+            "name": "Le Café du Marché",
+            "type": "restaurant",
+            "coordinates": [
+              2.2725808,
+              48.81115469999999
+            ],
+            "address": "224 Av. Victor Hugo,...",
+            "visits": [
+              {
+                "date": "2025-03-15T23:57:13....",
+                "duration_minutes": 180
+              }
+            ]
+          },
+          {
+            "id": "675adf64da75cfe37235...",
+            "name": "Shivam Lounge",
+            "type": "restaurant",
+            "coordinates": [
+              2.2494317,
+              48.81899320000001
+            ],
+            "address": "48 Rue Jean Pierre T...",
+            "visits": [
+              {
+                "date": "2025-03-11T23:57:13....",
+                "duration_minutes": 133
+              }
+            ]
+          },
+          {
+            "id": "677abb88f526a921e9ae...",
+            "name": "Comédie Montorgueil",
+            "type": "leisure",
+            "coordinates": [
+              2.345589,
+              48.8672519
+            ],
+            "address": "50 rue d'Aboukir, 75...",
+            "visits": [
+              {
+                "date": "2025-02-28T23:57:13....",
+                "duration_minutes": 101
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "o2": {
+    "_id": "67df45e69378791ae0a0..."
+  },
+  "stmtId": 0,
+  "ts": {
+    "$timestamp": "7484787249872109589"
+  },
+  "t": 253,
+  "v": 2,
+  "wall": "2025-03-22T23:57:13....",
+  "prevOpTime": {
+    "ts": {
+      "$timestamp": "0"
+    },
+    "t": -1
+  }
+}
+
+✅ Rapport d'export terminé
+🔒 Connexion fermée

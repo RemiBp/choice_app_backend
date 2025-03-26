@@ -85,12 +85,15 @@ module.exports = { choiceAppDb, testDb };
   const aiRoutes = require('./routes/ai'); // Nouvelles routes pour l'IA avec accès MongoDB en temps réel
   const mediaRoutes = require('./routes/media'); // Routes pour l'upload de médias et photos de profil
   const locationHistoryRoutes = require('./routes/location-history'); // Routes pour la vérification de l'historique des visites
+  const friendsRoutes = require('./routes/friends'); // Routes pour les amis et leurs activités
+  const choicesRoutes = require('./routes/choices'); // Routes pour la création et vérification des choices
 
   // Configuration des routes
   app.use('/api/leisureProducers', leisureProducerRoutes);
   app.use('/api/events', eventRoutes);
   app.use('/api/unified', unifiedRoutes);
   app.use('/api/posts', postRoutes);
+  app.use('/api/choices', choicesRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/producers', producerRoutes);
   app.use('/api/conversations', conversationRoutes);
@@ -104,6 +107,7 @@ module.exports = { choiceAppDb, testDb };
   app.use('/api/ai', aiRoutes); // Intégration des routes IA avec accès MongoDB en temps réel
   app.use('/api/media', mediaRoutes); // Routes pour l'upload de médias et photos de profil
   app.use('/api/location-history', locationHistoryRoutes); // Routes pour la vérification de l'historique des visites
+  app.use('/api/friends', friendsRoutes); // Routes pour les amis et leurs activités
 
 // Intégration du service d'automatisation des posts
 const postAutomationService = require('./services/postAutomationService');

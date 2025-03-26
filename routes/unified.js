@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const { ObjectId } = require('mongodb'); // Pour la conversion des ID
 
 // Connexions aux bases
 const restaurantDb = mongoose.createConnection(process.env.MONGO_URI, {
@@ -287,6 +288,10 @@ router.get('/:id', async (req, res) => {
 
     console.log(`🔍 Recherche du document avec ID : ${id}`);
 
+    // Récupérer le client MongoDB depuis l'application Express
+    const choiceAppDb = req.app.locals.choiceAppDb;
+    
+    // Rechercher dans les collections principales d'abord (ne nécessitant pas choiceAppDb)
     const [restaurant, leisureProducer, event] = await Promise.all([
       Restaurant.findById(id),
       LeisureProducer.findById(id),
@@ -306,6 +311,37 @@ router.get('/:id', async (req, res) => {
     if (event) {
       console.log(`✅ Trouvé dans Events : ${id}`);
       return res.status(200).json({ type: 'event', ...event.toObject() });
+    }
+
+    // S'il n'est pas trouvé dans les collections principales, essayer choiceAppDb si disponible
+    if (choiceAppDb) {
+      const objectId = new ObjectId(id);
+      
+      try {
+        // Vérifier dans la collection Users
+        const usersCollection = choiceAppDb.collection("Users");
+        const user = await usersCollection.findOne({ _id: objectId });
+        
+        if (user) {
+          console.log(`✅ Trouvé dans Users : ${id}`);
+          return res.status(200).json({ type: 'user', ...user });
+        }
+        
+        // Vérifier dans la collection Posts
+        const postsCollection = choiceAppDb.collection("Posts");
+        const post = await postsCollection.findOne({ _id: objectId });
+        
+        if (post) {
+          console.log(`✅ Trouvé dans Posts : ${id}`);
+          return res.status(200).json({ type: 'post', ...post });
+        }
+      } catch (err) {
+        console.error(`❌ Erreur lors de la recherche dans choiceAppDb:`, err.message);
+        // On continue pour retourner un 404 plutôt qu'une erreur 500
+      }
+    } else {
+      console.log(`ℹ️ Base de données choiceAppDb non disponible, recherche limitée aux collections principales`);
+      // On continue la recherche, on ne renvoie pas d'erreur 500
     }
 
     console.log(`❌ Aucun résultat trouvé pour l'ID : ${id}`);
