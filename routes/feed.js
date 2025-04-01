@@ -123,16 +123,22 @@ async function getAuthorInfo(post, collections) {
 
 // Route principale pour générer le feed
 router.get('/', async (req, res) => {
-  const { userId, limit = 10, query, page = 1, content_type } = req.query;
+  console.log('📩 GET /api/feed - Paramètres reçus:', req.query);
+  
+  // Accepter à la fois userId et user_id comme paramètres
+  const userId = req.query.userId || req.query.user_id;
+  const { limit = 10, query, page = 1, content_type } = req.query;
   const pageSize = parseInt(limit, 10);
   const currentPage = parseInt(page, 10);
   const skip = (currentPage - 1) * pageSize;
 
   if (!userId) {
+    console.log('❌ Erreur: Paramètre userId manquant');
     return res.status(400).json({ error: 'User ID est requis.' });
   }
 
   try {
+    console.log(`🔍 Chargement du feed pour l'utilisateur: ${userId}, page: ${currentPage}, limite: ${pageSize}`);
     // Récupération des collections MongoDB
     const collections = {
       choiceAppDb: req.app.locals.choiceAppDb,
@@ -143,31 +149,55 @@ router.get('/', async (req, res) => {
     const postsCollection = collections.choiceAppDb.collection("Posts");
 
     // Récupération de l'utilisateur
-    const user = await usersCollection.findOne({ 
+    let user = await usersCollection.findOne({ 
       _id: typeof userId === 'string' ? userId : new ObjectId(userId) 
     });
     
+    // Si l'utilisateur n'existe pas, créer un utilisateur temporaire
     if (!user) {
-      return res.status(404).json({ error: 'Utilisateur non trouvé.' });
+      console.log(`⚠️ Utilisateur non trouvé, création d'un utilisateur temporaire pour l'ID: ${userId}`);
+      
+      // Création d'un utilisateur temporaire avec des données par défaut
+      user = {
+        _id: typeof userId === 'string' ? new ObjectId(userId) : userId,
+        name: "Utilisateur temporaire",
+        photo_url: null,
+        liked_tags: [],
+        trusted_circle: [],
+        temporarily_created: true, // Marquer comme créé temporairement
+        created_at: new Date()
+      };
+      
+      // Pas besoin de l'enregistrer dans la base de données,
+      // on l'utilise juste pour cette requête
     }
 
     // Construction de la requête MongoDB
-    let query = {};
+    let mongoQuery = {};
     
     // Filtrage par type de contenu si spécifié
     if (content_type) {
       if (content_type === 'restaurants') {
-        query.isProducerPost = true;
-        query.isLeisureProducer = { $ne: true };
+        mongoQuery.isProducerPost = true;
+        mongoQuery.isLeisureProducer = { $ne: true };
       } else if (content_type === 'leisure') {
-        query.isLeisureProducer = true;
+        mongoQuery.isLeisureProducer = true;
       } else if (content_type === 'users') {
-        query.isProducerPost = { $ne: true };
+        mongoQuery.isProducerPost = { $ne: true };
       }
     }
 
+    // Si un terme de recherche est fourni
+    if (query) {
+      mongoQuery.$or = [
+        { content: { $regex: query, $options: 'i' } },
+        { title: { $regex: query, $options: 'i' } },
+        { tags: { $in: [query] } }
+      ];
+    }
+
     // Récupération des posts avec pagination
-    let posts = await postsCollection.find(query)
+    let posts = await postsCollection.find(mongoQuery)
       .sort({ time_posted: -1 })
       .skip(skip)
       .limit(pageSize)
@@ -201,7 +231,7 @@ router.get('/', async (req, res) => {
     const organizedFeed = organizeFeedForDiversity(feed, user);
 
     // Compte total pour la pagination
-    const totalPosts = await postsCollection.countDocuments(query);
+    const totalPosts = await postsCollection.countDocuments(mongoQuery);
     
     res.json({
       feed: organizedFeed,

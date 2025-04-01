@@ -37,12 +37,12 @@ const initModels = async () => {
           }
         }
       }, { strict: false }),
-      'Producers'
+      'producers'
     );
 
     // Modèle pour les posts et utilisateurs
     const choiceAppDb = mongoose.createConnection(process.env.MONGO_URI, {
-      dbName: 'ChoiceApp',
+      dbName: 'choice_app',
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
@@ -50,13 +50,13 @@ const initModels = async () => {
     Post = choiceAppDb.model(
       'Post',
       new mongoose.Schema({}, { strict: false }),
-      'Posts'
+      'posts'
     );
     
     User = choiceAppDb.model(
       'User',
       new mongoose.Schema({}, { strict: false }),
-      'Users'
+      'users'
     );
 
     console.log('✅ Modèles Feed Producteur initialisés avec succès');

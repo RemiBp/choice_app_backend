@@ -304,9 +304,9 @@ router.get('/:producerId/venue-posts', async (req, res) => {
       return res.status(404).json({ message: 'Producteur non trouvé.' });
     }
 
-    // Connexion à la base de données principale pour les posts
+    // Modèle pour les posts
     const choiceAppDb = mongoose.createConnection(process.env.MONGO_URI, {
-      dbName: 'ChoiceApp',
+      dbName: 'choice_app',
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
@@ -314,7 +314,13 @@ router.get('/:producerId/venue-posts', async (req, res) => {
     const Post = choiceAppDb.model(
       'Post',
       new mongoose.Schema({}, { strict: false }),
-      'Posts'
+      'posts'
+    );
+    
+    const User = choiceAppDb.model(
+      'User',
+      new mongoose.Schema({}, { strict: false }),
+      'users'
     );
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -383,9 +389,9 @@ router.get('/:producerId/interactions', async (req, res) => {
       return res.status(404).json({ message: 'Producteur non trouvé.' });
     }
 
-    // Connexion à la base de données principale pour les posts
+    // Modèle pour les posts
     const choiceAppDb = mongoose.createConnection(process.env.MONGO_URI, {
-      dbName: 'ChoiceApp',
+      dbName: 'choice_app',
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
@@ -393,13 +399,13 @@ router.get('/:producerId/interactions', async (req, res) => {
     const Post = choiceAppDb.model(
       'Post',
       new mongoose.Schema({}, { strict: false }),
-      'Posts'
+      'posts'
     );
     
     const User = choiceAppDb.model(
       'User',
       new mongoose.Schema({}, { strict: false }),
-      'Users'
+      'users'
     );
     
     // Récupérer les followers du producteur
@@ -558,9 +564,9 @@ router.get('/:producerId/local-trends', async (req, res) => {
     .limit(5)
     .lean();
 
-    // Connexion à la base de données principale pour les posts
+    // Modèle pour les posts
     const choiceAppDb = mongoose.createConnection(process.env.MONGO_URI, {
-      dbName: 'ChoiceApp',
+      dbName: 'choice_app',
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
@@ -568,7 +574,7 @@ router.get('/:producerId/local-trends', async (req, res) => {
     const Post = choiceAppDb.model(
       'Post',
       new mongoose.Schema({}, { strict: false }),
-      'Posts'
+      'posts'
     );
 
     // Récupérer les posts populaires de la région
@@ -1022,5 +1028,33 @@ router.post('/:producerId/menus', async (req, res) => {
   }
 });
 
+// Endpoint : Récupérer les informations de localisation d'un producteur
+router.get('/:producerId/location', async (req, res) => {
+  try {
+    const { producerId } = req.params;
+    
+    // Vérifier si l'ID est valide
+    if (!mongoose.isValidObjectId(producerId)) {
+      return res.status(400).json({ message: 'ID de producteur invalide.' });
+    }
+
+    // Récupérer le producteur
+    const producer = await Producer.findById(producerId).select('name address gps_coordinates');
+    if (!producer) {
+      return res.status(404).json({ message: 'Producteur non trouvé.' });
+    }
+    
+    // Renvoyer les données de localisation
+    res.status(200).json({
+      name: producer.name,
+      address: producer.address,
+      coordinates: producer.gps_coordinates?.coordinates || [0, 0],
+      type: producer.gps_coordinates?.type || 'Point'
+    });
+  } catch (err) {
+    console.error('❌ Erreur lors de la récupération de la localisation du producteur :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
 
 module.exports = router;

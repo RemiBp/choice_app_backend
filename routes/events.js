@@ -7,6 +7,15 @@ const {
   getEventImageUrl,
   normalizeCollectionRoute 
 } = require('../utils/leisureHelpers');
+const {
+  EVENT_TYPES,
+  CATEGORY_MAPPING,
+  MAIN_CATEGORIES,
+  CATEGORY_MAPPINGS_DETAILED,
+  getStandardCategory,
+  getCategoryDetails,
+  getEventTypeDetails
+} = require('../utils/eventConstants');
 
 // Connexion à la base Loisir&Culture
 const eventDb = mongoose.createConnection(process.env.MONGO_URI, {
@@ -21,96 +30,6 @@ const Event = eventDb.model(
   new mongoose.Schema({}, { strict: false }),
   'Loisir_Paris_Evenements' // Nom exact de la collection dans MongoDB
 );
-
-// Cartographie standardisée des catégories
-const CATEGORY_MAPPING = {
-  // Mappage général pour standardiser les catégories
-  "default": "Autre",
-  
-  // Catégories Shotgun -> Standard
-  "deep": "Musique » Électronique",
-  "techno": "Musique » Électronique",
-  "house": "Musique » Électronique",
-  "hip hop": "Musique » Hip-Hop",
-  "rap": "Musique » Hip-Hop",
-  "rock": "Musique » Rock",
-  "indie": "Musique » Indie",
-  "pop": "Musique » Pop",
-  "jazz": "Musique » Jazz",
-  "soul": "Musique » Soul",
-  "funk": "Musique » Funk",
-  "dj set": "Musique » DJ Set",
-  "club": "Musique » Club",
-  "festival": "Festival",
-  "concert": "Concert",
-  "live": "Concert",
-  "comédie": "Théâtre » Comédie",
-  "spectacle": "Spectacles",
-  "danse": "Spectacles » Danse",
-  "exposition": "Exposition",
-  "conférence": "Conférence",
-  "stand-up": "Spectacles » One-man-show",
-  "one-man-show": "Spectacles » One-man-show",
-  "théâtre": "Théâtre",
-  "cinéma": "Cinéma",
-  "projection": "Cinéma",
-};
-
-// Liste des catégories principales pour la carte
-const MAIN_CATEGORIES = [
-  "Théâtre",
-  "Musique",
-  "Spectacles",
-  "Cinéma",
-  "Exposition",
-  "Festival",
-  "Concert",
-  "Conférence"
-];
-
-// Mappings détaillés pour l'analyse AI par catégorie
-const CATEGORY_MAPPINGS_DETAILED = {
-  "Théâtre": {
-    "aspects": ["mise en scène", "jeu des acteurs", "texte", "scénographie"],
-    "emotions": ["intense", "émouvant", "captivant", "enrichissant", "profond"]
-  },
-  "Théâtre contemporain": {
-    "aspects": ["mise en scène", "jeu des acteurs", "texte", "originalité", "message"],
-    "emotions": ["provocant", "dérangeant", "stimulant", "actuel", "profond"]
-  },
-  "Comédie": {
-    "aspects": ["humour", "jeu des acteurs", "rythme", "dialogue"],
-    "emotions": ["drôle", "amusant", "divertissant", "léger", "enjoué"]
-  },
-  "Spectacle musical": {
-    "aspects": ["performance musicale", "mise en scène", "chant", "chorégraphie"],
-    "emotions": ["entraînant", "mélodieux", "festif", "rythmé", "touchant"]
-  },
-  "One-man-show": {
-    "aspects": ["humour", "présence scénique", "texte", "interaction"],
-    "emotions": ["drôle", "mordant", "spontané", "énergique", "incisif"]
-  },
-  "Concert": {
-    "aspects": ["performance", "répertoire", "son", "ambiance"],
-    "emotions": ["électrisant", "envoûtant", "festif", "énergique", "intense"]
-  },
-  "Musique électronique": {
-    "aspects": ["dj", "ambiance", "son", "rythme"],
-    "emotions": ["festif", "énergique", "immersif", "exaltant", "hypnotique"]
-  },
-  "Danse": {
-    "aspects": ["chorégraphie", "technique", "expressivité", "musique"],
-    "emotions": ["gracieux", "puissant", "fluide", "émouvant", "esthétique"]
-  },
-  "Cirque": {
-    "aspects": ["performance", "mise en scène", "acrobaties", "créativité"],
-    "emotions": ["impressionnant", "magique", "époustouflant", "spectaculaire", "poétique"]
-  },
-  "Default": {  // Catégorie par défaut si non reconnue
-    "aspects": ["qualité générale", "intérêt", "originalité"],
-    "emotions": ["agréable", "intéressant", "divertissant", "satisfaisant"]
-  }
-};
 
 // Mapping pour la traduction des dates
 const JOURS_FR_EN = {
@@ -130,46 +49,6 @@ const MOIS_ABBR_FR = {
   "sept.": "septembre", "oct.": "octobre", "nov.": "novembre", "déc.": "décembre"
 };
 
-// Fonction utilitaire pour standardiser une catégorie
-function getStandardCategory(rawCategory) {
-  if (!rawCategory) return CATEGORY_MAPPING["default"];
-  
-  const lowerCategory = rawCategory.toLowerCase();
-  
-  // Chercher dans le mapping
-  for (const [key, value] of Object.entries(CATEGORY_MAPPING)) {
-    if (lowerCategory.includes(key)) {
-      return value;
-    }
-  }
-  
-  return CATEGORY_MAPPING["default"];
-}
-
-// Fonction pour récupérer les aspects et émotions liés à une catégorie
-function getCategoryDetails(category) {
-  if (!category) return CATEGORY_MAPPINGS_DETAILED["Default"];
-  
-  // Extraire la catégorie principale (avant le »)
-  const mainCategory = category.split('»')[0].trim();
-  
-  // Chercher les détails de la catégorie
-  if (CATEGORY_MAPPINGS_DETAILED[mainCategory]) {
-    return CATEGORY_MAPPINGS_DETAILED[mainCategory];
-  } else if (CATEGORY_MAPPINGS_DETAILED[category]) {
-    return CATEGORY_MAPPINGS_DETAILED[category];
-  }
-  
-  // Si aucune correspondance exacte, chercher une correspondance partielle
-  for (const [key, details] of Object.entries(CATEGORY_MAPPINGS_DETAILED)) {
-    if (mainCategory.includes(key) || key.includes(mainCategory)) {
-      return details;
-    }
-  }
-  
-  return CATEGORY_MAPPINGS_DETAILED["Default"];
-}
-
 // **Recherche avancée avec filtres**
 router.get('/advanced-search', async (req, res) => {
   try {
@@ -178,6 +57,7 @@ router.get('/advanced-search', async (req, res) => {
       longitude,         // Longitude pour recherche géolocalisée
       radius = 10000,    // Rayon de recherche (10km par défaut)
       category,          // Catégorie (ex. : "Théâtre", "Cinéma")
+      eventType,         // Type d'événement spécifique
       minNote,           // Note minimale globale
       miseEnScene,       // Note minimale pour mise_en_scene
       minMiseEnScene,    // Alias pour miseEnScene (compatibilité frontend)
@@ -185,10 +65,15 @@ router.get('/advanced-search', async (req, res) => {
       minJeuActeurs,     // Alias pour jeuActeurs (compatibilité frontend)
       scenario,          // Note minimale pour scenario
       minScenario,       // Alias pour scenario (compatibilité frontend)
+      ambiance,          // Note minimale pour ambiance
       emotions,          // Émotions (array ex. : ["drôle", "joyeux"])
       aspects,           // Aspects spécifiques (ex. : ["mise en scène", "jeu des acteurs"])
       minPrice,          // Prix minimum
-      maxPrice           // Prix maximum
+      maxPrice,          // Prix maximum
+      artiste,           // Recherche par artiste
+      dateDebut,         // Date de début
+      dateFin,           // Date de fin
+      accessibilite      // Critères d'accessibilité
     } = req.query;
 
     // Construire la requête dynamique
@@ -207,122 +92,77 @@ router.get('/advanced-search', async (req, res) => {
       };
     }
 
-    // Filtrage par catégorie avec logique améliorée
+    // Filtres de catégorie et type d'événement
     if (category) {
-      // Chercher la catégorie standardisée et ses sous-catégories
-      if (MAIN_CATEGORIES.includes(category)) {
-        // Si c'est une catégorie principale, chercher toutes les sous-catégories
-        const regex = new RegExp(`^${category}`, 'i');
-        const relatedCategories = Object.values(CATEGORY_MAPPING).filter(cat => 
-          regex.test(cat) || cat === category
-        );
-        
-        // Chercher dans la catégorie originale ou standardisée
-        query.$or = [
-          { catégorie: { $regex: category, $options: 'i' } },
-          { catégorie_standardisée: { $in: relatedCategories } }
-        ];
-      } else {
-        // Sinon, recherche directe
-        query.catégorie = { $regex: category, $options: 'i' };
-      }
+      query.category = category;
+    }
+    if (eventType) {
+      query.eventType = eventType;
     }
 
-    // Filtre par note globale
+    // Filtres de notes
     if (minNote) {
-      query.note = { $gte: parseFloat(minNote) };
+      query['notes_globales.appréciation_globale'] = { $gte: parseFloat(minNote) };
+    }
+    if (miseEnScene || minMiseEnScene) {
+      query['notes_globales.mise_en_scene'] = { $gte: parseFloat(miseEnScene || minMiseEnScene) };
+    }
+    if (jeuActeurs || minJeuActeurs) {
+      query['notes_globales.jeu_acteurs'] = { $gte: parseFloat(jeuActeurs || minJeuActeurs) };
+    }
+    if (scenario || minScenario) {
+      query['notes_globales.scenario'] = { $gte: parseFloat(scenario || minScenario) };
+    }
+    if (ambiance) {
+      query['notes_globales.ambiance'] = { $gte: parseFloat(ambiance) };
     }
 
-    // Filtres par notes spécifiques - gérer les versions "min" et standards pour compatibilité
-    const effectiveMiseEnScene = miseEnScene || minMiseEnScene;
-    if (effectiveMiseEnScene && parseFloat(effectiveMiseEnScene) > 0) {
-      query["notes_globales.mise_en_scene"] = { $gte: parseFloat(effectiveMiseEnScene) };
+    // Filtres d'émotions et d'aspects
+    if (emotions && emotions.length > 0) {
+      query['notes_globales.emotions'] = { $in: emotions };
     }
-    
-    const effectiveJeuActeurs = jeuActeurs || minJeuActeurs;
-    if (effectiveJeuActeurs && parseFloat(effectiveJeuActeurs) > 0) {
-      query["notes_globales.jeu_acteurs"] = { $gte: parseFloat(effectiveJeuActeurs) };
-    }
-    
-    const effectiveScenario = scenario || minScenario;
-    if (effectiveScenario && parseFloat(effectiveScenario) > 0) {
-      query["notes_globales.scenario"] = { $gte: parseFloat(effectiveScenario) };
+    if (aspects && aspects.length > 0) {
+      query['notes_globales.aspects'] = { $in: aspects };
     }
 
-    // Filtre par émotions
-    if (emotions) {
-      const emotionArray = Array.isArray(emotions) ? emotions : emotions.split(',');
-      query["notes_globales.emotions"] = { $in: emotionArray }; // Correspondance avec au moins une émotion
+    // Filtres de prix
+    if (minPrice) {
+      query['prix.min'] = { $gte: parseFloat(minPrice) };
     }
-    
-    // Filtre par aspects
-    if (aspects) {
-      const aspectArray = Array.isArray(aspects) ? aspects : aspects.split(',');
-      query["notes_globales.aspects"] = { $in: aspectArray };
+    if (maxPrice) {
+      query['prix.max'] = { $lte: parseFloat(maxPrice) };
     }
 
-    // Filtre par prix - gestion de différents formats de prix
-    if (minPrice || maxPrice) {
-      // On gère les différentes structures possibles pour les prix
-      const priceQueries = [];
-      
-      // Format direct: prix_reduit est un nombre ou une chaîne avec valeur numérique
-      if (minPrice) {
-        priceQueries.push({ 
-          prix_reduit: { 
-            $gte: parseFloat(minPrice),
-            $exists: true,
-            $ne: null 
-          } 
-        });
-      }
-      if (maxPrice) {
-        priceQueries.push({ 
-          prix_reduit: { 
-            $lte: parseFloat(maxPrice),
-            $exists: true,
-            $ne: null
-          } 
-        });
-      }
-      
-      // Format avec élément et texte formatté (ex: "30 €")
-      if (minPrice || maxPrice) {
-        const priceConditions = {};
-        if (minPrice) priceConditions.$gte = parseFloat(minPrice);
-        if (maxPrice) priceConditions.$lte = parseFloat(maxPrice);
-        
-        priceQueries.push({
-          "catégories_prix.Prix": {
-            $elemMatch: priceConditions
-          }
-        });
-      }
-      
-      // Si nous avons des conditions de prix, les ajouter à la requête avec $or
-      if (priceQueries.length > 0) {
-        query.$and = query.$and || [];
-        query.$and.push({ $or: priceQueries });
-      }
+    // Filtre par artiste
+    if (artiste) {
+      query.artistes = { $regex: artiste, $options: 'i' };
     }
 
-    console.log('🔍 Recherche avancée avec les critères :', JSON.stringify(query, null, 2));
-
-    // Exécuter la requête
-    const events = await Event.find(query);
-
-    console.log(`🔍 ${events.length} événement(s) trouvé(s)`);
-
-    if (events.length === 0) {
-      return res.status(404).json({ message: 'Aucun événement trouvé.' });
+    // Filtres de dates
+    if (dateDebut) {
+      query.startDate = { $gte: new Date(dateDebut) };
     }
+    if (dateFin) {
+      query.endDate = { $lte: new Date(dateFin) };
+    }
+
+    // Filtre d'accessibilité
+    if (accessibilite) {
+      query.accessibilite = { $in: accessibilite.split(',') };
+    }
+
+    console.log('🔍 Requête de recherche avancée:', query);
+
+    const events = await Event.find(query)
+      .sort({ startDate: 1 })
+      .limit(50);
 
     // Formater les résultats avec les catégories standardisées et détails associés
     const formattedEvents = events.map(event => {
       const eventObj = event.toObject();
       
       // Standardiser la catégorie
-      const standardCategory = getStandardCategory(eventObj.catégorie);
+      const standardCategory = getStandardCategory(eventObj.category);
       eventObj.catégorie_standardisée = standardCategory;
       
       // Récupérer les aspects et émotions associés à cette catégorie
@@ -330,32 +170,37 @@ router.get('/advanced-search', async (req, res) => {
       
       return {
         _id: eventObj._id,
-        intitulé: eventObj.intitulé || 'Intitulé non disponible',
-        catégorie: eventObj.catégorie || 'Catégorie non disponible',
+        intitulé: eventObj.name || 'Intitulé non disponible',
+        catégorie: eventObj.category || 'Catégorie non disponible',
         catégorie_standardisée: standardCategory,
+        eventType: eventObj.eventType,
         categoryAspects: categoryDetails.aspects,
         categoryEmotions: categoryDetails.emotions,
-        lieu: eventObj.lieu || 'Lieu non disponible',
-        note: eventObj.note ? parseFloat(eventObj.note).toFixed(1) : '0.0',
+        lieu: eventObj.address || 'Lieu non disponible',
+        note: eventObj.notes_globales?.appréciation_globale ? parseFloat(eventObj.notes_globales.appréciation_globale).toFixed(1) : '0.0',
         notes_globales: {
           mise_en_scene: eventObj.notes_globales?.mise_en_scene ? parseFloat(eventObj.notes_globales.mise_en_scene).toFixed(1) : '0.0',
           jeu_acteurs: eventObj.notes_globales?.jeu_acteurs ? parseFloat(eventObj.notes_globales.jeu_acteurs).toFixed(1) : '0.0',
           scenario: eventObj.notes_globales?.scenario ? parseFloat(eventObj.notes_globales.scenario).toFixed(1) : '0.0',
+          ambiance: eventObj.notes_globales?.ambiance ? parseFloat(eventObj.notes_globales.ambiance).toFixed(1) : '0.0',
           émotions: eventObj.notes_globales?.emotions || [],
           aspects: eventObj.notes_globales?.aspects || categoryDetails.aspects,
           appréciation_globale: eventObj.notes_globales?.appréciation_globale || 'Non disponible',
         },
-        prix_reduit: eventObj.prix_reduit || 'Prix non disponible',
-        date_formatted: formatEventDate(eventObj.date_debut || eventObj.prochaines_dates),
-        date_debut: eventObj.date_debut,
-        prochaines_dates: eventObj.prochaines_dates,
+        prix: eventObj.prix || 'Prix non disponible',
+        date_formatted: formatEventDate(eventObj.startDate),
+        date_debut: eventObj.startDate,
+        date_fin: eventObj.endDate,
+        horaires: eventObj.horaires || [],
+        artistes: eventObj.artistes || [],
+        capacite: eventObj.capacite,
+        accessibilite: eventObj.accessibilite || [],
         is_passed: isEventPassed(eventObj),
-        location: eventObj.location || { coordinates: [] },
+        location: eventObj.coordinates || { coordinates: [] },
         image: getEventImageUrl(eventObj) || `https://source.unsplash.com/500x300/?${encodeURIComponent(standardCategory.split('»')[0].trim())}`,
         purchase_url: eventObj.purchase_url || '',
         interests: eventObj.interests || [],
         followers_interests: eventObj.followers_interests || [],
-        // Ajouter des données fictives pour les followers si absentes (pour démo)
         followers: eventObj.followers || Array(Math.floor(Math.random() * 15) + 1).fill().map((_, i) => ({
           name: `Ami ${i+1}`,
           profilePic: `https://randomuser.me/api/portraits/${Math.random() > 0.5 ? 'men' : 'women'}/${Math.floor(Math.random() * 100)}.jpg`

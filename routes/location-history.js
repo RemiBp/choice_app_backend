@@ -46,6 +46,22 @@ const LeisureVenue = loisirDb.model(
   'Loisir_Paris_Producers'
 );
 
+// Modèle pour l'historique de localisation
+const LocationHistory = choiceDb.model(
+  'LocationHistory',
+  new mongoose.Schema({
+    userId: { type: String, required: true },
+    timestamp: { type: Date, default: Date.now },
+    location: {
+      type: { type: String, enum: ['Point'], default: 'Point' },
+      coordinates: { type: [Number], required: true } // [longitude, latitude]
+    },
+    accuracy: { type: Number },
+    source: { type: String, enum: ['gps', 'network', 'manual'], default: 'gps' }
+  }),
+  'location_history'
+);
+
 /**
  * Constantes pour la vérification des visites
  */
@@ -410,6 +426,358 @@ router.get('/frequent-places', async (req, res) => {
       message: 'Erreur serveur lors de la récupération des lieux fréquemment visités.',
       error: error.message
     });
+  }
+});
+
+/**
+ * Récupération des hotspots (points chauds) pour la carte de chaleur
+ * 
+ * @route GET /api/location-history/hotspots
+ * @query {number} latitude - Latitude du centre de la recherche
+ * @query {number} longitude - Longitude du centre de la recherche
+ * @query {number} [radius=2000] - Rayon de recherche en mètres
+ * @returns {Object} Points chauds avec leur poids pour la carte de chaleur
+ */
+router.get('/hotspots', async (req, res) => {
+  const { latitude, longitude, radius = 2000 } = req.query;
+  
+  // Vérification des paramètres requis
+  if (!latitude || !longitude) {
+    return res.status(400).json({
+      message: 'Les paramètres latitude et longitude sont requis.'
+    });
+  }
+
+  try {
+    // Conversion des paramètres en nombres
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    const rad = parseInt(radius);
+    
+    console.log(`🔍 Recherche de hotspots: [${lat}, ${lng}] dans un rayon de ${rad}m`);
+    
+    // Récupérer les restaurants dans ce rayon
+    const restaurants = await Restaurant.find({
+      gps_coordinates: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [lng, lat]
+          },
+          $maxDistance: rad
+        }
+      }
+    }).select('name address gps_coordinates rating');
+    
+    // Récupérer les lieux culturels dans ce rayon
+    const leisureVenues = await LeisureVenue.find({
+      gps_coordinates: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [lng, lat]
+          },
+          $maxDistance: rad
+        }
+      }
+    }).select('nom lieu gps_coordinates rating');
+    
+    // Transformer les résultats en format pour la heatmap
+    const hotspots = [];
+    
+    // Ajouter les restaurants
+    restaurants.forEach(restaurant => {
+      if (restaurant.gps_coordinates?.coordinates?.length === 2) {
+        hotspots.push({
+          lat: restaurant.gps_coordinates.coordinates[1],
+          lng: restaurant.gps_coordinates.coordinates[0],
+          weight: restaurant.rating || Math.random() * 3 + 2, // Poids basé sur la note ou aléatoire
+          name: restaurant.name,
+          type: 'restaurant'
+        });
+      }
+    });
+    
+    // Ajouter les lieux culturels
+    leisureVenues.forEach(venue => {
+      if (venue.gps_coordinates?.coordinates?.length === 2) {
+        hotspots.push({
+          lat: venue.gps_coordinates.coordinates[1],
+          lng: venue.gps_coordinates.coordinates[0],
+          weight: venue.rating || Math.random() * 3 + 2, // Poids basé sur la note ou aléatoire
+          name: venue.nom || venue.lieu,
+          type: 'leisure'
+        });
+      }
+    });
+    
+    // Ajouter quelques points aléatoires pour enrichir la heatmap
+    for (let i = 0; i < 10; i++) {
+      // Coordonnées aléatoires dans le rayon
+      const angle = Math.random() * 2 * Math.PI;
+      const distance = Math.random() * rad;
+      const dx = distance * Math.cos(angle) / 111320; // Conversion approximative en degrés (équateur)
+      const dy = distance * Math.sin(angle) / (111320 * Math.cos(lat * Math.PI / 180));
+      
+      hotspots.push({
+        lat: lat + dy,
+        lng: lng + dx,
+        weight: Math.random() * 2 + 1, // Poids plus faible pour les points aléatoires
+        type: 'generic'
+      });
+    }
+    
+    console.log(`✅ ${hotspots.length} hotspots trouvés`);
+    res.status(200).json(hotspots);
+  } catch (error) {
+    console.error(`❌ Erreur lors de la récupération des hotspots: ${error.message}`);
+    res.status(500).json({
+      message: 'Erreur serveur lors de la récupération des hotspots.',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint : Ajouter une entrée à l'historique de localisation
+router.post('/', async (req, res) => {
+  try {
+    const { userId, latitude, longitude, accuracy, source } = req.body;
+    
+    if (!userId || !latitude || !longitude) {
+      return res.status(400).json({ message: 'UserId, latitude et longitude sont requis.' });
+    }
+    
+    const newLocationEntry = new LocationHistory({
+      userId,
+      location: {
+        type: 'Point',
+        coordinates: [parseFloat(longitude), parseFloat(latitude)]
+      },
+      accuracy: accuracy ? parseFloat(accuracy) : undefined,
+      source: source || 'gps'
+    });
+    
+    await newLocationEntry.save();
+    res.status(201).json({ message: 'Localisation enregistrée avec succès.' });
+  } catch (err) {
+    console.error('❌ Erreur lors de l\'enregistrement de la localisation :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
+
+// Endpoint : Récupérer l'historique de localisation d'un utilisateur
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { limit = 100, from, to } = req.query;
+    
+    const query = { userId };
+    
+    if (from || to) {
+      query.timestamp = {};
+      if (from) query.timestamp.$gte = new Date(from);
+      if (to) query.timestamp.$lte = new Date(to);
+    }
+    
+    const locationHistory = await LocationHistory.find(query)
+      .sort({ timestamp: -1 })
+      .limit(parseInt(limit))
+      .select('timestamp location accuracy source');
+    
+    res.status(200).json(locationHistory);
+  } catch (err) {
+    console.error('❌ Erreur lors de la récupération de l\'historique de localisation :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
+
+// Endpoint : Trouver les points chauds (hotspots) dans une zone
+router.get('/hotspots', async (req, res) => {
+  try {
+    const { latitude, longitude, radius = 2000 } = req.query;
+    
+    if (!latitude || !longitude) {
+      return res.status(400).json({ message: 'Latitude et longitude sont requises.' });
+    }
+    
+    console.log(`🔍 Recherche de points chauds: [lat=${latitude}, lng=${longitude}, radius=${radius}m]`);
+    
+    // Aggrégation pour grouper les localisations proches et compter leur fréquence
+    const hotspots = await LocationHistory.aggregate([
+      {
+        $geoNear: {
+          near: {
+            type: 'Point',
+            coordinates: [parseFloat(longitude), parseFloat(latitude)]
+          },
+          distanceField: 'distance',
+          maxDistance: parseInt(radius),
+          spherical: true
+        }
+      },
+      {
+        $group: {
+          _id: {
+            // Grouper par coordonnées arrondies pour trouver les zones à forte densité
+            longitude: { $round: [{ $arrayElemAt: ['$location.coordinates', 0] }, 4] },
+            latitude: { $round: [{ $arrayElemAt: ['$location.coordinates', 1] }, 4] }
+          },
+          count: { $sum: 1 },
+          // Calculer la position moyenne réelle pour chaque groupe
+          avgLongitude: { $avg: { $arrayElemAt: ['$location.coordinates', 0] } },
+          avgLatitude: { $avg: { $arrayElemAt: ['$location.coordinates', 1] } },
+          // Stocker quelques détails supplémentaires
+          lastVisited: { $max: '$timestamp' },
+          userIds: { $addToSet: '$userId' }
+        }
+      },
+      {
+        $match: {
+          // Filtrer pour ne garder que les zones avec plusieurs visites
+          count: { $gte: 3 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          location: {
+            type: 'Point',
+            coordinates: ['$avgLongitude', '$avgLatitude']
+          },
+          count: 1,
+          lastVisited: 1,
+          uniqueUsers: { $size: '$userIds' },
+          intensity: { 
+            $cond: { 
+              if: { $gte: ['$count', 10] }, 
+              then: 'high', 
+              else: { 
+                $cond: { 
+                  if: { $gte: ['$count', 5] }, 
+                  then: 'medium', 
+                  else: 'low' 
+                } 
+              } 
+            } 
+          }
+        }
+      },
+      {
+        $sort: { count: -1 }
+      },
+      {
+        $limit: 20
+      }
+    ]);
+    
+    console.log(`✅ ${hotspots.length} points chauds trouvés`);
+    res.status(200).json(hotspots);
+  } catch (err) {
+    console.error('❌ Erreur lors de la recherche des points chauds :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
+
+// Endpoint : Calculer le score d'activité pour une zone
+router.get('/activity-score', async (req, res) => {
+  try {
+    const { latitude, longitude, radius = 500 } = req.query;
+    
+    if (!latitude || !longitude) {
+      return res.status(400).json({ message: 'Latitude et longitude sont requises.' });
+    }
+    
+    // Calculer le score d'activité basé sur le nombre de visites récentes
+    const activityData = await LocationHistory.aggregate([
+      {
+        $geoNear: {
+          near: {
+            type: 'Point',
+            coordinates: [parseFloat(longitude), parseFloat(latitude)]
+          },
+          distanceField: 'distance',
+          maxDistance: parseInt(radius),
+          spherical: true
+        }
+      },
+      {
+        $facet: {
+          // Activité des dernières 24 heures
+          last24h: [
+            { 
+              $match: { 
+                timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } 
+              } 
+            },
+            { $count: 'count' }
+          ],
+          // Activité de la dernière semaine
+          lastWeek: [
+            { 
+              $match: { 
+                timestamp: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } 
+              } 
+            },
+            { $count: 'count' }
+          ],
+          // Activité du dernier mois
+          lastMonth: [
+            { 
+              $match: { 
+                timestamp: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } 
+              } 
+            },
+            { $count: 'count' }
+          ],
+          // Nombre d'utilisateurs uniques
+          uniqueUsers: [
+            { $group: { _id: '$userId' } },
+            { $count: 'count' }
+          ]
+        }
+      }
+    ]);
+    
+    // Extraire les valeurs des facets
+    const result = activityData[0];
+    const last24hCount = result.last24h[0]?.count || 0;
+    const lastWeekCount = result.lastWeek[0]?.count || 0;
+    const lastMonthCount = result.lastMonth[0]?.count || 0;
+    const uniqueUsersCount = result.uniqueUsers[0]?.count || 0;
+    
+    // Calculer le score (simple exemple)
+    // 50% basé sur l'activité récente, 30% sur l'activité hebdomadaire, 20% sur l'activité mensuelle
+    const activityScore = Math.min(
+      10,
+      ((last24hCount * 0.5) + (lastWeekCount * 0.3 / 7) + (lastMonthCount * 0.2 / 30)) * 
+      (1 + (uniqueUsersCount / 10)) // Bonus pour la diversité des utilisateurs
+    );
+    
+    // Déterminer les heures de pointe (simple exemple)
+    const peakHours = [
+      { hour: 12, score: 8 },  // Midi
+      { hour: 18, score: 9 },  // 18h
+      { hour: 20, score: 7 }   // 20h
+    ];
+    
+    const response = {
+      location: {
+        coordinates: [parseFloat(longitude), parseFloat(latitude)],
+        type: 'Point'
+      },
+      activityScore: parseFloat(activityScore.toFixed(2)),
+      activityLevel: activityScore > 7 ? 'high' : activityScore > 4 ? 'medium' : 'low',
+      visitsLast24h: last24hCount,
+      visitsLastWeek: lastWeekCount,
+      visitsLastMonth: lastMonthCount,
+      uniqueVisitors: uniqueUsersCount,
+      peakHours: peakHours
+    };
+    
+    res.status(200).json(response);
+  } catch (err) {
+    console.error('❌ Erreur lors du calcul du score d\'activité :', err.message);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
   }
 });
 

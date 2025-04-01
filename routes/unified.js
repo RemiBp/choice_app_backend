@@ -1,355 +1,293 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const { ObjectId } = require('mongodb'); // Pour la conversion des ID
+const { normalizeDocument } = require('../utils/normalizers');
 
-// Connexions aux bases
-const restaurantDb = mongoose.createConnection(process.env.MONGO_URI, {
-  dbName: 'Restauration_Officielle',
-});
-const leisureDb = mongoose.createConnection(process.env.MONGO_URI, {
-  dbName: 'Loisir&Culture',
-});
-
-// Modèles pour les collections
-const Restaurant = restaurantDb.model(
-  'Restaurant',
-  new mongoose.Schema({}, { strict: false }),
-  'producers' // Collection des producteurs dans Restauration_Officielle
-);
-const LeisureProducer = leisureDb.model(
-  'LeisureProducer',
-  new mongoose.Schema({}, { strict: false }),
-  'Loisir_Paris_Producers' // Producteurs de loisirs dans Loisir&Culture
-);
-const Event = leisureDb.model(
-  'Event',
-  new mongoose.Schema({}, { strict: false }),
-  'Loisir_Paris_Evenements' // Événements dans Loisir&Culture
-);
-
-// Route pour la recherche unifiée (version publique non-authentifiée)
-router.get('/search-public', async (req, res) => {
-  const { query } = req.query;
-
-  if (!query || query.trim() === '') {
-    return res.status(400).json({ message: 'Veuillez fournir un mot-clé pour la recherche.' });
+// Modèles pour chaque base de données
+const models = {
+  choice_app: {
+    Posts: mongoose.connection.useDb('choice_app').model('Posts', new mongoose.Schema({}, { strict: false })),
+    Users: mongoose.connection.useDb('choice_app').model('Users', new mongoose.Schema({}, { strict: false }))
+  },
+  restauration: {
+    Producers: mongoose.connection.useDb('Restauration_Officielle').model('producers', new mongoose.Schema({}, { strict: false }))
+  },
+  leisure: {
+    Events: mongoose.connection.useDb('Loisir&Culture').model('Loisir_Paris_Evenements', new mongoose.Schema({}, { strict: false })),
+    Producers: mongoose.connection.useDb('Loisir&Culture').model('Loisir_Paris_Producers', new mongoose.Schema({}, { strict: false }))
   }
+};
 
-  console.log(`🔍 Recherche publique pour le mot-clé : ${query}`);
-
-  try {
-    // Créez les filtres pour chaque collection
-    const filter = { $regex: query, $options: 'i' };
-
-    const [restaurants, leisureProducers, events] = await Promise.all([
-      Restaurant.find({
-        $or: [
-          { name: filter },
-          { address: filter },
-          { description: filter },
-        ],
-      }).limit(20),
-      LeisureProducer.find({
-        $or: [
-          { lieu: filter },
-          { adresse: filter },
-          { description: filter },
-        ],
-      }).limit(20),
-      Event.find({
-        $or: [
-          { intitulé: filter },
-          { catégorie: filter },
-          { détail: filter },
-        ],
-      }).limit(20),
-    ]);
-
-    const results = [
-      ...restaurants.map((r) => ({ type: 'restaurant', ...r.toObject() })),
-      ...leisureProducers.map((l) => ({ type: 'leisureProducer', ...l.toObject() })),
-      ...events.map((e) => ({ type: 'event', ...e.toObject() })),
-    ];
-
-    if (results.length === 0) {
-      console.log(`❌ Aucun résultat trouvé pour la recherche publique : ${query}`);
-      return res.status(404).json({ message: 'Aucun résultat trouvé.' });
-    }
-
-    console.log(`✅ Recherche publique : ${results.length} résultats trouvés`);
-    res.status(200).json(results);
-  } catch (err) {
-    console.error('❌ Erreur dans /api/unified/search-public :', err.message);
-    res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
-  }
-});
-
-// Route pour la recherche unifiée (version authentifiée)
+// Route de recherche unifiée
 router.get('/search', async (req, res) => {
-  const { query } = req.query;
-
-  if (!query || query.trim() === '') {
-    return res.status(400).json({ message: 'Veuillez fournir un mot-clé pour la recherche.' });
-  }
-
-  console.log(`🔍 Recherche authentifiée pour le mot-clé : ${query}`);
-
   try {
-    // Créez les filtres pour chaque collection
-    const filter = { $regex: query, $options: 'i' };
+    const { query, type, page = 1, limit = 10 } = req.query;
+    const skip = (page - 1) * limit;
 
-    const [restaurants, leisureProducers, events] = await Promise.all([
-      Restaurant.find({
-        $or: [
-          { name: filter },
-          { address: filter },
-          { description: filter },
-        ],
-      }).limit(20),
-      LeisureProducer.find({
-        $or: [
-          { lieu: filter },
-          { adresse: filter },
-          { description: filter },
-        ],
-      }).limit(20),
-      Event.find({
-        $or: [
-          { intitulé: filter },
-          { catégorie: filter },
-          { détail: filter },
-        ],
-      }).limit(20),
-    ]);
-
-    const results = [
-      ...restaurants.map((r) => ({ type: 'restaurant', ...r.toObject() })),
-      ...leisureProducers.map((l) => ({ type: 'leisureProducer', ...l.toObject() })),
-      ...events.map((e) => ({ type: 'event', ...e.toObject() })),
-    ];
-
-    if (results.length === 0) {
-      console.log(`❌ Aucun résultat trouvé pour la recherche : ${query}`);
-      return res.status(404).json({ message: 'Aucun résultat trouvé.' });
+    if (!query) {
+      return res.status(400).json({ message: 'Le paramètre query est requis.' });
     }
 
-    console.log(`✅ Résultats trouvés : ${results.length} résultats`);
-    res.status(200).json(results);
-  } catch (err) {
-    console.error('❌ Erreur dans /api/unified/search :', err.message);
-    res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
-  }
-});
+    // Créer la requête de recherche
+    const searchQuery = {
+      $or: [
+        { title: { $regex: query, $options: 'i' } },
+        { name: { $regex: query, $options: 'i' } },
+        { intitulé: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+        { détail: { $regex: query, $options: 'i' } },
+        { content: { $regex: query, $options: 'i' } },
+        { 'location.name': { $regex: query, $options: 'i' } },
+        { lieu: { $regex: query, $options: 'i' } },
+        { adresse: { $regex: query, $options: 'i' } },
+        { tags: { $regex: query, $options: 'i' } },
+        { catégorie: { $regex: query, $options: 'i' } }
+      ]
+    };
 
-// Route pour les éléments innovants (public)
-router.get('/innovative-public', async (req, res) => {
-  console.log('🔍 Récupération des éléments innovants (public)');
-  
-  try {
-    // Rechercher des lieux et événements avec des critères d'innovation
-    const [innovativeRestaurants, innovativeEvents] = await Promise.all([
-      Restaurant.find({ tags: { $in: ['innovant', 'original', 'unique'] } })
-        .sort({ rating: -1 })
-        .limit(10)
-        .lean(),
-      Event.find({ catégorie: { $in: ['exposition', 'innovation', 'technologie'] } })
-        .sort({ date: -1 })
-        .limit(10)
-        .lean()
+    // Sélectionner les collections à rechercher selon le type
+    let collectionsToSearch = [];
+    switch (type) {
+      case 'event':
+        collectionsToSearch = [models.leisure.Events];
+        break;
+      case 'restaurant':
+        collectionsToSearch = [models.restauration.Producers];
+        break;
+      case 'leisure':
+        collectionsToSearch = [models.leisure.Producers];
+        break;
+      case 'post':
+        collectionsToSearch = [models.choice_app.Posts];
+        break;
+      default:
+        collectionsToSearch = [
+          models.choice_app.Posts,
+          models.restauration.Producers,
+          models.leisure.Events,
+          models.leisure.Producers
+        ];
+    }
+
+    // Effectuer les recherches en parallèle
+    const [results, totalCount] = await Promise.all([
+      Promise.all(collectionsToSearch.map(model => 
+        model.find(searchQuery).skip(skip).limit(limit).lean()
+      )),
+      Promise.all(collectionsToSearch.map(model => 
+        model.countDocuments(searchQuery)
+      ))
     ]);
-    
-    // Combiner et formater les résultats
-    const results = [
-      ...innovativeRestaurants.map(r => ({ type: 'restaurant', ...r })),
-      ...innovativeEvents.map(e => ({ type: 'event', ...e }))
-    ];
-    
-    console.log(`✅ ${results.length} éléments innovants trouvés`);
-    res.status(200).json(results);
-  } catch (err) {
-    console.error('❌ Erreur dans /api/unified/innovative-public :', err.message);
-    res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
+
+    // Aplatir et normaliser les résultats
+    const flatResults = results.flat();
+    const normalizedResults = flatResults.map(doc => normalizeDocument(doc));
+
+    // Trier les résultats par pertinence
+    const sortedResults = normalizedResults.sort((a, b) => {
+      const scoreA = calculateRelevanceScore(a, query);
+      const scoreB = calculateRelevanceScore(b, query);
+      return scoreB - scoreA;
+    });
+
+    // Calculer la pagination
+    const total = totalCount.reduce((acc, count) => acc + count, 0);
+    const totalPages = Math.ceil(total / limit);
+
+    res.json({
+      results: sortedResults,
+      page: parseInt(page),
+      total_pages: totalPages,
+      total_results: total
+    });
+
+  } catch (error) {
+    console.error('Erreur lors de la recherche:', error);
+    res.status(500).json({ message: 'Erreur lors de la recherche.' });
   }
 });
 
-// Route pour les éléments à proximité (public)
-router.get('/nearby-public', async (req, res) => {
-  const { lat, lng, radius = 5000 } = req.query;
-  
-  console.log(`🔍 Recherche d'éléments à proximité de (${lat}, ${lng}) dans un rayon de ${radius}m`);
-  
-  if (!lat || !lng) {
-    return res.status(400).json({ message: 'Les paramètres lat et lng sont requis.' });
-  }
-  
-  try {
-    // Utiliser une recherche simple sans requête géospatiale
-    // pour éviter les problèmes d'index manquants
-    const [nearbyRestaurants, nearbyLeisure] = await Promise.all([
-      // Récupérer les restaurants sans filtrage spatial avancé
-      // car la requête $near échoue sans index géospatial
-      Restaurant.find()
-        .sort({ rating: -1 })
-        .limit(15)
-        .lean(),
-      
-      // Récupérer les lieux de loisir sans filtrage spatial avancé
-      LeisureProducer.find()
-        .sort({ rating: -1 })
-        .limit(15)
-        .lean()
-    ]);
-    
-    // Combiner et formater les résultats
-    const results = [
-      ...nearbyRestaurants.map(r => ({ type: 'restaurant', ...r })),
-      ...nearbyLeisure.map(l => ({ type: 'leisureProducer', ...l }))
-    ];
-    
-    console.log(`✅ ${results.length} éléments trouvés à proximité`);
-    res.status(200).json(results);
-  } catch (err) {
-    console.error('❌ Erreur dans /api/unified/nearby-public :', err.message);
-    res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
-  }
-});
-
-// Route pour les surprises (public)
-router.get('/surprise-public', async (req, res) => {
-  console.log('🔍 Récupération des éléments surprise (public)');
-  
-  try {
-    // Récupérer un échantillon aléatoire de restaurants et événements
-    const [surpriseRestaurants, surpriseEvents] = await Promise.all([
-      Restaurant.aggregate([{ $sample: { size: 5 } }]),
-      Event.aggregate([{ $sample: { size: 5 } }])
-    ]);
-    
-    // Combiner et formater les résultats
-    const results = [
-      ...surpriseRestaurants.map(r => ({ type: 'restaurant', ...r })),
-      ...surpriseEvents.map(e => ({ type: 'event', ...e }))
-    ];
-    
-    console.log(`✅ ${results.length} éléments surprise trouvés`);
-    res.status(200).json(results);
-  } catch (err) {
-    console.error('❌ Erreur dans /api/unified/surprise-public :', err.message);
-    res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
-  }
-});
-
-// Route pour les éléments tendance (public)
-router.get('/trending-public', async (req, res) => {
-  console.log('🔍 Récupération des éléments tendance (public)');
-  
-  try {
-    // Rechercher des lieux et événements populaires ou tendance
-    const [trendingRestaurants, trendingEvents] = await Promise.all([
-      Restaurant.find()
-        .sort({ views: -1, rating: -1 })
-        .limit(10)
-        .lean(),
-      Event.find({ date: { $gte: new Date() } })
-        .sort({ popularity: -1 })
-        .limit(10)
-        .lean()
-    ]);
-    
-    // Combiner et formater les résultats
-    const results = [
-      ...trendingRestaurants.map(r => ({ type: 'restaurant', ...r })),
-      ...trendingEvents.map(e => ({ type: 'event', ...e }))
-    ];
-    
-    console.log(`✅ ${results.length} éléments tendance trouvés`);
-    res.status(200).json(results);
-  } catch (err) {
-    console.error('❌ Erreur dans /api/unified/trending-public :', err.message);
-    res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
-  }
-});
-
-// Route pour récupérer les détails uniquement via l'ID
+// Route pour récupérer un document par ID
 router.get('/:id', async (req, res) => {
-  const { id } = req.params;
-  
-  // Ignorer les routes spéciales déjà définies
-  if (['innovative-public', 'nearby-public', 'surprise-public', 'trending-public', 'search'].includes(id)) {
-    return;
-  }
-
   try {
+    const { id } = req.params;
+    const { user_id } = req.query;
+
     if (!mongoose.isValidObjectId(id)) {
-      console.log(`❌ ID invalide : ${id}`);
       return res.status(400).json({ message: 'ID invalide.' });
     }
 
-    console.log(`🔍 Recherche du document avec ID : ${id}`);
+    console.log(`🔍 Recherche d'un document avec ID: ${id}`);
 
-    // Récupérer le client MongoDB depuis l'application Express
-    const choiceAppDb = req.app.locals.choiceAppDb;
+    // Rechercher dans toutes les collections
+    const collectionsToSearch = [
+      models.choice_app.Posts,
+      models.restauration.Producers,
+      models.leisure.Events,
+      models.leisure.Producers
+    ];
+
+    const results = await Promise.all(
+      collectionsToSearch.map(async (model) => {
+        try {
+          const doc = await model.findById(id).lean();
+          if (doc) {
+            console.log(`✅ Document trouvé dans la collection ${model.collection.name}`);
+          }
+          return doc;
+        } catch (err) {
+          console.error(`❌ Erreur lors de la recherche dans ${model.collection.name}:`, err.message);
+          return null;
+        }
+      })
+    );
+
+    // Filtrer les résultats nuls et prendre le premier document trouvé
+    const filteredResults = results.filter(doc => doc !== null);
     
-    // Rechercher dans les collections principales d'abord (ne nécessitant pas choiceAppDb)
-    const [restaurant, leisureProducer, event] = await Promise.all([
-      Restaurant.findById(id),
-      LeisureProducer.findById(id),
-      Event.findById(id),
-    ]);
-
-    if (restaurant) {
-      console.log(`✅ Trouvé dans Restaurants : ${id}`);
-      return res.status(200).json({ type: 'restaurant', ...restaurant.toObject() });
+    if (filteredResults.length === 0) {
+      console.log(`❌ Aucun document trouvé avec ID: ${id}`);
+      return res.status(404).json({ message: 'Document non trouvé.' });
     }
 
-    if (leisureProducer) {
-      console.log(`✅ Trouvé dans Leisure Producers : ${id}`);
-      return res.status(200).json({ type: 'leisureProducer', ...leisureProducer.toObject() });
+    const document = filteredResults[0];
+
+    // Si un user_id est fourni, récupérer l'utilisateur
+    let user = null;
+    if (user_id && mongoose.isValidObjectId(user_id)) {
+      user = await models.choice_app.Users.findById(user_id).lean();
     }
 
-    if (event) {
-      console.log(`✅ Trouvé dans Events : ${id}`);
-      return res.status(200).json({ type: 'event', ...event.toObject() });
+    // Normaliser le document
+    const normalizedDoc = normalizeDocument(document);
+
+    // Ajouter les interactions de l'utilisateur si disponible
+    if (user) {
+      normalizedDoc.user_interactions = {
+        isLiked: normalizedDoc.interactions.likes.includes(user._id),
+        isChoice: normalizedDoc.interactions.choices.includes(user._id),
+        isInterested: normalizedDoc.interactions.interests.includes(user._id)
+      };
     }
 
-    // S'il n'est pas trouvé dans les collections principales, essayer choiceAppDb si disponible
-    if (choiceAppDb) {
-      const objectId = new ObjectId(id);
-      
-      try {
-        // Vérifier dans la collection Users
-        const usersCollection = choiceAppDb.collection("Users");
-        const user = await usersCollection.findOne({ _id: objectId });
-        
-        if (user) {
-          console.log(`✅ Trouvé dans Users : ${id}`);
-          return res.status(200).json({ type: 'user', ...user });
-        }
-        
-        // Vérifier dans la collection Posts
-        const postsCollection = choiceAppDb.collection("Posts");
-        const post = await postsCollection.findOne({ _id: objectId });
-        
-        if (post) {
-          console.log(`✅ Trouvé dans Posts : ${id}`);
-          return res.status(200).json({ type: 'post', ...post });
-        }
-      } catch (err) {
-        console.error(`❌ Erreur lors de la recherche dans choiceAppDb:`, err.message);
-        // On continue pour retourner un 404 plutôt qu'une erreur 500
-      }
-    } else {
-      console.log(`ℹ️ Base de données choiceAppDb non disponible, recherche limitée aux collections principales`);
-      // On continue la recherche, on ne renvoie pas d'erreur 500
-    }
+    res.json(normalizedDoc);
 
-    console.log(`❌ Aucun résultat trouvé pour l'ID : ${id}`);
-    res.status(404).json({ message: 'Aucun détail trouvé pour cet ID.' });
-  } catch (err) {
-    console.error(`❌ Erreur lors de la récupération des détails :`, err.message);
-    res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
+  } catch (error) {
+    console.error('❌ Erreur lors de la récupération du document:', error);
+    res.status(500).json({ message: 'Erreur lors de la récupération du document.' });
   }
 });
+
+// Route pour gérer les interactions
+router.post('/:id/interact', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, action } = req.body;
+
+    if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(user_id)) {
+      return res.status(400).json({ message: 'ID invalide.' });
+    }
+
+    if (!action || !['like', 'unlike', 'interest', 'uninterest', 'choice', 'unchoice'].includes(action)) {
+      return res.status(400).json({ message: 'Action invalide.' });
+    }
+
+    // Rechercher l'utilisateur
+    const user = await models.choice_app.Users.findById(user_id);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+    }
+
+    // Rechercher le document dans toutes les collections
+    const collectionsToSearch = [
+      models.choice_app.Posts,
+      models.restauration.Producers,
+      models.leisure.Events,
+      models.leisure.Producers
+    ];
+
+    const results = await Promise.all(
+      collectionsToSearch.map(model => model.findById(id))
+    );
+
+    const document = results.find(doc => doc !== null);
+    if (!document) {
+      return res.status(404).json({ message: 'Document non trouvé.' });
+    }
+
+    // Initialiser les tableaux si nécessaire
+    document.likes = document.likes || document.liked_by || [];
+    document.interestedUsers = document.interestedUsers || document.interests || [];
+    document.choices = document.choices || document.choiceUsers || [];
+
+    // Gérer l'action
+    switch (action) {
+      case 'like':
+        if (!document.likes.includes(user_id)) {
+          document.likes.push(user_id);
+        }
+        break;
+      case 'unlike':
+        document.likes = document.likes.filter(id => id.toString() !== user_id.toString());
+        break;
+      case 'interest':
+        if (!document.interestedUsers.includes(user_id)) {
+          document.interestedUsers.push(user_id);
+        }
+        break;
+      case 'uninterest':
+        document.interestedUsers = document.interestedUsers.filter(id => id.toString() !== user_id.toString());
+        break;
+      case 'choice':
+        if (!document.choices.includes(user_id)) {
+          document.choices.push(user_id);
+        }
+        break;
+      case 'unchoice':
+        document.choices = document.choices.filter(id => id.toString() !== user_id.toString());
+        break;
+    }
+
+    // Sauvegarder les modifications
+    await document.save();
+
+    // Normaliser et renvoyer le document mis à jour
+    const normalizedDoc = normalizeDocument(document);
+    normalizedDoc.user_interactions = {
+      isLiked: normalizedDoc.interactions.likes.includes(user_id),
+      isChoice: normalizedDoc.interactions.choices.includes(user_id),
+      isInterested: normalizedDoc.interactions.interests.includes(user_id)
+    };
+
+    res.json(normalizedDoc);
+
+  } catch (error) {
+    console.error('Erreur lors de l\'interaction:', error);
+    res.status(500).json({ message: 'Erreur lors de l\'interaction.' });
+  }
+});
+
+// Fonction pour calculer le score de pertinence
+function calculateRelevanceScore(doc, query) {
+  let score = 0;
+  const queryLower = query.toLowerCase();
+
+  // Points pour les correspondances exactes
+  if (doc.title.toLowerCase().includes(queryLower)) score += 10;
+  if (doc.description.toLowerCase().includes(queryLower)) score += 5;
+  if (doc.location?.name.toLowerCase().includes(queryLower)) score += 3;
+
+  // Points pour les métriques d'engagement
+  score += (doc.metrics.likes || 0) * 0.1;
+  score += (doc.metrics.interests || 0) * 0.2;
+  score += (doc.metrics.choices || 0) * 0.3;
+  score += (doc.metrics.comments || 0) * 0.1;
+
+  // Points pour la fraîcheur du contenu
+  const age = new Date() - new Date(doc.date.created);
+  score += Math.max(0, 100 - Math.floor(age / (1000 * 60 * 60 * 24))); // Bonus décroissant sur 100 jours
+
+  return score;
+}
 
 module.exports = router;

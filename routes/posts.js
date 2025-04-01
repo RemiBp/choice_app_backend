@@ -27,6 +27,9 @@ const postsDbRest = mongoose.createConnection(process.env.MONGO_URI, {
 const leisureDb = mongoose.createConnection(process.env.MONGO_URI, {
   dbName: 'Loisir&Culture',
 });
+const testDb = mongoose.createConnection(process.env.MONGO_URI, {
+  dbName: 'test',
+});
 
 // Modèles pour les collections
 const PostChoice = postsDbChoice.model(
@@ -432,26 +435,116 @@ router.post('/:id/choice', async (req, res) => {
   }
 });
 
-// Route pour récupérer un post spécifique avec les likes et choices
+// Route pour récupérer un post spécifique par ID
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
+  const { userId } = req.query; // Optionnel: pour normaliser avec les données de l'utilisateur
 
   try {
-    const post = await PostChoice.findById(id)
-      .populate('comments.user_id', 'name email')
-      .populate('likes', 'name')
-      .populate('choices', 'name');
-    if (!post) {
-      return res.status(404).json({ error: 'Post introuvable.' });
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'ID invalide.' });
     }
 
-    res.status(200).json(post);
+    // Récupérer l'utilisateur si userId est fourni
+    let user = null;
+    if (userId) {
+      user = await User.findById(userId);
+    }
+
+    // Chercher dans toutes les collections en parallèle
+    const [postChoice, postRest, event, leisureProducer] = await Promise.all([
+      PostChoice.findById(id)
+        .populate('comments.user_id', 'name email photo_url avatar')
+        .populate('likes', 'name photo_url avatar')
+        .populate('choices', 'name photo_url avatar'),
+      PostRest.findById(id),
+      Event.findById(id),
+      LeisureProducer.findById(id)
+    ]);
+
+    // Déterminer le type de contenu et normaliser la réponse
+    let normalizedContent;
+    if (postChoice) {
+      normalizedContent = await normalizePost(postChoice, user);
+    } else if (postRest) {
+      normalizedContent = await normalizePost(postRest, user);
+    } else if (event) {
+      normalizedContent = await normalizePost(event, user);
+    } else if (leisureProducer) {
+      normalizedContent = await normalizePost(leisureProducer, user);
+    } else {
+      return res.status(404).json({ message: 'Document non trouvé.' });
+    }
+
+    // Ajouter des informations supplémentaires selon le type de contenu
+    if (normalizedContent.isLeisureProducer && normalizedContent.referenced_event_id) {
+      const referencedEvent = await Event.findById(normalizedContent.referenced_event_id);
+      if (referencedEvent) {
+        normalizedContent.referenced_event = {
+          name: referencedEvent.name || referencedEvent.title || 'Événement',
+          date: referencedEvent.date || referencedEvent.event_date || referencedEvent.time_posted,
+          location: referencedEvent.location || { name: 'Localisation inconnue' },
+          description: referencedEvent.description || referencedEvent.content,
+          media: referencedEvent.media || referencedEvent.images || referencedEvent.photos || [],
+          interested_count: referencedEvent.interestedUsers?.length || referencedEvent.interests?.length || 0,
+          choices_count: referencedEvent.choices?.length || referencedEvent.choiceUsers?.length || 0,
+          followers_interests_count: user ? 
+            (referencedEvent.interestedUsers || []).filter(id => 
+              user.following?.includes(id.toString())
+            ).length : 0,
+          followers_choices_count: user ?
+            (referencedEvent.choices || []).filter(id =>
+              user.following?.includes(id.toString())
+            ).length : 0
+        };
+      }
+    } else if (normalizedContent.isProducerPost && normalizedContent.producer_id) {
+      const RestaurantProducer = postsDbRest.model(
+        'Producer',
+        new mongoose.Schema({}, { strict: false }),
+        'Restauration_Producers'
+      );
+      const producer = await RestaurantProducer.findById(normalizedContent.producer_id);
+      if (producer) {
+        normalizedContent.producer = {
+          name: producer.name || producer.title || 'Restaurant',
+          description: producer.description || producer.content,
+          location: producer.location || { name: 'Localisation inconnue' },
+          media: producer.media || producer.images || producer.photos || [],
+          interested_count: producer.interestedUsers?.length || producer.interests?.length || 0,
+          choices_count: producer.choices?.length || producer.choiceUsers?.length || 0,
+          followers_interests_count: user ?
+            (producer.interestedUsers || []).filter(id =>
+              user.following?.includes(id.toString())
+            ).length : 0,
+          followers_choices_count: user ?
+            (producer.choices || []).filter(id =>
+              user.following?.includes(id.toString())
+            ).length : 0
+        };
+      }
+    }
+
+    // Ajouter les interactions de l'utilisateur si userId est fourni
+    if (user) {
+      normalizedContent.user_interactions = {
+        isLiked: normalizedContent.isLiked,
+        isChoice: normalizedContent.isChoice,
+        isInterested: normalizedContent.isInterested,
+        entity_user_interested: normalizedContent.entity_user_interested,
+        entity_user_choice: normalizedContent.entity_user_choice,
+        hasCommented: normalizedContent.comments?.some(comment => 
+          comment.user_id?.toString() === user._id.toString()
+        ) || false
+      };
+    }
+
+    res.status(200).json(normalizedContent);
   } catch (error) {
-    console.error('Erreur lors de la récupération du post :', error.message);
-    res.status(500).json({ error: 'Erreur interne du serveur.' });
+    console.error('Erreur lors de la récupération du document :', error.message);
+    res.status(500).json({ message: 'Erreur serveur.' });
   }
 });
-
 
 // Fonction pour calculer le score du post
 function calculatePostScore(user, post, now) {
@@ -471,43 +564,44 @@ function calculatePostScore(user, post, now) {
   return score;
 }
 
-// Fonction pour normaliser les posts avec des indications visuelles améliorées
-/**
- * Helper function to normalize a post for client display
- * - Adds visual indicators for different post types
- * - Formats interaction counts
- * - Adds metadata for client rendering
- * - Properly handles targeted interests (events vs producers)
- */
-function normalizePost(post, user) {
+// Fonction pour normaliser les posts avec gestion de toutes les structures
+async function normalizePost(post, user) {
   // Identifier les followers de l'utilisateur - transforme en strings pour comparaison
-  const followingUsers = (user.following || []).map(id => id.toString());
-  const followingProducers = (user.followingProducers || []).map(id => id.toString());
+  const followingUsers = (user?.following || []).map(id => id.toString());
+  const followingProducers = (user?.followingProducers || []).map(id => id.toString());
   
-  // Compter les interactions totales
-  const likesCount = post.likes ? post.likes.length : 0;
-  const choicesCount = post.choices ? post.choices.length : 0;
-  const interestsCount = post.interestedUsers ? post.interestedUsers.length : 0;
+  // Compter les interactions totales avec gestion des champs manquants
+  const likesCount = post.likes ? post.likes.length : 
+                    (post.liked_posts ? post.liked_posts.length : 0);
+  const choicesCount = post.choices ? post.choices.length : 
+                      (post.choiceUsers ? post.choiceUsers.length : 0);
+  const interestsCount = post.interestedUsers ? post.interestedUsers.length : 
+                        (post.interests ? post.interests.length : 0);
   
-  // Compter les interactions des followers
+  // Compter les interactions des followers avec gestion des champs manquants
   const followersLikesCount = post.likes ? 
-    post.likes.filter(likeId => followingUsers.includes(likeId.toString())).length : 0;
+    post.likes.filter(likeId => followingUsers.includes(likeId.toString())).length : 
+    (post.liked_posts ? post.liked_posts.filter(likeId => followingUsers.includes(likeId.toString())).length : 0);
   
   const followersChoicesCount = post.choices ? 
-    post.choices.filter(choiceId => followingUsers.includes(choiceId.toString())).length : 0;
+    post.choices.filter(choiceId => followingUsers.includes(choiceId.toString())).length : 
+    (post.choiceUsers ? post.choiceUsers.filter(choiceId => followingUsers.includes(choiceId.toString())).length : 0);
   
   const followersInterestsCount = post.interestedUsers ? 
-    post.interestedUsers.filter(interestId => followingUsers.includes(interestId.toString())).length : 0;
+    post.interestedUsers.filter(interestId => followingUsers.includes(interestId.toString())).length : 
+    (post.interests ? post.interests.filter(interestId => followingUsers.includes(interestId.toString())).length : 0);
   
-  // Déterminer précisément le type de post (user, restaurant producer, leisure producer)
+  // Déterminer précisément le type de post avec gestion des champs manquants
   const isProducerPost = !!post.producer_id || post.isProducerPost === true;
-  const isLeisureProducer = post.isLeisureProducer === true || (post.author && post.author.isLeisureProducer === true);
+  const isLeisureProducer = post.isLeisureProducer === true || 
+                           (post.author && post.author.isLeisureProducer === true) ||
+                           post.type === 'leisure';
   const isUserPost = !isProducerPost || (post.user_id && !post.producer_id);
   const isAutomated = post.is_automated === true;
   const hasReferencedEvent = isLeisureProducer && !!post.referenced_event_id;
   const hasTarget = !!post.target_id && !!post.target_type;
   
-  // Obtenir les informations de l'entité associée si présente (restaurant/événement)
+  // Obtenir les informations de l'entité associée si présente
   let entityInteractions = {
     entity_type: null,
     entity_id: null,
@@ -528,33 +622,37 @@ function normalizePost(post, user) {
       
       // Chercher l'événement pour obtenir des métriques à jour
       const eventId = toObjectId(post.referenced_event_id);
-      const event = Event.findById(eventId);
+      const event = await Event.findById(eventId);
       
       if (event) {
-        entityInteractions.interests_count = event.interestedUsers ? event.interestedUsers.length : 0;
-        entityInteractions.choices_count = event.choices ? event.choices.length : 0;
+        entityInteractions.interests_count = event.interestedUsers ? event.interestedUsers.length : 
+                                          (event.interests ? event.interests.length : 0);
+        entityInteractions.choices_count = event.choices ? event.choices.length : 
+                                         (event.choiceUsers ? event.choiceUsers.length : 0);
         
         // Calculer les intérêts des followers
-        if (event.interestedUsers && followingUsers.length > 0) {
-          entityInteractions.followers_interests_count = event.interestedUsers
+        if ((event.interestedUsers || event.interests) && followingUsers.length > 0) {
+          const interestedUsers = event.interestedUsers || event.interests || [];
+          entityInteractions.followers_interests_count = interestedUsers
             .filter(id => followingUsers.includes(id.toString())).length;
         }
         
         // Vérifier si l'utilisateur actuel a interagi avec cet événement
-        const userIdStr = user._id.toString();
-        post.entity_user_interest = event.interestedUsers ? 
-          event.interestedUsers.some(id => id.toString() === userIdStr) : false;
-        post.entity_user_choice = event.choices ? 
-          event.choices.some(id => id.toString() === userIdStr) : false;
+        const userIdStr = user?._id?.toString();
+        if (userIdStr) {
+          const interestedUsers = event.interestedUsers || event.interests || [];
+          const choiceUsers = event.choices || event.choiceUsers || [];
+          
+          post.entity_user_interest = interestedUsers.some(id => id.toString() === userIdStr);
+          post.entity_user_choice = choiceUsers.some(id => id.toString() === userIdStr);
+        }
       }
-    } 
-    // Gérer le cas des posts avec une cible spécifique (target_id)
-    else if (hasTarget) {
+    } else if (hasTarget) {
+      // Gérer le cas des posts avec une cible spécifique
       entityInteractions.entity_type = post.target_type;
       entityInteractions.entity_id = post.target_id;
       entityInteractions.entity_name = post.target_name || 'Nom non disponible';
       
-      // Chercher d'autres métriques sur la cible si disponibles
       if (post.target_type === 'producer') {
         const RestaurantProducer = postsDbRest.model(
           'Producer',
@@ -562,171 +660,117 @@ function normalizePost(post, user) {
           'Restauration_Producers'
         );
         
-        const producer = RestaurantProducer.findById(toObjectId(post.target_id));
+        const producer = await RestaurantProducer.findById(toObjectId(post.target_id));
         if (producer) {
-          entityInteractions.interests_count = producer.interestedUsers ? producer.interestedUsers.length : 0;
-          entityInteractions.choices_count = producer.choices ? producer.choices.length : 0;
+          entityInteractions.interests_count = producer.interestedUsers ? producer.interestedUsers.length : 
+                                            (producer.interests ? producer.interests.length : 0);
+          entityInteractions.choices_count = producer.choices ? producer.choices.length : 
+                                           (producer.choiceUsers ? producer.choiceUsers.length : 0);
           
           // Vérifier l'interaction de l'utilisateur avec ce producer
-          const userIdStr = user._id.toString();
-          post.entity_user_interest = producer.interestedUsers ? 
-            producer.interestedUsers.some(id => id.toString() === userIdStr) : false;
-          post.entity_user_choice = producer.choices ? 
-            producer.choices.some(id => id.toString() === userIdStr) : false;
+          const userIdStr = user?._id?.toString();
+          if (userIdStr) {
+            const interestedUsers = producer.interestedUsers || producer.interests || [];
+            const choiceUsers = producer.choices || producer.choiceUsers || [];
+            
+            post.entity_user_interest = interestedUsers.some(id => id.toString() === userIdStr);
+            post.entity_user_choice = choiceUsers.some(id => id.toString() === userIdStr);
+          }
         }
       } else if (post.target_type === 'event') {
-        const event = Event.findById(toObjectId(post.target_id));
+        const event = await Event.findById(toObjectId(post.target_id));
         if (event) {
-          entityInteractions.interests_count = event.interestedUsers ? event.interestedUsers.length : 0;
-          entityInteractions.choices_count = event.choices ? event.choices.length : 0;
+          entityInteractions.interests_count = event.interestedUsers ? event.interestedUsers.length : 
+                                            (event.interests ? event.interests.length : 0);
+          entityInteractions.choices_count = event.choices ? event.choices.length : 
+                                           (event.choiceUsers ? event.choiceUsers.length : 0);
           
           // Vérifier l'interaction de l'utilisateur avec cet événement
-          const userIdStr = user._id.toString();
-          post.entity_user_interest = event.interestedUsers ? 
-            event.interestedUsers.some(id => id.toString() === userIdStr) : false;
-          post.entity_user_choice = event.choices ? 
-            event.choices.some(id => id.toString() === userIdStr) : false;
+          const userIdStr = user?._id?.toString();
+          if (userIdStr) {
+            const interestedUsers = event.interestedUsers || event.interests || [];
+            const choiceUsers = event.choices || event.choiceUsers || [];
+            
+            post.entity_user_interest = interestedUsers.some(id => id.toString() === userIdStr);
+            post.entity_user_choice = choiceUsers.some(id => id.toString() === userIdStr);
+          }
         }
-      }
-    } 
-    // Cas des posts de restaurant producers 
-    else if (isProducerPost && !isLeisureProducer) {
-      entityInteractions.entity_type = 'producer';
-      entityInteractions.entity_id = post.producer_id;
-      entityInteractions.entity_name = post.author ? post.author.name : 'Restaurant';
-      
-      // Chercher le producer pour obtenir des métriques à jour
-      const RestaurantProducer = postsDbRest.model(
-        'Producer',
-        new mongoose.Schema({}, { strict: false }),
-        'Restauration_Producers'
-      );
-      
-      const producer = RestaurantProducer.findById(toObjectId(post.producer_id));
-      if (producer) {
-        entityInteractions.interests_count = producer.interestedUsers ? producer.interestedUsers.length : 0;
-        entityInteractions.choices_count = producer.choices ? producer.choices.length : 0;
-        
-        // Calculer les intérêts des followers
-        if (producer.interestedUsers && followingUsers.length > 0) {
-          entityInteractions.followers_interests_count = producer.interestedUsers
-            .filter(id => followingUsers.includes(id.toString())).length;
-        }
-        
-        // Vérifier l'interaction de l'utilisateur avec ce producer
-        const userIdStr = user._id.toString();
-        post.entity_user_interest = producer.interestedUsers ? 
-          producer.interestedUsers.some(id => id.toString() === userIdStr) : false;
-        post.entity_user_choice = producer.choices ? 
-          producer.choices.some(id => id.toString() === userIdStr) : false;
       }
     }
   } catch (error) {
-    console.log(`❌ Erreur lors de la récupération des métriques d'entité pour le post ${post._id}:`, error.message);
+    console.error('Erreur lors de la normalisation des interactions:', error);
   }
   
-  // Si nous avons des données d'interactions directement sur le post
-  if (post.entity_interests_count) {
-    entityInteractions.interests_count = post.entity_interests_count;
-  } else if (post.interested_count) {
-    entityInteractions.interests_count = post.interested_count;
-  }
-  
-  if (post.entity_choices_count) {
-    entityInteractions.choices_count = post.entity_choices_count;
-  } else if (post.choice_count) {
-    entityInteractions.choices_count = post.choice_count;
-  }
-  
-  // Récupérer les données de l'auteur avec indication visuelle pour les posts automatisés
-  let authorData = {
-    id: post.user_id || post.producer_id || (post.author ? post.author.id : null) || 'Inconnu',
-    name: post.author_name || (post.author ? post.author.name : null) || (isProducerPost ? 'Producteur' : 'Utilisateur'),
-    avatar: post.author_photo || (post.author ? post.author.avatar : null) || null,
-    isProducer: isProducerPost,
-    isLeisureProducer: isLeisureProducer,
-    isAutomated: isAutomated
-  };
-
-  // Préparation des médias pour affichage
+  // Normaliser les médias avec gestion des champs manquants
   let normalizedMedia = [];
-  if (post.media && Array.isArray(post.media)) {
-    // Si c'est déjà un tableau d'objets
-    if (post.media.length > 0 && typeof post.media[0] === 'object') {
-      normalizedMedia = post.media;
-    } 
-    // Si c'est un tableau de strings
-    else if (post.media.length > 0 && typeof post.media[0] === 'string') {
-      normalizedMedia = post.media.map(url => ({
-        type: url.toLowerCase().endsWith('.mp4') || url.includes('video') ? 'video' : 'image',
-        url: url,
-        width: 800, // Valeurs par défaut
-        height: 600
-      }));
-    }
+  if (post.media) {
+    normalizedMedia = Array.isArray(post.media) ? post.media : [post.media];
+  } else if (post.image) {
+    normalizedMedia = [post.image];
+  } else if (post.images) {
+    normalizedMedia = Array.isArray(post.images) ? post.images : [post.images];
   }
+  
+  // Gérer les données d'auteur avec des valeurs par défaut
+  const authorData = {
+    name: post.author_name || post.author?.name || post.name || 'Anonyme',
+    avatar: post.author_avatar || post.author?.avatar || post.photo_url || post.avatar || '',
+    id: post.author_id || post.author?.id || post.user_id || null,
+    isLeisureProducer: isLeisureProducer
+  };
+  
+  // Gérer les dates avec des valeurs par défaut
+  const postedDate = post.posted_at || post.time_posted || post.created_at || new Date().toISOString();
   
   return {
     _id: post._id,
     author: {
       ...authorData,
-      // Ajouter un badge visuel pour les posts automatisés directement dans l'objet auteur
       display_name: isAutomated ? `${authorData.name} 🤖` : authorData.name
     },
-    // Ne pas ajouter de titre pour éviter les titres non désirés
-    content: post.content || 'Contenu non disponible',
+    content: post.content || post.description || 'Contenu non disponible',
     tags: post.tags || [],
     location: post.location || { name: 'Localisation inconnue', coordinates: [] },
-    // Gérer correctement les IDs d'événements et de cibles
     referenced_event_id: post.referenced_event_id || null,
     event_id: post.event_id || null,
     target_id: post.target_id || null,
     target_type: post.target_type || null,
     producer_id: post.producer_id || null,
-    // Normaliser les médias
     media: normalizedMedia,
-    // Gérer correctement les dates
-    posted_at: post.posted_at || post.time_posted || new Date().toISOString(),
-    time_posted: post.time_posted || post.posted_at || new Date().toISOString(),
-    // Score de pertinence
+    posted_at: postedDate,
+    time_posted: postedDate,
     relevance_score: calculatePostScore(user, post, new Date()),
-    
-    // Type de post et métadonnées améliorées avec valeurs booléennes explicites
     isProducerPost: isProducerPost,
     isLeisureProducer: isLeisureProducer,
     isUserPost: isUserPost,
     is_automated: isAutomated,
     hasReferencedEvent: hasReferencedEvent,
     hasTarget: hasTarget,
-    
-    // Counts pour différents types d'interactions
     likes_count: likesCount,
     comments_count: post.comments ? post.comments.length : 0,
     interested_count: interestsCount,
     choice_count: choicesCount,
     entity_interests_count: entityInteractions.interests_count,
     entity_choices_count: entityInteractions.choices_count,
-    
-    // État des interactions pour l'utilisateur actuel (format compatible frontend)
-    isLiked: post.likes ? post.likes.some(id => id.toString() === user._id.toString()) : (post.isLiked || false),
-    isChoice: post.choices ? post.choices.some(id => id.toString() === user._id.toString()) : (post.choice || post.isChoice || false),
-    isInterested: post.interestedUsers ? post.interestedUsers.some(id => id.toString() === user._id.toString()) : (post.interested || post.isInterested || false),
+    isLiked: post.likes ? post.likes.some(id => id.toString() === user?._id?.toString()) : 
+             (post.liked_posts ? post.liked_posts.some(id => id.toString() === user?._id?.toString()) : 
+             (post.isLiked || false)),
+    isChoice: post.choices ? post.choices.some(id => id.toString() === user?._id?.toString()) : 
+              (post.choiceUsers ? post.choiceUsers.some(id => id.toString() === user?._id?.toString()) : 
+              (post.choice || post.isChoice || false)),
+    isInterested: post.interestedUsers ? post.interestedUsers.some(id => id.toString() === user?._id?.toString()) : 
+                 (post.interests ? post.interests.some(id => id.toString() === user?._id?.toString()) : 
+                 (post.interested || post.isInterested || false)),
     entity_user_interested: post.entity_user_interest || false,
     entity_user_choice: post.entity_user_choice || false,
-    
-    // Indicateurs visuels pour faciliter l'affichage dans le frontend
     visualBadge: isAutomated ? '🤖' : (isLeisureProducer ? '🎭' : (isProducerPost ? '🍽️' : '👤')),
     interactionType: hasReferencedEvent ? 'event_interest' : 
                     (isProducerPost && !isLeisureProducer ? 'producer_interest' : 'standard_like'),
-                    
-    // Données brutes sur les followers et les interactions pour analyse par le frontend
     follower_data: {
       followers_likes_count: followersLikesCount,
       followers_choices_count: followersChoicesCount,
       followers_interests_count: followersInterestsCount
     },
-    
-    // Objet entity pour compatibilité avec l'existant
     entity: entityInteractions.entity_id ? {
       id: entityInteractions.entity_id,
       type: entityInteractions.entity_type,
@@ -1100,318 +1144,430 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Route générale pour marquer un intérêt sur un post/producer/event
-// Cette route est compatible avec l'implémentation frontend existante
-router.post('/:id/interest', async (req, res) => {
+// Route unifiée pour les interactions
+router.post('/:id/interact', async (req, res) => {
   const { id } = req.params;
-  const { user_id, isLeisureProducer = false } = req.body;
+  const { user_id, action } = req.body;
 
-  if (!user_id) {
-    return res.status(400).json({ error: 'user_id est requis.' });
+  if (!user_id || !action) {
+    return res.status(400).json({ error: 'user_id et action sont requis.' });
+  }
+
+  // Vérifier que l'action est valide
+  const validActions = ['like', 'unlike', 'interest', 'uninterest', 'choice', 'unchoice'];
+  if (!validActions.includes(action)) {
+    return res.status(400).json({ error: 'Action invalide.' });
   }
 
   try {
-    // Convertir les IDs en ObjectId si nécessaire
-    const postId = toObjectId(id);
+    // Convertir les IDs en ObjectId
+    const targetId = toObjectId(id);
     const userId = toObjectId(user_id);
-    
-    // Rechercher le post pour déterminer son type
-    const post = await PostChoice.findById(postId).lean();
-    
-    // Si c'est un post, vérifier s'il s'agit d'un post de producer de loisir avec un événement référencé
-    if (post) {
-      if (post.isLeisureProducer && post.referenced_event_id) {
-        // C'est un post de producer de loisir avec un événement référencé, marquer l'intérêt pour l'événement
-        const eventId = toObjectId(post.referenced_event_id);
-        const event = await Event.findById(eventId);
-        
-        if (!event) {
-          return res.status(404).json({ error: 'Événement référencé introuvable.' });
-        }
-        
-        // Assurer que interestedUsers existe
-        if (!event.interestedUsers) {
-          event.interestedUsers = [];
-        }
-        
-        // Ajouter l'utilisateur aux personnes intéressées si pas déjà présent
-        const userIdStr = userId.toString();
-        
-        if (!event.interestedUsers.some(id => id.toString() === userIdStr)) {
-          event.interestedUsers.push(userId);
-          await event.save();
-          
-          // Mise à jour dans la collection utilisateur
-          const user = await User.findById(userId);
-          if (user) {
-            if (!user.interests) user.interests = [];
-            if (!user.interests.some(id => id.toString() === eventId.toString())) {
-              user.interests.push(eventId);
-              await user.save();
-            }
-          }
-        }
-        
-        return res.status(200).json({
-          message: 'Intérêt marqué avec succès pour l\'événement.',
-          interested_count: event.interestedUsers.length,
-          interested: true
-        });
-      } else if (post.isProducerPost || post.producer_id) {
-        // C'est un post de restaurant producer, marquer l'intérêt pour le restaurant
-        const producerId = toObjectId(post.producer_id);
-        
-        const RestaurantProducer = postsDbRest.model(
-          'Producer',
-          new mongoose.Schema({}, { strict: false }),
-          'Restauration_Producers'
-        );
-        
-        const producer = await RestaurantProducer.findById(producerId);
-        if (!producer) {
-          return res.status(404).json({ error: 'Producer introuvable.' });
-        }
-        
-        // Assurer que interestedUsers existe
-        if (!producer.interestedUsers) {
-          producer.interestedUsers = [];
-        }
-        
-        // Ajouter l'utilisateur aux personnes intéressées si pas déjà présent
-        const userIdStr = userId.toString();
-        
-        if (!producer.interestedUsers.some(id => id.toString() === userIdStr)) {
-          producer.interestedUsers.push(userId);
-          await producer.save();
-          
-          // Mise à jour dans la collection utilisateur
-          const user = await User.findById(userId);
-          if (user) {
-            if (!user.interests) user.interests = [];
-            if (!user.interests.some(id => id.toString() === producerId.toString())) {
-              user.interests.push(producerId);
-              await user.save();
-            }
-          }
-        }
-        
-        return res.status(200).json({
-          message: 'Intérêt marqué avec succès pour le restaurant.',
-          interested_count: producer.interestedUsers.length,
-          interested: true
-        });
-      }
-    }
-    
-    // Si c'est un ID d'événement direct (utilisé par les appels d'API spécifiques)
-    if (isLeisureProducer) {
-      const event = await Event.findById(postId);
-      if (event) {
-        // Assurer que interestedUsers existe
-        if (!event.interestedUsers) {
-          event.interestedUsers = [];
-        }
-        
-        // Ajouter l'utilisateur aux personnes intéressées si pas déjà présent
-        const userIdStr = userId.toString();
-        
-        if (!event.interestedUsers.some(id => id.toString() === userIdStr)) {
-          event.interestedUsers.push(userId);
-          await event.save();
-          
-          // Mise à jour dans la collection utilisateur
-          const user = await User.findById(userId);
-          if (user) {
-            if (!user.interests) user.interests = [];
-            if (!user.interests.some(id => id.toString() === postId.toString())) {
-              user.interests.push(postId);
-              await user.save();
-            }
-          }
-        }
-        
-        return res.status(200).json({
-          message: 'Intérêt marqué avec succès pour l\'événement.',
-          interested_count: event.interestedUsers.length,
-          interested: true
-        });
-      }
+    const userIdStr = userId.toString();
+
+    // Chercher dans toutes les collections en parallèle
+    const [postChoice, postRest, event, leisureProducer] = await Promise.all([
+      PostChoice.findById(targetId),
+      PostRest.findById(targetId),
+      Event.findById(targetId),
+      LeisureProducer.findById(targetId)
+    ]);
+
+    // Déterminer le type de contenu et l'objet cible
+    let target;
+    let contentType;
+    if (postChoice) {
+      target = postChoice;
+      contentType = 'post';
+    } else if (postRest) {
+      target = postRest;
+      contentType = 'post';
+    } else if (event) {
+      target = event;
+      contentType = 'event';
+    } else if (leisureProducer) {
+      target = leisureProducer;
+      contentType = 'producer';
     } else {
-      // Essayer de trouver un producer
-      const RestaurantProducer = postsDbRest.model(
-        'Producer',
-        new mongoose.Schema({}, { strict: false }),
-        'Restauration_Producers'
-      );
-      
-      const producer = await RestaurantProducer.findById(postId);
-      if (producer) {
-        // Assurer que interestedUsers existe
-        if (!producer.interestedUsers) {
-          producer.interestedUsers = [];
-        }
-        
-        // Ajouter l'utilisateur aux personnes intéressées si pas déjà présent
-        const userIdStr = userId.toString();
-        
-        if (!producer.interestedUsers.some(id => id.toString() === userIdStr)) {
-          producer.interestedUsers.push(userId);
-          await producer.save();
-          
-          // Mise à jour dans la collection utilisateur
-          const user = await User.findById(userId);
-          if (user) {
-            if (!user.interests) user.interests = [];
-            if (!user.interests.some(id => id.toString() === postId.toString())) {
-              user.interests.push(postId);
-              await user.save();
-            }
-          }
-        }
-        
-        return res.status(200).json({
-          message: 'Intérêt marqué avec succès pour le restaurant.',
-          interested_count: producer.interestedUsers.length,
-          interested: true
-        });
-      }
+      return res.status(404).json({ error: 'Contenu introuvable.' });
     }
-    
-    // Si on arrive ici, aucun post/event/producer n'a été trouvé
-    return res.status(404).json({ error: 'Cible introuvable pour marquer l\'intérêt.' });
+
+    // Gérer les différentes actions
+    switch (action) {
+      case 'like':
+      case 'unlike':
+        // Initialiser le tableau des likes si nécessaire
+        if (!target.likes) target.likes = [];
+        
+        if (action === 'like') {
+          if (!target.likes.some(id => id.toString() === userIdStr)) {
+            target.likes.push(userId);
+          }
+        } else {
+          target.likes = target.likes.filter(id => id.toString() !== userIdStr);
+        }
+        break;
+
+      case 'interest':
+      case 'uninterest':
+        // Initialiser le tableau des interestedUsers si nécessaire
+        if (!target.interestedUsers) target.interestedUsers = [];
+        
+        if (action === 'interest') {
+          if (!target.interestedUsers.some(id => id.toString() === userIdStr)) {
+            target.interestedUsers.push(userId);
+          }
+        } else {
+          target.interestedUsers = target.interestedUsers.filter(id => id.toString() !== userIdStr);
+        }
+        break;
+
+      case 'choice':
+      case 'unchoice':
+        // Initialiser le tableau des choices si nécessaire
+        if (!target.choices) target.choices = [];
+        
+        if (action === 'choice') {
+          if (!target.choices.some(id => id.toString() === userIdStr)) {
+            target.choices.push(userId);
+          }
+        } else {
+          target.choices = target.choices.filter(id => id.toString() !== userIdStr);
+        }
+        break;
+    }
+
+    // Sauvegarder les modifications
+    await target.save();
+
+    // Mettre à jour l'utilisateur
+    const user = await User.findById(userId);
+    if (user) {
+      switch (action) {
+        case 'like':
+          if (!user.liked_posts) user.liked_posts = [];
+          if (!user.liked_posts.some(id => id.toString() === targetId.toString())) {
+            user.liked_posts.push(targetId);
+          }
+          break;
+        case 'unlike':
+          if (user.liked_posts) {
+            user.liked_posts = user.liked_posts.filter(id => id.toString() !== targetId.toString());
+          }
+          break;
+        case 'interest':
+          if (!user.interests) user.interests = [];
+          if (!user.interests.some(id => id.toString() === targetId.toString())) {
+            user.interests.push(targetId);
+          }
+          break;
+        case 'uninterest':
+          if (user.interests) {
+            user.interests = user.interests.filter(id => id.toString() !== targetId.toString());
+          }
+          break;
+        case 'choice':
+          if (!user.choices) user.choices = [];
+          if (!user.choices.some(id => id.toString() === targetId.toString())) {
+            user.choices.push(targetId);
+          }
+          break;
+        case 'unchoice':
+          if (user.choices) {
+            user.choices = user.choices.filter(id => id.toString() !== targetId.toString());
+          }
+          break;
+      }
+      await user.save();
+    }
+
+    // Normaliser la réponse
+    const normalizedTarget = await normalizePost(target, user);
+
+    res.json({
+      message: `Action ${action} effectuée avec succès.`,
+      content: normalizedTarget,
+      counts: {
+        likes: target.likes?.length || 0,
+        interests: target.interestedUsers?.length || 0,
+        choices: target.choices?.length || 0
+      }
+    });
   } catch (error) {
-    console.error('❌ Erreur lors du marquage d\'intérêt:', error.message);
+    console.error('Erreur lors de l\'interaction:', error);
     res.status(500).json({ error: 'Erreur interne du serveur.' });
   }
 });
 
-// Route pour récupérer un post spécifique par ID - GARDER CETTE ROUTE APRÈS /feed
-router.get('/:id', async (req, res) => {
-  const { id } = req.params;
-
+// Route pour gérer les commentaires
+router.post('/:id/comments', async (req, res) => {
   try {
+    const { id } = req.params;
+    const { user_id, content } = req.body;
+
     if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'ID de post invalide.' });
+    }
+
+    if (!user_id || !content) {
+      return res.status(400).json({ message: 'user_id et content sont requis.' });
+    }
+
+    // Rechercher le post dans toutes les collections
+    const [postChoice, postRest, event, leisureProducer] = await Promise.all([
+      PostChoice.findById(id),
+      PostRest.findById(id),
+      Event.findById(id),
+      LeisureProducer.findById(id)
+    ]);
+
+    let targetPost = postChoice || postRest || event || leisureProducer;
+    if (!targetPost) {
+      return res.status(404).json({ message: 'Post non trouvé.' });
+    }
+
+    // Créer le commentaire
+    const comment = {
+      user_id: new mongoose.Types.ObjectId(user_id),
+      content,
+      created_at: new Date(),
+      updated_at: new Date()
+    };
+
+    // Ajouter le commentaire au post
+    if (!targetPost.comments) {
+      targetPost.comments = [];
+    }
+    targetPost.comments.push(comment);
+    await targetPost.save();
+
+    // Récupérer les informations de l'utilisateur
+    const user = await User.findById(user_id);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+    }
+
+    // Normaliser le commentaire
+    const normalizedComment = {
+      _id: comment._id,
+      content: comment.content,
+      created_at: comment.created_at,
+      updated_at: comment.updated_at,
+      user: {
+        _id: user._id,
+        name: user.name || user.author_name || 'Utilisateur',
+        avatar: user.avatar || user.author_avatar || user.photo_url || null
+      }
+    };
+
+    res.status(201).json({
+      message: 'Commentaire ajouté avec succès.',
+      comment: normalizedComment
+    });
+  } catch (error) {
+    console.error('Erreur lors de l\'ajout du commentaire:', error);
+    res.status(500).json({ message: 'Erreur lors de l\'ajout du commentaire.' });
+  }
+});
+
+// Route pour supprimer un commentaire
+router.delete('/:id/comments/:commentId', async (req, res) => {
+  try {
+    const { id, commentId } = req.params;
+    const { user_id } = req.body;
+
+    if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(commentId)) {
       return res.status(400).json({ message: 'ID invalide.' });
     }
 
+    if (!user_id) {
+      return res.status(400).json({ message: 'user_id est requis.' });
+    }
+
+    // Rechercher le post dans toutes les collections
     const [postChoice, postRest, event, leisureProducer] = await Promise.all([
-      PostChoice.findById(id).populate('comments.user_id', 'name email'),
+      PostChoice.findById(id),
       PostRest.findById(id),
       Event.findById(id),
-      LeisureProducer.findById(id),
+      LeisureProducer.findById(id)
     ]);
 
-    if (postChoice) return res.status(200).json({ type: 'postChoice', ...postChoice.toObject() });
-    if (postRest) return res.status(200).json({ type: 'postRest', ...postRest.toObject() });
-    if (event) return res.status(200).json({ type: 'event', ...event.toObject() });
-    if (leisureProducer) return res.status(200).json({ type: 'leisureProducer', ...leisureProducer.toObject() });
-
-    res.status(404).json({ message: 'Document non trouvé.' });
-  } catch (error) {
-    console.error('Erreur lors de la récupération du document :', error.message);
-    res.status(500).json({ message: 'Erreur serveur.' });
-  }
-});
-
-// Route pour ajouter un commentaire à un post
-router.post('/:id/comments', async (req, res) => {
-  const { id } = req.params;
-  const { user_id, content } = req.body;
-
-  if (!user_id || !content) {
-    return res.status(400).json({ error: 'user_id et content sont requis.' });
-  }
-
-  try {
-    const post = await PostChoice.findById(id);
-    if (!post) {
-      return res.status(404).json({ error: 'Post introuvable.' });
+    let targetPost = postChoice || postRest || event || leisureProducer;
+    if (!targetPost) {
+      return res.status(404).json({ message: 'Post non trouvé.' });
     }
 
-    const newComment = { user_id, content };
-    post.comments.push(newComment);
-    await post.save();
-
-    const user = await User.findById(user_id);
-    if (!user) {
-      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    // Vérifier si le commentaire existe et si l'utilisateur est l'auteur
+    const comment = targetPost.comments?.find(c => c._id.toString() === commentId);
+    if (!comment) {
+      return res.status(404).json({ message: 'Commentaire non trouvé.' });
     }
 
-    user.comments.push({ post_id: id, content });
-    await user.save();
+    if (comment.user_id.toString() !== user_id) {
+      return res.status(403).json({ message: 'Vous n\'êtes pas autorisé à supprimer ce commentaire.' });
+    }
 
-    res.status(201).json({ message: 'Commentaire ajouté avec succès.', post });
+    // Supprimer le commentaire
+    targetPost.comments = targetPost.comments.filter(c => c._id.toString() !== commentId);
+    await targetPost.save();
+
+    res.status(200).json({ message: 'Commentaire supprimé avec succès.' });
   } catch (error) {
-    console.error('Erreur lors de l\'ajout du commentaire :', error.message);
-    res.status(500).json({ error: 'Erreur interne du serveur.' });
+    console.error('Erreur lors de la suppression du commentaire:', error);
+    res.status(500).json({ message: 'Erreur lors de la suppression du commentaire.' });
   }
 });
 
 // Route pour créer un post
 router.post('/', async (req, res) => {
-  const { user_id, target_id, target_type, content, tags, media, choice } = req.body;
+  const { 
+    user_id, 
+    target_id, 
+    target_type, 
+    content, 
+    tags, 
+    media, 
+    choice,
+    title,
+    description,
+    location,
+    producer_id,
+    event_id,
+    referenced_event_id,
+    isLeisureProducer,
+    isProducerPost,
+    isAutomated,
+    author_name,
+    author_avatar,
+    photo_url,
+    avatar,
+    name,
+    posted_at,
+    time_posted,
+    created_at
+  } = req.body;
 
   // Vérification des champs obligatoires
-  if (!user_id || !content || !target_id || !target_type) {
+  if (!user_id || !content) {
     return res.status(400).json({
-      error: 'Les champs user_id, target_id, target_type, et content sont requis.',
+      error: 'Les champs user_id et content sont requis.',
     });
   }
 
   try {
-    // Vérifier si le target_type est valide
-    if (!['event', 'producer'].includes(target_type)) {
+    // Convertir les IDs en ObjectId si possible
+    const userId = toObjectId(user_id);
+    const targetId = target_id ? toObjectId(target_id) : null;
+    const producerId = producer_id ? toObjectId(producer_id) : null;
+    const eventId = event_id ? toObjectId(event_id) : null;
+    const referencedEventId = referenced_event_id ? toObjectId(referenced_event_id) : null;
+
+    // Vérifier si le target_type est valide si fourni
+    if (target_type && !['event', 'producer'].includes(target_type)) {
       return res.status(400).json({ error: "Le type de cible doit être 'event' ou 'producer'." });
     }
 
-    // Récupérer le modèle correspondant (events ou producers)
-    const targetModel =
-      target_type === 'event'
-        ? Event
-        : target_type === 'producer'
-        ? postsDbRest.model(
-            'Producer',
-            new mongoose.Schema({}, { strict: false }),
-            'Restauration_Producers'
-          )
-        : null;
+    // Déterminer le type de post
+    const isLeisure = isLeisureProducer === true || 
+                     (target_type === 'event') || 
+                     !!eventId || 
+                     !!referencedEventId;
+    const isProducer = isProducerPost === true || 
+                      (target_type === 'producer') || 
+                      !!producerId;
 
-    if (!targetModel) {
-      return res.status(500).json({ error: "Le modèle cible n'a pas pu être déterminé." });
-    }
+    // Création du post avec gestion des champs optionnels
+    const postData = {
+      user_id: userId,
+      content: content,
+      description: description || content, // Fallback sur content si description non fournie
+      title: title || null,
+      tags: Array.isArray(tags) ? tags : [],
+      media: Array.isArray(media) ? media : [],
+      location: location || null,
+      producer_id: producerId,
+      event_id: eventId,
+      referenced_event_id: referencedEventId,
+      isLeisureProducer: isLeisure,
+      isProducerPost: isProducer,
+      is_automated: isAutomated || false,
+      author: {
+        name: author_name || name || null,
+        avatar: author_avatar || photo_url || avatar || null
+      },
+      posted_at: posted_at || time_posted || created_at || new Date(),
+      likes: [],
+      choices: [],
+      interestedUsers: [],
+      comments: []
+    };
 
-    // Vérifier l'existence de l'entité associée
-    const targetEntity = await targetModel.findById(target_id);
-    if (!targetEntity) {
-      return res.status(404).json({ error: 'Cible introuvable.' });
-    }
-
-    // Création du post
-    const newPost = new PostChoice({
-      user_id,
-      target_id,
-      target_type,
-      content,
-      tags: tags || [],
-      media: media || [],
-      posted_at: new Date(),
-    });
-
-    // Sauvegarder le post
-    const savedPost = await newPost.save();
-
-    // Ajouter l'utilisateur au choix de la cible si "choice" est précisé
-    if (choice) {
-      targetEntity.choices = targetEntity.choices || [];
-      if (!targetEntity.choices.includes(user_id)) {
-        targetEntity.choices.push(user_id);
-        await targetEntity.save();
+    // Ajouter les champs spécifiques selon le type de post
+    if (isLeisure) {
+      postData.type = 'leisure';
+      if (referencedEventId) {
+        // Vérifier l'existence de l'événement référencé
+        const event = await Event.findById(referencedEventId);
+        if (!event) {
+          return res.status(404).json({ error: 'Événement référencé introuvable.' });
+        }
+        postData.event_name = event.name || event.title || 'Événement';
+      }
+    } else if (isProducer) {
+      postData.type = 'producer';
+      if (producerId) {
+        // Vérifier l'existence du producer
+        const RestaurantProducer = postsDbRest.model(
+          'Producer',
+          new mongoose.Schema({}, { strict: false }),
+          'Restauration_Producers'
+        );
+        const producer = await RestaurantProducer.findById(producerId);
+        if (!producer) {
+          return res.status(404).json({ error: 'Producer introuvable.' });
+        }
+        postData.producer_name = producer.name || producer.title || 'Restaurant';
       }
     }
 
+    // Créer et sauvegarder le post
+    const newPost = new PostChoice(postData);
+    const savedPost = await newPost.save();
+
+    // Gérer le choice si demandé
+    if (choice) {
+      if (isLeisure && referencedEventId) {
+        const event = await Event.findById(referencedEventId);
+        if (event) {
+          if (!event.choices) event.choices = [];
+          if (!event.choices.some(id => id.toString() === userId.toString())) {
+            event.choices.push(userId);
+            await event.save();
+          }
+        }
+      } else if (isProducer && producerId) {
+        const RestaurantProducer = postsDbRest.model(
+          'Producer',
+          new mongoose.Schema({}, { strict: false }),
+          'Restauration_Producers'
+        );
+        const producer = await RestaurantProducer.findById(producerId);
+        if (producer) {
+          if (!producer.choices) producer.choices = [];
+          if (!producer.choices.some(id => id.toString() === userId.toString())) {
+            producer.choices.push(userId);
+            await producer.save();
+          }
+        }
+      }
+    }
+
+    // Normaliser la réponse
+    const normalizedPost = await normalizePost(savedPost, null);
+
     res.status(201).json({
       message: 'Post créé avec succès.',
-      post_id: savedPost._id,
+      post: normalizedPost
     });
   } catch (error) {
     console.error('Erreur lors de la création du post :', error.message);
@@ -1575,6 +1731,135 @@ router.get('/entity/:entityType/:entityId/interactions/:type', async (req, res) 
   } catch (error) {
     console.error(`❌ Erreur lors de la récupération des ${type} de l'entité:`, error.message);
     res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
+
+// Route de recherche unifiée
+router.get('/search', async (req, res) => {
+  const { query, type, page = 1, limit = 10 } = req.query;
+
+  if (!query) {
+    return res.status(400).json({ error: 'Le paramètre query est requis.' });
+  }
+
+  try {
+    // Construire la requête de base avec regex insensible à la casse
+    const searchRegex = new RegExp(query, 'i');
+    const baseQuery = {
+      $or: [
+        { content: searchRegex },
+        { title: searchRegex },
+        { tags: searchRegex },
+        { 'location.name': searchRegex }
+      ]
+    };
+
+    // Ajouter des filtres spécifiques selon le type
+    let typeQuery = {};
+    if (type) {
+      switch (type) {
+        case 'event':
+          typeQuery = { isLeisureProducer: true };
+          break;
+        case 'producer':
+          typeQuery = { isProducerPost: true };
+          break;
+        case 'user':
+          typeQuery = { isUserPost: true };
+          break;
+      }
+    }
+
+    // Combiner les requêtes
+    const finalQuery = {
+      ...baseQuery,
+      ...typeQuery
+    };
+
+    // Rechercher dans toutes les collections en parallèle
+    const [postsChoice, postsRest, events, leisureProducers] = await Promise.all([
+      PostChoice.find(finalQuery)
+        .sort({ posted_at: -1 })
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .lean(),
+      PostRest.find(finalQuery)
+        .sort({ posted_at: -1 })
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .lean(),
+      Event.find(finalQuery)
+        .sort({ posted_at: -1 })
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .lean(),
+      LeisureProducer.find(finalQuery)
+        .sort({ posted_at: -1 })
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .lean()
+    ]);
+
+    // Normaliser et fusionner les résultats
+    const normalizedResults = await Promise.all([
+      ...postsChoice.map(post => normalizePost(post, null)),
+      ...postsRest.map(post => normalizePost(post, null)),
+      ...events.map(event => normalizePost(event, null)),
+      ...leisureProducers.map(producer => normalizePost(producer, null))
+    ]);
+
+    // Calculer le score de pertinence pour chaque résultat
+    const resultsWithScores = normalizedResults.map(result => {
+      let relevanceScore = 0;
+
+      // Score basé sur la correspondance exacte
+      if (result.content.toLowerCase().includes(query.toLowerCase())) relevanceScore += 10;
+      if (result.title?.toLowerCase().includes(query.toLowerCase())) relevanceScore += 8;
+      if (result.tags?.some(tag => tag.toLowerCase().includes(query.toLowerCase()))) relevanceScore += 5;
+      if (result.location?.name?.toLowerCase().includes(query.toLowerCase())) relevanceScore += 3;
+
+      // Score basé sur l'engagement
+      relevanceScore += (result.likes_count || 0) * 0.1;
+      relevanceScore += (result.comments_count || 0) * 0.2;
+      relevanceScore += (result.interested_count || 0) * 0.15;
+      relevanceScore += (result.choice_count || 0) * 0.15;
+
+      // Score basé sur la récence
+      const postedDate = new Date(result.posted_at);
+      const now = new Date();
+      const daysOld = (now - postedDate) / (1000 * 60 * 60 * 24);
+      relevanceScore += Math.max(0, 10 - daysOld);
+
+      return {
+        ...result,
+        relevance_score: relevanceScore
+      };
+    });
+
+    // Trier par score de pertinence
+    resultsWithScores.sort((a, b) => b.relevance_score - a.relevance_score);
+
+    // Compter le total des documents pour la pagination
+    const [totalChoice, totalRest, totalEvents, totalLeisure] = await Promise.all([
+      PostChoice.countDocuments(finalQuery),
+      PostRest.countDocuments(finalQuery),
+      Event.countDocuments(finalQuery),
+      LeisureProducer.countDocuments(finalQuery)
+    ]);
+
+    const total = totalChoice + totalRest + totalEvents + totalLeisure;
+    const totalPages = Math.ceil(total / limit);
+
+    res.json({
+      results: resultsWithScores,
+      total,
+      current_page: parseInt(page),
+      total_pages: totalPages,
+      limit: parseInt(limit)
+    });
+  } catch (error) {
+    console.error('Erreur lors de la recherche:', error);
+    res.status(500).json({ error: 'Erreur interne du serveur.' });
   }
 });
 
