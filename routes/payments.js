@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const User = require('../models/user');
+const User = require('../models/User');
 const BeautyProducer = require('../models/beautyProducer');
-const Producer = require('../models/producer');
+const Producer = require('../models/Producer');
 
 // Middleware d'authentification (à importer si nécessaire)
 const auth = async (req, res, next) => {

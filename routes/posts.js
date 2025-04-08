@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const Post = require('../models/post');
+const PostModel = require('../models/Post');
 
 // Connexions aux bases
 const postsDbChoice = mongoose.createConnection(process.env.MONGO_URI, {
@@ -14,9 +14,9 @@ const leisureDb = mongoose.createConnection(process.env.MONGO_URI, {
   dbName: 'Loisir&Culture',
 });
 
-// Modèles pour les collections
-const PostChoice = postsDbChoice.model(
-  'Post',
+// Modèles pour les collections - renommer pour éviter les conflits
+const ChoicePost = postsDbChoice.model(
+  'ChoicePost', // Nom différent pour éviter le conflit
   new mongoose.Schema(
     {
       title: String,
@@ -30,8 +30,8 @@ const PostChoice = postsDbChoice.model(
         coordinates: [Number],
       },
       posted_at: { type: Date, default: Date.now },
-      likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Nouveauté : pour les likes
-      choices: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Nouveauté : pour les choices
+      likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      choices: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
       comments: [
         {
           user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -45,8 +45,8 @@ const PostChoice = postsDbChoice.model(
   'Posts'
 );
 
-const PostRest = postsDbRest.model(
-  'Post',
+const RestPost = postsDbRest.model(
+  'RestPost', // Nom différent pour éviter le conflit
   new mongoose.Schema({}, { strict: false }),
   'Posts' // Collection des posts dans Restauration_Officielle
 );
@@ -98,12 +98,12 @@ router.get('/', async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
     
-    const posts = await Post.find()
+    const posts = await PostModel.find()
       .sort({ createdAt: -1 }) // Du plus récent au plus ancien
       .skip(skip)
       .limit(limit);
     
-    const total = await Post.countDocuments();
+    const total = await PostModel.countDocuments();
     
     res.status(200).json({
       posts,
@@ -120,7 +120,7 @@ router.get('/', async (req, res) => {
 // GET /api/posts/:id - Obtenir un post par son ID
 router.get('/:id', async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await PostModel.findById(req.params.id);
     
     if (!post) {
       return res.status(404).json({ error: 'Post non trouvé' });
@@ -138,7 +138,7 @@ router.post('/', auth, async (req, res) => {
   try {
     const { text, media, location, locationName, tags, producerId, producerType, eventId, isChoice, rating } = req.body;
     
-    const post = new Post({
+    const post = new PostModel({
       userId: req.user.id,
       text,
       media,
@@ -164,7 +164,7 @@ router.post('/', auth, async (req, res) => {
 // PUT /api/posts/:id - Mettre à jour un post
 router.put('/:id', auth, async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await PostModel.findById(req.params.id);
     
     if (!post) {
       return res.status(404).json({ error: 'Post non trouvé' });
@@ -185,7 +185,7 @@ router.put('/:id', auth, async (req, res) => {
     delete updates.shares;
     
     // Mise à jour du post
-    const updatedPost = await Post.findByIdAndUpdate(
+    const updatedPost = await PostModel.findByIdAndUpdate(
       req.params.id,
       { $set: { ...updates, updatedAt: new Date() } },
       { new: true }
@@ -201,7 +201,7 @@ router.put('/:id', auth, async (req, res) => {
 // DELETE /api/posts/:id - Supprimer un post
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await PostModel.findById(req.params.id);
     
     if (!post) {
       return res.status(404).json({ error: 'Post non trouvé' });
@@ -212,7 +212,7 @@ router.delete('/:id', auth, async (req, res) => {
       return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à supprimer ce post' });
     }
     
-    await Post.findByIdAndDelete(req.params.id);
+    await PostModel.findByIdAndDelete(req.params.id);
     
     res.status(200).json({ message: 'Post supprimé avec succès' });
   } catch (error) {
@@ -224,7 +224,7 @@ router.delete('/:id', auth, async (req, res) => {
 // POST /api/posts/:id/like - Aimer un post
 router.post('/:id/like', auth, async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await PostModel.findById(req.params.id);
     
     if (!post) {
       return res.status(404).json({ error: 'Post non trouvé' });
@@ -261,7 +261,7 @@ router.post('/:id/comment', auth, async (req, res) => {
       return res.status(400).json({ error: 'Le texte du commentaire est requis' });
     }
     
-    const post = await Post.findById(req.params.id);
+    const post = await PostModel.findById(req.params.id);
     
     if (!post) {
       return res.status(404).json({ error: 'Post non trouvé' });
@@ -286,7 +286,7 @@ router.post('/:id/comment', auth, async (req, res) => {
 // GET /api/posts/user/:userId - Obtenir les posts d'un utilisateur
 router.get('/user/:userId', async (req, res) => {
   try {
-    const posts = await Post.find({ userId: req.params.userId })
+    const posts = await PostModel.find({ userId: req.params.userId })
       .sort({ createdAt: -1 });
     
     res.status(200).json(posts);
@@ -299,7 +299,7 @@ router.get('/user/:userId', async (req, res) => {
 // GET /api/posts/producer/:producerId - Obtenir les posts liés à un producteur
 router.get('/producer/:producerId', async (req, res) => {
   try {
-    const posts = await Post.find({ producerId: req.params.producerId })
+    const posts = await PostModel.find({ producerId: req.params.producerId })
       .sort({ createdAt: -1 });
     
     res.status(200).json(posts);
@@ -312,7 +312,7 @@ router.get('/producer/:producerId', async (req, res) => {
 // GET /api/posts/event/:eventId - Obtenir les posts liés à un événement
 router.get('/event/:eventId', async (req, res) => {
   try {
-    const posts = await Post.find({ eventId: req.params.eventId })
+    const posts = await PostModel.find({ eventId: req.params.eventId })
       .sort({ createdAt: -1 });
     
     res.status(200).json(posts);
@@ -325,7 +325,7 @@ router.get('/event/:eventId', async (req, res) => {
 // POST /api/posts/:id/share - Partager un post
 router.post('/:id/share', auth, async (req, res) => {
   try {
-    const originalPost = await Post.findById(req.params.id);
+    const originalPost = await PostModel.findById(req.params.id);
     
     if (!originalPost) {
       return res.status(404).json({ error: 'Post non trouvé' });
@@ -338,7 +338,7 @@ router.post('/:id/share', auth, async (req, res) => {
     // Créer un nouveau post qui partage l'original
     const { text } = req.body;
     
-    const sharedPost = new Post({
+    const sharedPost = new PostModel({
       userId: req.user.id,
       text: text || '',
       sharedPostId: originalPost._id,
@@ -366,7 +366,7 @@ router.post('/:id/view', async (req, res) => {
     }
 
     // Vérifier si le post existe
-    const post = await Post.findById(postId);
+    const post = await PostModel.findById(postId);
     
     if (!post) {
       return res.status(404).json({ error: 'Post non trouvé' });

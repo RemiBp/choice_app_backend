@@ -2,12 +2,12 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const searchController = require('../controllers/searchController');
-const User = require('../models/user');
-const Producer = require('../models/producer');
+const User = require('../models/User');
+const Producer = require('../models/Producer');
 const LeisureProducer = require('../models/leisureProducer');
 const BeautyProducer = require('../models/beautyProducer');
 const Event = require('../models/event');
-const Post = require('../models/post');
+const Post = require('../models/Post');
 
 // Modèle pour les restaurants
 const Restaurant = mongoose.models.Restaurant || mongoose.model(

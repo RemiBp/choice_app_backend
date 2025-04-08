@@ -171,7 +171,7 @@ app.use('/api/wellness/auth', wellnessAuthRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/beauty_places', beautyPlacesRoutes);
 app.use('/api/map', mapRoutes);
-app.use('/api/map', apiServiceRoutes);
+app.use('/api/service', apiServiceRoutes);
 app.use('/api/feed', feedRoutes);
 // Ajouter la route de synchronisation
 app.use('/api/sync', syncRoutes);
@@ -291,6 +291,12 @@ app.get('/', (req, res) => {
   res.send('Le backend de Choice App fonctionne 🎉');
 });
 
+// Ajouter les nouvelles routes AVANT la gestion des erreurs
+app.use('/api/email', emailRoutes);
+app.use('/api/premium-features', premiumFeaturesRoutes);
+app.use('/api/marketing', marketingRoutes);
+app.use('/', badgesRoutes); // Ces routes commencent déjà par /api/users/
+
 // Gestion des erreurs globales
 app.use((err, req, res, next) => {
   console.error('❌ Erreur serveur :', err.message);
@@ -301,12 +307,6 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({ message: 'Route non trouvée.' });
 });
-
-// Add new routes
-app.use('/api/email', emailRoutes);
-app.use('/api/premium-features', premiumFeaturesRoutes);
-app.use('/api/marketing', marketingRoutes);
-app.use('/', badgesRoutes); // Ces routes commencent déjà par /api/users/
 
 // Lancement du serveur
 app.listen(PORT, () => {

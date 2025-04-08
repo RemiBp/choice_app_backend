@@ -5,7 +5,7 @@ const Conversation = require('../models/conversation'); // Import du modèle Con
 const userController = require('../controllers/userController');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const User = require('../models/user');
+const User = require('../models/User');
 
 
 // Connexion à la base `choice_app`

@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/user');
-const Post = require('../models/post');
-const Producer = require('../models/producer');
+const User = require('../models/User');
+const Post = require('../models/Post');
+const Producer = require('../models/Producer');
 const LeisureProducer = require('../models/leisureProducer');
 const BeautyProducer = require('../models/beautyProducer');
 const Event = require('../models/event');
@@ -70,7 +70,7 @@ router.get('/producer/:producerId', auth, async (req, res) => {
     let Producer;
     switch (type) {
       case 'restaurant':
-        Producer = require('../models/producer');
+        Producer = require('../models/Producer');
         break;
       case 'leisure':
         Producer = require('../models/leisureProducer');
@@ -79,7 +79,7 @@ router.get('/producer/:producerId', auth, async (req, res) => {
         Producer = require('../models/beautyProducer');
         break;
       default:
-        Producer = require('../models/producer');
+        Producer = require('../models/Producer');
     }
     
     // Vérifier que l'établissement existe
