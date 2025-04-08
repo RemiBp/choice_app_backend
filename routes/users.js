@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Conversation = require('../models/conversation'); // Import du modèle Conversation
+const userController = require('../controllers/userController');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const User = require('../models/user');
 
 
 // Connexion à la base `choice_app`
@@ -22,6 +26,22 @@ const PostChoice = usersDbChoice.model(
   new mongoose.Schema({}, { strict: false }),
   'Posts'
 );
+
+// Middleware pour vérifier le token JWT
+const auth = async (req, res, next) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ error: 'Authentification requise' });
+    }
+    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret');
+    req.user = { id: decoded.id };
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Token invalide' });
+  }
+};
 
 // Endpoint : Rechercher des utilisateurs par mot-clé ou ID
 router.get('/search', async (req, res) => {
@@ -338,6 +358,283 @@ router.post('/conversations/new-message', async (req, res) => {
       error.message
     );
     res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+/**
+ * Routes pour les utilisateurs
+ */
+
+// GET /api/users - Obtenir tous les utilisateurs
+router.get('/', userController.getAllUsers);
+
+// GET /api/users/:id/favorites - Obtenir les favoris d'un utilisateur
+router.get('/:id/favorites', userController.getUserFavorites);
+
+// GET /api/users/:id/profile - Obtenir le profil d'un utilisateur
+router.get('/:id/profile', userController.getUserProfile);
+
+// PUT /api/users/:id - Mettre à jour un utilisateur
+router.put('/:id', userController.updateUser);
+
+// PUT /api/users/:id/password - Mettre à jour le mot de passe d'un utilisateur
+router.put('/:id/password', userController.updatePassword);
+
+// DELETE /api/users/:id - Supprimer un utilisateur
+router.delete('/:id', userController.deleteUser);
+
+// POST /api/users/:userId/follow - Suivre un utilisateur ou un producteur
+router.post('/:userId/follow', userController.follow);
+
+// DELETE /api/users/:userId/follow - Ne plus suivre un utilisateur ou un producteur
+router.delete('/:userId/follow', userController.unfollow);
+
+// GET /api/users/:id - Obtenir un utilisateur par ID (doit être placé à la fin pour éviter les conflits de routes)
+router.get('/:id', userController.getUserById);
+
+// Inscription utilisateur
+router.post('/register', async (req, res) => {
+  try {
+    const { name, email, username, password } = req.body;
+    
+    // Vérification si l'email existe déjà
+    const emailExists = await User.findOne({ email });
+    if (emailExists) {
+      return res.status(400).json({ error: 'Email déjà utilisé' });
+    }
+    
+    // Vérification si le nom d'utilisateur existe déjà
+    const usernameExists = await User.findOne({ username });
+    if (usernameExists) {
+      return res.status(400).json({ error: 'Nom d\'utilisateur déjà utilisé' });
+    }
+    
+    // Hashage du mot de passe
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    
+    // Création du nouvel utilisateur
+    const user = new User({
+      name,
+      email,
+      username,
+      password: hashedPassword
+    });
+    
+    await user.save();
+    
+    // Création du token JWT
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'your_jwt_secret', {
+      expiresIn: '30d'
+    });
+    
+    // Réponse sans le mot de passe
+    const userResponse = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      profilePicture: user.profilePicture
+    };
+    
+    res.status(201).json({ user: userResponse, token });
+  } catch (error) {
+    console.error('Erreur d\'inscription:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'inscription' });
+  }
+});
+
+// Connexion utilisateur
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    // Vérification si l'utilisateur existe
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ error: 'Email ou mot de passe incorrect' });
+    }
+    
+    // Vérification du mot de passe
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(400).json({ error: 'Email ou mot de passe incorrect' });
+    }
+    
+    // Mise à jour de la date de dernière connexion
+    user.last_login = new Date();
+    user.isOnline = true;
+    await user.save();
+    
+    // Création du token JWT
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'your_jwt_secret', {
+      expiresIn: '30d'
+    });
+    
+    // Réponse sans le mot de passe
+    const userResponse = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      profilePicture: user.profilePicture,
+      bio: user.bio,
+      followers: user.followers,
+      following: user.following,
+      interests: user.interests
+    };
+    
+    res.status(200).json({ user: userResponse, token });
+  } catch (error) {
+    console.error('Erreur de connexion:', error);
+    res.status(500).json({ error: 'Erreur lors de la connexion' });
+  }
+});
+
+// Obtenir le profil de l'utilisateur connecté
+router.get('/profile', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+    
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('Erreur de récupération de profil:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération du profil' });
+  }
+});
+
+// Mettre à jour le profil
+router.put('/profile', auth, async (req, res) => {
+  try {
+    const updates = req.body;
+    
+    // Empêcher la mise à jour du mot de passe ou de l'email par cette route
+    delete updates.password;
+    delete updates.email;
+    
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+    
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('Erreur de mise à jour de profil:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour du profil' });
+  }
+});
+
+// Obtenir le profil d'un utilisateur par son ID
+router.get('/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+    
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('Erreur de récupération de profil:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération du profil' });
+  }
+});
+
+// Suivre / Ne plus suivre un utilisateur
+router.put('/follow/:id', auth, async (req, res) => {
+  try {
+    // Vérifier si on essaie de se suivre soi-même
+    if (req.user.id === req.params.id) {
+      return res.status(400).json({ error: 'Vous ne pouvez pas vous suivre vous-même' });
+    }
+    
+    const userToFollow = await User.findById(req.params.id);
+    if (!userToFollow) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+    
+    const currentUser = await User.findById(req.user.id);
+    
+    // Vérifier si l'utilisateur est déjà suivi
+    const isFollowing = currentUser.following.includes(req.params.id);
+    
+    if (isFollowing) {
+      // Ne plus suivre l'utilisateur
+      await User.findByIdAndUpdate(req.user.id, {
+        $pull: { following: req.params.id }
+      });
+      
+      await User.findByIdAndUpdate(req.params.id, {
+        $pull: { followers: req.user.id }
+      });
+      
+      res.status(200).json({ message: 'Vous ne suivez plus cet utilisateur' });
+    } else {
+      // Suivre l'utilisateur
+      await User.findByIdAndUpdate(req.user.id, {
+        $addToSet: { following: req.params.id }
+      });
+      
+      await User.findByIdAndUpdate(req.params.id, {
+        $addToSet: { followers: req.user.id }
+      });
+      
+      res.status(200).json({ message: 'Vous suivez maintenant cet utilisateur' });
+    }
+  } catch (error) {
+    console.error('Erreur lors du suivi:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour du suivi' });
+  }
+});
+
+// Obtenir les suggestions d'utilisateurs
+router.get('/suggestions/users', auth, async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.user.id);
+    
+    // Obtenir des utilisateurs qui ne sont pas déjà suivis
+    const suggestions = await User.find({
+      _id: { $ne: req.user.id, $nin: currentUser.following },
+    })
+    .select('name username profilePicture bio')
+    .limit(15);
+    
+    res.status(200).json(suggestions);
+  } catch (error) {
+    console.error('Erreur de récupération des suggestions:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des suggestions' });
+  }
+});
+
+// Rechercher des utilisateurs
+router.get('/search/users', async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Requête de recherche requise' });
+    }
+    
+    const users = await User.find({
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { username: { $regex: query, $options: 'i' } },
+      ],
+    })
+    .select('name username profilePicture bio')
+    .limit(20);
+    
+    res.status(200).json(users);
+  } catch (error) {
+    console.error('Erreur de recherche:', error);
+    res.status(500).json({ error: 'Erreur lors de la recherche d\'utilisateurs' });
   }
 });
 

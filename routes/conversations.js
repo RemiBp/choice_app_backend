@@ -1,9 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const Conversation = require('../models/conversation');
-
-const { choiceAppDb, testDb } = require('../index'); // Import des connexions
+const { choiceAppDb } = require('../index');
+const { sendNotificationEmail } = require('../services/emailService');
+const User = require('../models/user');
+const Producer = require('../models/producer');
+const LeisureProducer = require('../models/leisureProducer');
+const BeautyProducer = require('../models/beautyProducer');
+const auth = require('../middleware/auth');
 
 // Modèle User dans la base choice_app
 const UserChoice = choiceAppDb.model(
@@ -12,8 +16,8 @@ const UserChoice = choiceAppDb.model(
   'Users'
 );
 
-// Modèle User dans la base test
-const UserTest = testDb.model(
+// Modèle User dans la base choice_app
+const UserTest = choiceAppDb.model(
   'User',
   new mongoose.Schema({
     name: { type: String },
@@ -27,260 +31,420 @@ const MessageSchema = new mongoose.Schema({
   senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   content: { type: String, required: true },
   timestamp: { type: Date, default: Date.now },
+  contentType: { type: String, default: 'text' },
+  attachments: [{
+    type: { type: String },
+    url: { type: String },
+    preview: { type: String }
+  }],
+  readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 });
 
-// Schéma pour une conversation
-const ConversationSchema = new mongoose.Schema({
-  participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Référence à UserTest
-  messages: [MessageSchema],
-  lastUpdated: { type: Date, default: Date.now },
+// Modèle pour les conversations
+const conversationSchema = new mongoose.Schema({
+  participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }],
+  lastMessage: { type: String },
+  lastMessageDate: { type: Date, default: Date.now },
+  lastMessageSender: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  unreadCount: { type: Map, of: Number, default: {} },
+  isGroupChat: { type: Boolean, default: false },
+  groupName: { type: String },
+  groupImage: { type: String },
+  createdAt: { type: Date, default: Date.now },
+  isProducerConversation: { type: Boolean, default: false },
+  producerId: { type: mongoose.Schema.Types.ObjectId },
+  producerType: { type: String, enum: ['restaurant', 'leisure', 'wellness'] }
 });
 
-// Modèle Conversation dans la base test
-const ConversationTest = testDb.model('Conversation', ConversationSchema, 'conversations');
+const ConversationModel = choiceAppDb.model('Conversation', conversationSchema, 'conversations');
 
-router.get('/:conversationId/messages', async (req, res) => {
-  const { conversationId } = req.params;
+// Modèle pour les messages
+const messageSchema = new mongoose.Schema({
+  conversationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Conversation', required: true },
+  sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  content: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now },
+  isRead: { type: Map, of: Boolean, default: {} }, // Stocke pour chaque utilisateur si le message a été lu
+  attachments: [{ 
+    type: { type: String, enum: ['image', 'video', 'file'] },
+    url: { type: String },
+    name: { type: String },
+    size: { type: Number }
+  }]
+});
 
+const MessageModel = choiceAppDb.model('Message', messageSchema, 'messages');
+
+/**
+ * @route GET /api/conversations
+ * @desc Récupérer les conversations d'un utilisateur
+ * @access Private
+ */
+router.get('/', auth, async (req, res) => {
   try {
-    // Vérification que l'ID de la conversation est valide
-    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
-      return res.status(400).json({ message: 'ID de conversation invalide.' });
+    const userId = req.user.id;
+    
+    // Trouver toutes les conversations où l'utilisateur est participant
+    const conversations = await ConversationModel.find({
+      participants: userId
+    })
+    .sort({ lastMessageDate: -1 });
+    
+    // Obtenir les informations des autres participants pour chaque conversation
+    const populatedConversations = await Promise.all(conversations.map(async conv => {
+      const convObj = conv.toObject();
+      
+      // Récupérer les infos des participants (hors l'utilisateur actuel)
+      const otherParticipantIds = convObj.participants.filter(id => id.toString() !== userId);
+      
+      // Si c'est une conversation avec un producteur
+      if (conv.isProducerConversation && conv.producerId) {
+        try {
+          let producer;
+          
+          if (conv.producerType === 'restaurant') {
+            producer = await Producer.findById(conv.producerId);
+          } else if (conv.producerType === 'leisure') {
+            producer = await LeisureProducer.findById(conv.producerId);
+          } else if (conv.producerType === 'wellness') {
+            producer = await BeautyProducer.findById(conv.producerId);
+          }
+          
+          if (producer) {
+            convObj.producerInfo = {
+              _id: producer._id,
+              name: producer.name || producer.lieu,
+              photo: producer.photo || producer.image,
+              address: producer.address || producer.adresse
+            };
+          }
+        } catch (err) {
+          console.error('Erreur lors de la récupération des infos du producteur:', err);
+        }
+      }
+      
+      // Récupérer les infos des participants
+      const participants = await User.find({
+        _id: { $in: otherParticipantIds }
+      }).select('_id name username profilePicture');
+      
+      convObj.participantsInfo = participants;
+      
+      // Calculer le nombre de messages non lus
+      convObj.unreadCount = convObj.unreadCount?.get(userId) || 0;
+      
+      return convObj;
+    }));
+    
+    res.status(200).json(populatedConversations);
+  } catch (error) {
+    console.error('Erreur de récupération des conversations:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des conversations' });
+  }
+});
+
+/**
+ * @route GET /api/conversations/:userId/conversations
+ * @desc Récupérer les conversations d'un utilisateur spécifique (endpoint unifié pour le frontend)
+ * @access Private
+ */
+router.get('/:userId/conversations', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId) {
+      return res.status(400).json({ message: 'userId requis.' });
     }
-
-    // Récupérer la conversation et les messages associés sans utiliser 'populate' sur 'senderId'
-    const conversation = await ConversationTest.findById(conversationId)
-      .select('messages') // Sélectionner uniquement les messages
-      .exec();
-
-    // Si la conversation n'existe pas
-    if (!conversation) {
-      return res.status(404).json({ message: 'Conversation non trouvée.' });
+    
+    // Vérifier que l'utilisateur existe
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé.' });
     }
-
-    // Si la conversation n'a pas de messages ou si elle est vide
-    if (!conversation.messages || conversation.messages.length === 0) {
-      return res.status(200).json({ messages: [] });
-    }
-
-    // Formater les messages pour inclure 'senderId' et vérifier si le 'content' existe bien
-    const formattedMessages = conversation.messages.map((message) => {
-      const senderId = message.senderId ? message.senderId.toString() : ''; // Récupérer 'senderId' sous forme de chaîne
-      const content = message.content || '';  // Si 'content' est vide, retournera une chaîne vide
-      const timestamp = message.timestamp || ''; // Si 'timestamp' est vide, retournera une chaîne vide
-
+    
+    // Trouver toutes les conversations où l'utilisateur est participant
+    const conversations = await ConversationModel.find({
+      participants: userId
+    })
+    .sort({ lastMessageDate: -1 })
+    .populate('participants', '_id name username profilePicture photo_url');
+    
+    // Format simplifié de la réponse pour compatibilité avec le frontend
+    const simplifiedConversations = conversations.map(conv => {
+      const convObj = conv.toObject();
+      const otherParticipants = convObj.participants.filter(p => p._id.toString() !== userId);
+      
       return {
-        content: content,       // Le contenu du message
-        senderId: senderId,     // L'ID du sender (utilisateur)
-        timestamp: timestamp,   // Le timestamp du message
+        _id: convObj._id,
+        id: convObj._id,
+        participants: convObj.participants.map(p => p._id),
+        name: convObj.isGroupChat ? convObj.groupName : (otherParticipants[0]?.name || otherParticipants[0]?.username || 'Utilisateur'),
+        lastMessage: convObj.lastMessage || '',
+        lastMessageDate: convObj.lastMessageDate || convObj.createdAt,
+        lastUpdated: convObj.lastMessageDate || convObj.createdAt,
+        isGroup: convObj.isGroupChat,
+        isRestaurant: convObj.producerType === 'restaurant',
+        isLeisure: convObj.producerType === 'leisure',
+        isWellness: convObj.producerType === 'wellness',
+        unreadMessages: convObj.unreadCount?.get(userId) || 0,
+        avatar: convObj.isGroupChat ? convObj.groupImage : (otherParticipants[0]?.profilePicture || otherParticipants[0]?.photo_url),
       };
     });
-
-    // Envoi des messages formatés
-    res.status(200).json(formattedMessages);
+    
+    res.status(200).json(simplifiedConversations);
   } catch (error) {
-    console.error('Erreur lors de la récupération des messages :', error.message);
+    console.error('❌ Erreur lors de la récupération des conversations:', error);
     res.status(500).json({ message: 'Erreur interne du serveur.' });
   }
 });
 
-
-
-// Endpoint : Récupérer les conversations d'un utilisateur
-router.get('/:userId/conversations', async (req, res) => {
-  const { userId } = req.params;
-
+/**
+ * @route GET /api/conversations/:conversationId/messages
+ * @desc Récupérer les messages d'une conversation
+ * @access Private
+ */
+router.get('/:conversationId/messages', async (req, res) => {
   try {
-    console.log('🔍 [DEBUG] Étape 1 : Récupérer les conversations associées à l\'utilisateur');
-
-    // Étape 1 : Récupérer les conversations associées à l'utilisateur dans choice_app
-    const user = await UserChoice.findById(userId).select('conversations');
-    console.log('✅ [DEBUG] Utilisateur trouvé :', user);
-
-    if (!user || !user.conversations || user.conversations.length === 0) {
-      console.log('⚠️ [DEBUG] Aucune conversation trouvée pour cet utilisateur');
-      return res.status(404).json({ message: 'Aucune conversation trouvée pour cet utilisateur.' });
+    const { conversationId } = req.params;
+    const { userId, limit = 50, before } = req.query;
+    
+    if (!conversationId) {
+      return res.status(400).json({ message: 'conversationId requis.' });
     }
-
-    console.log('📋 [DEBUG] Conversations IDs trouvés pour l\'utilisateur :', user.conversations);
-
-    console.log('🔍 [DEBUG] Étape 2 : Récupérer les détails des conversations dans la base "test"');
-
-    // Étape 2 : Récupérer les détails des conversations dans test
-    const conversations = await ConversationTest.find({
-      _id: { $in: user.conversations },
-    }).sort({ lastUpdated: -1 }); // Pas de populate
-
-    if (!conversations || conversations.length === 0) {
-      console.log('⚠️ [DEBUG] Conversations non trouvées dans la base "test"');
-      return res.status(404).json({ message: 'Conversations non trouvées dans la base "test".' });
-    }
-
-    console.log('✅ [DEBUG] Conversations récupérées après population :', conversations);
-
-    // Vérifier que chaque conversation a bien des participants
-    const validatedConversations = conversations.filter((conversation) => {
-      if (!conversation.participants || conversation.participants.length === 0) {
-        console.warn(`⚠️ [DEBUG] La conversation ${conversation._id} n'a pas de participants valides.`);
-        return false;
-      }
-      return true;
-    });
- 
-
-    // Formater les données pour inclure les participants et les derniers messages
-    const formattedConversations = validatedConversations.map((conversation) => ({
-      _id: conversation._id,
-      participants: conversation.participants, // Retourne uniquement les ObjectId des participants
-      lastMessage: conversation.messages.length > 0
-        ? conversation.messages[conversation.messages.length - 1].content
-        : 'Aucun message pour l\'instant',
-      lastUpdated: conversation.lastUpdated,
-    }));
-
-    console.log('📤 [DEBUG] Envoi des conversations formatées au client');
-    res.status(200).json(formattedConversations);
-  } catch (error) {
-    console.error('❌ [DEBUG] Erreur lors de la récupération des conversations :', error.message);
-    res.status(500).json({ message: 'Erreur interne du serveur.', error: error.message });
-  }
-});
-
-
-// Endpoint : Créer une conversation et envoyer un message
-router.post('/new-message', async (req, res) => {
-  const { senderId, recipientIds, content } = req.body;
-
-  if (!senderId || !recipientIds || recipientIds.length === 0 || !content) {
-    return res.status(400).json({
-      message: 'Le senderId, au moins un recipientId, et le contenu sont obligatoires.',
-    });
-  }
-
-  try {
-    // Convertir tous les IDs en ObjectId
-    const participants = [senderId, ...recipientIds].map((id) => mongoose.Types.ObjectId(id));
-
-    // Vérifie si une conversation existe déjà pour ces participants
-    let conversation = await ConversationTest.findOne({
-      participants: { $all: participants, $size: participants.length },
-    });
-
-    // Si elle n'existe pas, créez une nouvelle conversation
-    if (!conversation) {
-      conversation = new ConversationTest({
-        participants,
-        messages: [],
-        lastUpdated: Date.now(),
-      });
-    }
-
-    // Ajouter un nouveau message à la conversation
-    const newMessage = {
-      senderId: mongoose.Types.ObjectId(senderId), // Convertir en ObjectId
-      content,
-      timestamp: Date.now(),
-    };
-
-    conversation.messages.push(newMessage);
-    conversation.lastUpdated = Date.now();
-    await conversation.save();
-
-    // Mettre à jour les utilisateurs concernés pour inclure la conversation
-    const updateUserConversations = async (userId) => {
-      await UserChoice.findByIdAndUpdate(
-        userId,
-        { $addToSet: { conversations: conversation._id } }, // Ajoute l'ID de la conversation sans doublons
-        { new: true }
-      );
-    };
-    await Promise.all(participants.map(updateUserConversations));
-
-    res.status(201).json({
-      message: 'Message envoyé avec succès.',
-      conversationId: conversation._id,
-      newMessage,
-    });
-  } catch (error) {
-    console.error(
-      'Erreur lors de la création de la conversation ou de l\'envoi du message :',
-      error.message
-    );
-    res.status(500).json({ message: 'Erreur interne du serveur.' });
-  }
-});
-
-
-
-router.post('/:id/message', async (req, res) => {
-  const { id } = req.params;
-  const { senderId, content } = req.body;
-
-  if (!content || !senderId) {
-    return res.status(400).json({ message: 'Le contenu et le senderId sont obligatoires.' });
-  }
-
-  try {
-    const conversation = await Conversation.findById(id);
-
+    
+    // Vérifier que la conversation existe
+    const conversation = await ConversationModel.findById(conversationId);
+    
     if (!conversation) {
       return res.status(404).json({ message: 'Conversation non trouvée.' });
     }
-
-    const newMessage = {
-      senderId,
-      content,
-      timestamp: Date.now(),
-    };
-
-    conversation.messages.push(newMessage);
-    conversation.lastUpdated = Date.now();
-
-    await conversation.save();
-
-    res.status(201).json(newMessage);
-  } catch (error) {
-    console.error('Erreur lors de l\'envoi du message :', error.message);
-    res.status(500).json({ message: 'Erreur interne du serveur.' });
-  }
-});
-
-router.post('/check-or-create', async (req, res) => {
-  const { senderId, recipientId } = req.body;
-
-  // Vérifier que les deux IDs sont distincts
-  if (senderId === recipientId) {
-    return res.status(400).json({ message: 'Le senderId et le recipientId ne peuvent pas être identiques.' });
-  }
-
-  // Logique existante pour vérifier ou créer la conversation
-  try {
-    let conversation = await ConversationTest.findOne({
-      participants: { $all: [senderId, recipientId], $size: 2 },
-    });
-
-    // Si aucune conversation n'existe, en créer une nouvelle
-    if (!conversation) {
-      conversation = new ConversationTest({
-        participants: [senderId, recipientId],
-        messages: [],
-        lastUpdated: Date.now(),
-      });
-      await conversation.save();
+    
+    // Construire la requête pour pagination
+    let query = { conversationId };
+    if (before) {
+      query.timestamp = { $lt: new Date(before) };
     }
-
-    res.status(201).json({
-      conversationId: conversation._id,
-      recipientName: 'Nom du destinataire', // Ajoute ici la logique pour récupérer le nom du destinataire
-      recipientPhoto: 'URL de l\'image', // Ajoute ici la logique pour récupérer l'image du destinataire
+    
+    // Récupérer les messages
+    const messages = await MessageModel.find(query)
+      .sort({ timestamp: -1 })
+      .limit(Number(limit))
+      .populate('sender', '_id name profilePicture');
+    
+    // Marquer les messages comme lus si userId est fourni
+    if (userId) {
+      await MessageModel.updateMany(
+        { 
+          conversationId,
+          sender: { $ne: userId }, // Ne pas marquer ses propres messages
+          [`isRead.${userId}`]: { $ne: true } // Seulement les messages non lus
+        },
+        { $set: { [`isRead.${userId}`]: true } }
+      );
+      
+      // Mettre à jour le compteur de messages non lus
+      if (conversation.unreadCount && conversation.unreadCount.has(userId)) {
+        conversation.unreadCount.set(userId, 0);
+        await conversation.save();
+      }
+    }
+    
+    res.status(200).json({
+      messages: messages.reverse(), // Renvoyer dans l'ordre chronologique
+      hasMore: messages.length === Number(limit)
     });
   } catch (error) {
-    console.error('Erreur lors de la création de la conversation :', error.message);
+    console.error('❌ Erreur lors de la récupération des messages:', error);
     res.status(500).json({ message: 'Erreur interne du serveur.' });
   }
 });
 
+/**
+ * @route POST /api/conversations/:conversationId/messages
+ * @desc Envoyer un message dans une conversation existante
+ * @access Private
+ */
+router.post('/:conversationId/messages', auth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { senderId, content, media } = req.body;
+    
+    if (!senderId || !content) {
+      return res.status(400).json({ message: 'senderId et content sont requis.' });
+    }
+    
+    // Vérifier que la conversation existe
+    const conversation = await ConversationModel.findById(conversationId);
+    
+    if (!conversation) {
+      return res.status(404).json({ message: 'Conversation non trouvée.' });
+    }
+    
+    // Vérifier que l'expéditeur fait partie de la conversation
+    if (!conversation.participants.includes(senderId)) {
+      return res.status(403).json({ message: 'Non autorisé à envoyer des messages dans cette conversation.' });
+    }
+    
+    // Créer et sauvegarder le message
+    const message = new MessageModel({
+      conversationId,
+      sender: senderId,
+      content,
+      timestamp: new Date(),
+      attachments: media || []
+    });
+    
+    // Initialiser isRead pour tous les participants
+    conversation.participants.forEach(participantId => {
+      message.isRead.set(participantId.toString(), participantId.toString() === senderId);
+    });
+    
+    await message.save();
+    
+    // Mettre à jour la conversation
+    conversation.lastMessage = content;
+    conversation.lastMessageDate = message.timestamp;
+    conversation.lastMessageSender = senderId;
+    
+    // Incrémenter le compteur de messages non lus pour tous les participants sauf l'expéditeur
+    conversation.participants.forEach(participantId => {
+      if (participantId.toString() !== senderId) {
+        const currentCount = conversation.unreadCount.get(participantId.toString()) || 0;
+        conversation.unreadCount.set(participantId.toString(), currentCount + 1);
+      }
+    });
+    
+    await conversation.save();
+    
+    // Récupérer les infos de l'expéditeur
+    const sender = await User.findById(senderId).select('_id name profilePicture');
+    
+    const messageResponse = {
+      _id: message._id,
+      sender: {
+        _id: sender._id,
+        name: sender.name,
+        profilePicture: sender.profilePicture
+      },
+      content: message.content,
+      timestamp: message.timestamp,
+      attachments: message.attachments
+    };
+    
+    res.status(201).json(messageResponse);
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi du message:', error);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
 
+/**
+ * @route POST /api/conversations/create
+ * @desc Créer une nouvelle conversation
+ * @access Private
+ */
+router.post('/create', auth, async (req, res) => {
+  try {
+    const { participantIds, isGroupChat, groupName, groupImage } = req.body;
+    
+    if (!participantIds || !Array.isArray(participantIds) || participantIds.length < 2) {
+      return res.status(400).json({ message: 'Au moins deux participants sont requis.' });
+    }
+    
+    // Si ce n'est pas un groupe, vérifier s'il existe déjà une conversation entre ces utilisateurs
+    if (!isGroupChat && participantIds.length === 2) {
+      const existingConversation = await ConversationModel.findOne({
+        participants: { $all: participantIds, $size: 2 },
+        isGroupChat: false
+      });
+      
+      if (existingConversation) {
+        return res.status(200).json({
+          message: 'Conversation existante trouvée',
+          _id: existingConversation._id
+        });
+      }
+    }
+    
+    // Créer une nouvelle conversation
+    const conversation = new ConversationModel({
+      participants: participantIds,
+      isGroupChat: isGroupChat || false,
+      groupName: groupName,
+      groupImage: groupImage,
+      unreadCount: new Map(participantIds.map(p => [p.toString(), 0]))
+    });
+    
+    await conversation.save();
+    
+    res.status(201).json({
+      message: 'Conversation créée avec succès',
+      _id: conversation._id
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la création de la conversation:', error);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
 
+/**
+ * @route POST /api/conversations/create-group
+ * @desc Créer un groupe de conversation
+ * @access Private
+ */
+router.post('/create-group', auth, async (req, res) => {
+  try {
+    const { creatorId, participantIds, groupName, groupType, groupAvatar } = req.body;
+    
+    if (!creatorId || !participantIds || !Array.isArray(participantIds) || participantIds.length < 2 || !groupName) {
+      return res.status(400).json({ 
+        message: 'creatorId, groupName et au moins deux participantIds sont requis.' 
+      });
+    }
+    
+    // S'assurer que le créateur est dans les participants
+    if (!participantIds.includes(creatorId)) {
+      participantIds.push(creatorId);
+    }
+    
+    // Créer le groupe
+    const conversation = new ConversationModel({
+      participants: participantIds,
+      isGroupChat: true,
+      groupName,
+      groupImage: groupAvatar,
+      lastMessageDate: new Date(),
+      createdAt: new Date(),
+      unreadCount: new Map(participantIds.map(p => [p.toString(), 0]))
+    });
+    
+    await conversation.save();
+    
+    // Message de bienvenue automatique
+    const message = new MessageModel({
+      conversationId: conversation._id,
+      sender: creatorId,
+      content: `Groupe "${groupName}" créé`,
+      timestamp: new Date(),
+      isRead: new Map(participantIds.map(p => [p.toString(), p === creatorId]))
+    });
+    
+    await message.save();
+    
+    // Mettre à jour la conversation avec le premier message
+    conversation.lastMessage = message.content;
+    conversation.lastMessageSender = creatorId;
+    await conversation.save();
+    
+    res.status(201).json({
+      message: 'Groupe créé avec succès',
+      conversation_id: conversation._id,
+      groupAvatar: conversation.groupImage
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la création du groupe:', error);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
 
 module.exports = router; 

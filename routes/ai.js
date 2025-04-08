@@ -7,6 +7,8 @@
 const express = require('express');
 const { processUserQuery, processProducerQuery } = require('../services/aiDataService');
 const router = express.Router();
+const mongoose = require('mongoose');
+const { choiceAppDb, restaurationDb, loisirDb, beautyWellnessDb } = require('../index');
 
 /**
  * @route POST /api/ai/query
@@ -270,6 +272,153 @@ router.get('/health', async (req, res) => {
       success: false,
       status: 'error',
       message: 'Le service IA rencontre des problèmes',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/ai/generate-vibe-map
+ * @desc Générer une carte sensorielle basée sur un "vibe"
+ * @access Public
+ */
+router.post('/generate-vibe-map', async (req, res) => {
+  try {
+    const { userId, vibe, location } = req.body;
+    
+    if (!vibe) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Vibe (ambiance) requis pour la génération de la carte' 
+      });
+    }
+    
+    // Faire une requête interne à notre service de carte sensorielle
+    const serviceResponse = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/map/vibe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        vibe,
+        location,
+        limit: 15
+      }),
+    });
+    
+    if (!serviceResponse.ok) {
+      throw new Error(`Service error: ${serviceResponse.status}`);
+    }
+    
+    const vibeData = await serviceResponse.json();
+    
+    // Enregistrer cette requête pour l'historique utilisateur si userId fourni
+    if (userId) {
+      try {
+        await UserQuery.create({
+          userId,
+          type: 'vibe_map',
+          query: vibe,
+          context: {
+            location: location || 'global',
+            timestamp: new Date()
+          },
+          result: {
+            matchCount: vibeData.profiles.length,
+            topMatch: vibeData.profiles.length > 0 ? vibeData.profiles[0].name : null
+          }
+        });
+      } catch (historyError) {
+        console.error('Erreur lors de l\'enregistrement de l\'historique:', historyError);
+        // Ne pas échouer la requête principale si l'historique échoue
+      }
+    }
+    
+    res.status(200).json(vibeData);
+  } catch (error) {
+    console.error('❌ Erreur lors de la génération de la carte sensorielle:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur lors de la génération de la carte sensorielle', 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * @route GET /api/ai/detect-producer-type/:producerId
+ * @desc Detect the type of a producer (restaurant, leisureProducer, wellnessProducer, etc.)
+ * @access Public
+ */
+router.get('/detect-producer-type/:producerId', async (req, res) => {
+  const { producerId } = req.params;
+  
+  if (!producerId) {
+    return res.status(400).json({ success: false, message: 'ProducerId is required' });
+  }
+  
+  try {
+    // Try to find the producer in different collections
+    const collections = [
+      { name: 'restaurant', db: restaurationDb, collection: 'Lieux_Paris' },
+      { name: 'leisureProducer', db: loisirDb, collection: 'leisure_producers' },
+      { name: 'wellnessProducer', db: beautyWellnessDb, collection: 'wellness_producers' },
+      { name: 'beautyPlace', db: beautyWellnessDb, collection: 'beauty_places' }
+    ];
+    
+    let producerType = 'unknown';
+    
+    for (const { name, db, collection } of collections) {
+      try {
+        const model = db.model(collection, new mongoose.Schema({}, { strict: false }), collection);
+        const producer = await model.findOne({ _id: producerId });
+        
+        if (producer) {
+          producerType = name;
+          break;
+        }
+      } catch (err) {
+        console.error(`Error checking collection ${collection}: ${err.message}`);
+        // Continue to the next collection
+      }
+    }
+    
+    // If we didn't find the producer in any collection, try a more general approach
+    if (producerType === 'unknown') {
+      try {
+        // Try the producers collection in the main choice_app database
+        const Producer = choiceAppDb.model('Producer');
+        const producer = await Producer.findById(producerId);
+        
+        if (producer) {
+          // Try to determine the type based on properties in the document
+          if (producer.type) {
+            producerType = producer.type;
+          } else if (producer.producer_type) {
+            producerType = producer.producer_type;
+          } else {
+            producerType = 'restaurant'; // Default if we can't determine
+          }
+        }
+      } catch (err) {
+        console.error(`Error checking main producer collection: ${err.message}`);
+        // Fall back to default
+        producerType = 'restaurant';
+      }
+    }
+    
+    res.status(200).json({
+      success: true,
+      producerType,
+      message: producerType !== 'unknown' ? 
+        `Producer identified as ${producerType}` : 
+        'Could not determine producer type, defaulting to restaurant'
+    });
+  } catch (error) {
+    console.error('Error detecting producer type:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error detecting producer type',
       error: error.message
     });
   }

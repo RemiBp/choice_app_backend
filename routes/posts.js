@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const Post = require('../models/post');
 
 // Connexions aux bases
 const postsDbChoice = mongoose.createConnection(process.env.MONGO_URI, {
@@ -84,341 +85,318 @@ const User = postsDbChoice.model(
   'Users'
 );
 
-// Route pour générer le feed - DÉPLACER CETTE ROUTE EN PREMIER
-router.get('/feed', async (req, res) => {
-  const { userId, limit = 10, query } = req.query;
+// Middleware d'authentification (à importer si nécessaire)
+const auth = async (req, res, next) => {
+  // Votre logique d'authentification ici
+  next();
+};
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID est requis.' });
-  }
-
+// GET /api/posts - Obtenir tous les posts avec pagination
+router.get('/', async (req, res) => {
   try {
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'Utilisateur non trouvé.' });
-    }
-
-    let [postsChoice, postsRest] = await Promise.all([
-      PostChoice.find().lean(),
-      PostRest.find().lean(),
-    ]);
-
-    let posts = [...postsChoice, ...postsRest];
-
-    if (query) {
-      const queryRegex = new RegExp(query, 'i');
-      posts = posts.filter(
-        (post) =>
-          queryRegex.test(post.content) ||
-          post.tags.some((tag) => queryRegex.test(tag))
-      );
-    }
-
-    const normalizedPosts = posts.map((post) => normalizePost(post, user));
-    const sortedFeed = normalizedPosts
-      .sort((a, b) => b.relevance_score - a.relevance_score)
-      .slice(0, limit);
-
-    res.json(sortedFeed);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    
+    const posts = await Post.find()
+      .sort({ createdAt: -1 }) // Du plus récent au plus ancien
+      .skip(skip)
+      .limit(limit);
+    
+    const total = await Post.countDocuments();
+    
+    res.status(200).json({
+      posts,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      total
+    });
   } catch (error) {
-    console.error('Erreur lors de la génération du feed :', error.message);
-    res.status(500).json({ error: 'Erreur interne du serveur.' });
+    console.error('Erreur de récupération des posts:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des posts' });
   }
 });
 
-// Route pour liker un post
-router.post('/:id/like', async (req, res) => {
-  const { id } = req.params;
-  const { user_id } = req.body;
-
-  if (!user_id) {
-    return res.status(400).json({ error: 'user_id est requis.' });
-  }
-
-  try {
-    const post = await PostChoice.findById(id);
-    if (!post) {
-      return res.status(404).json({ error: 'Post introuvable.' });
-    }
-
-    if (!post.likes.includes(user_id)) {
-      post.likes.push(user_id);
-      await post.save();
-
-      const user = await User.findById(user_id);
-      if (user && !user.liked_posts.includes(id)) {
-        user.liked_posts.push(id);
-        await user.save();
-      }
-    }
-
-    res.status(200).json({ message: 'Post liké avec succès.', likes: post.likes });
-  } catch (error) {
-    console.error('Erreur lors du like du post :', error.message);
-    res.status(500).json({ error: 'Erreur interne du serveur.' });
-  }
-});
-
-// Route pour choisir un post (Choice)
-router.post('/:id/choice', async (req, res) => {
-  const { id } = req.params;
-  const { user_id } = req.body;
-
-  if (!user_id) {
-    return res.status(400).json({ error: 'user_id est requis.' });
-  }
-
-  try {
-    const post = await PostChoice.findById(id);
-    if (!post) {
-      return res.status(404).json({ error: 'Post introuvable.' });
-    }
-
-    if (!post.choices.includes(user_id)) {
-      post.choices.push(user_id);
-      await post.save();
-
-      const user = await User.findById(user_id);
-      if (user && !user.choices.includes(id)) {
-        user.choices.push(id);
-        await user.save();
-      }
-    }
-
-    res.status(200).json({ message: 'Post ajouté aux choices avec succès.', choices: post.choices });
-  } catch (error) {
-    console.error('Erreur lors de l\'ajout aux choices :', error.message);
-    res.status(500).json({ error: 'Erreur interne du serveur.' });
-  }
-});
-
-// Route pour récupérer un post spécifique avec les likes et choices
+// GET /api/posts/:id - Obtenir un post par son ID
 router.get('/:id', async (req, res) => {
-  const { id } = req.params;
-
   try {
-    const post = await PostChoice.findById(id)
-      .populate('comments.user_id', 'name email')
-      .populate('likes', 'name')
-      .populate('choices', 'name');
+    const post = await Post.findById(req.params.id);
+    
     if (!post) {
-      return res.status(404).json({ error: 'Post introuvable.' });
+      return res.status(404).json({ error: 'Post non trouvé' });
     }
-
+    
     res.status(200).json(post);
   } catch (error) {
-    console.error('Erreur lors de la récupération du post :', error.message);
-    res.status(500).json({ error: 'Erreur interne du serveur.' });
+    console.error('Erreur de récupération du post:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération du post' });
   }
 });
 
-
-// Fonction pour calculer le score du post
-function calculatePostScore(user, post, now) {
-  let score = 0;
-
-  // Correspondance des tags
-  const tagsMatched = post.tags?.filter((tag) => user.liked_tags.includes(tag)).length || 0;
-  score += tagsMatched * 10;
-
-  // Cercle de confiance
-  if (user.trusted_circle?.includes(post.user_id)) score += 25;
-
-  // Bonus de récence
-  const hoursSincePosted = (now - new Date(post.posted_at)) / (1000 * 60 * 60);
-  score += Math.max(0, 20 - hoursSincePosted);
-
-  return score;
-}
-
-// Fonction pour normaliser les posts
-function normalizePost(post, user) {
-  return {
-    _id: post._id,
-    author_id: post.user_id || post.producer_id || 'Inconnu',
-    author_name: post.author_name || (post.producer_id ? 'Producteur' : 'Utilisateur'),
-    author_photo: post.author_photo || null,
-    title: post.title || 'Titre non spécifié',
-    content: post.content || 'Contenu non disponible',
-    tags: post.tags || [],
-    location: post.location || { name: 'Localisation inconnue', coordinates: [] },
-    event_id: post.event_id || null,
-    media: post.media || [],
-    posted_at: post.posted_at || new Date().toISOString(),
-    relevance_score: calculatePostScore(user, post, new Date()),
-  };
-}
-
-// Route pour récupérer tous les posts
-router.get('/', async (req, res) => {
-  const { userId, page = 1, limit = 10 } = req.query;
-
+// POST /api/posts - Créer un nouveau post
+router.post('/', auth, async (req, res) => {
   try {
-    console.log('🔍 GET /api/posts');
-    console.log('Query params:', { userId, page, limit });
-
-    const [postsChoice, postsRest] = await Promise.all([
-      PostChoice.find()
-        .sort({ posted_at: -1 })
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit))
-        .lean(),
-      PostRest.find()
-        .sort({ posted_at: -1 })
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit))
-        .lean(),
-    ]);
-
-    console.log(`📦 Found ${postsChoice.length} choice posts and ${postsRest.length} rest posts`);
-
-    const posts = [...postsChoice, ...postsRest]
-      .sort((a, b) => new Date(b.posted_at) - new Date(a.posted_at))
-      .slice(0, limit);
-
-    console.log(`🔄 Returning ${posts.length} normalized posts`);
-
-    res.json(posts);
-  } catch (error) {
-    console.error('❌ Error in GET /api/posts:', error);
-    res.status(500).json({ 
-      error: 'Erreur interne du serveur.',
-      details: error.message 
+    const { text, media, location, locationName, tags, producerId, producerType, eventId, isChoice, rating } = req.body;
+    
+    const post = new Post({
+      userId: req.user.id,
+      text,
+      media,
+      location,
+      locationName,
+      tags,
+      producerId,
+      producerType,
+      eventId,
+      isChoice,
+      rating
     });
-  }
-});
-
-// Route pour récupérer un post spécifique par ID - GARDER CETTE ROUTE APRÈS /feed
-router.get('/:id', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ message: 'ID invalide.' });
-    }
-
-    const [postChoice, postRest, event, leisureProducer] = await Promise.all([
-      PostChoice.findById(id).populate('comments.user_id', 'name email'),
-      PostRest.findById(id),
-      Event.findById(id),
-      LeisureProducer.findById(id),
-    ]);
-
-    if (postChoice) return res.status(200).json({ type: 'postChoice', ...postChoice.toObject() });
-    if (postRest) return res.status(200).json({ type: 'postRest', ...postRest.toObject() });
-    if (event) return res.status(200).json({ type: 'event', ...event.toObject() });
-    if (leisureProducer) return res.status(200).json({ type: 'leisureProducer', ...leisureProducer.toObject() });
-
-    res.status(404).json({ message: 'Document non trouvé.' });
-  } catch (error) {
-    console.error('Erreur lors de la récupération du document :', error.message);
-    res.status(500).json({ message: 'Erreur serveur.' });
-  }
-});
-
-// Route pour ajouter un commentaire à un post
-router.post('/:id/comments', async (req, res) => {
-  const { id } = req.params;
-  const { user_id, content } = req.body;
-
-  if (!user_id || !content) {
-    return res.status(400).json({ error: 'user_id et content sont requis.' });
-  }
-
-  try {
-    const post = await PostChoice.findById(id);
-    if (!post) {
-      return res.status(404).json({ error: 'Post introuvable.' });
-    }
-
-    const newComment = { user_id, content };
-    post.comments.push(newComment);
+    
     await post.save();
-
-    const user = await User.findById(user_id);
-    if (!user) {
-      return res.status(404).json({ error: 'Utilisateur introuvable.' });
-    }
-
-    user.comments.push({ post_id: id, content });
-    await user.save();
-
-    res.status(201).json({ message: 'Commentaire ajouté avec succès.', post });
+    
+    res.status(201).json(post);
   } catch (error) {
-    console.error('Erreur lors de l\'ajout du commentaire :', error.message);
-    res.status(500).json({ error: 'Erreur interne du serveur.' });
+    console.error('Erreur de création du post:', error);
+    res.status(500).json({ error: 'Erreur lors de la création du post' });
   }
 });
 
-// Route pour créer un post
-router.post('/', async (req, res) => {
-  const { user_id, target_id, target_type, content, tags, media, choice } = req.body;
-
-  // Vérification des champs obligatoires
-  if (!user_id || !content || !target_id || !target_type) {
-    return res.status(400).json({
-      error: 'Les champs user_id, target_id, target_type, et content sont requis.',
-    });
-  }
-
+// PUT /api/posts/:id - Mettre à jour un post
+router.put('/:id', auth, async (req, res) => {
   try {
-    // Vérifier si le target_type est valide
-    if (!['event', 'producer'].includes(target_type)) {
-      return res.status(400).json({ error: "Le type de cible doit être 'event' ou 'producer'." });
+    const post = await Post.findById(req.params.id);
+    
+    if (!post) {
+      return res.status(404).json({ error: 'Post non trouvé' });
     }
-
-    // Récupérer le modèle correspondant (events ou producers)
-    const targetModel =
-      target_type === 'event'
-        ? Event
-        : target_type === 'producer'
-        ? postsDbRest.model(
-            'Producer',
-            new mongoose.Schema({}, { strict: false }),
-            'Restauration_Producers'
-          )
-        : null;
-
-    if (!targetModel) {
-      return res.status(500).json({ error: "Le modèle cible n'a pas pu être déterminé." });
+    
+    // Vérifier que l'utilisateur est bien le propriétaire du post
+    if (post.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à modifier ce post' });
     }
+    
+    const updates = req.body;
+    
+    // Empêcher la modification de certains champs
+    delete updates.userId;
+    delete updates.createdAt;
+    delete updates.likes;
+    delete updates.comments;
+    delete updates.shares;
+    
+    // Mise à jour du post
+    const updatedPost = await Post.findByIdAndUpdate(
+      req.params.id,
+      { $set: { ...updates, updatedAt: new Date() } },
+      { new: true }
+    );
+    
+    res.status(200).json(updatedPost);
+  } catch (error) {
+    console.error('Erreur de mise à jour du post:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour du post' });
+  }
+});
 
-    // Vérifier l'existence de l'entité associée
-    const targetEntity = await targetModel.findById(target_id);
-    if (!targetEntity) {
-      return res.status(404).json({ error: 'Cible introuvable.' });
+// DELETE /api/posts/:id - Supprimer un post
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    
+    if (!post) {
+      return res.status(404).json({ error: 'Post non trouvé' });
     }
+    
+    // Vérifier que l'utilisateur est bien le propriétaire du post
+    if (post.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à supprimer ce post' });
+    }
+    
+    await Post.findByIdAndDelete(req.params.id);
+    
+    res.status(200).json({ message: 'Post supprimé avec succès' });
+  } catch (error) {
+    console.error('Erreur de suppression du post:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression du post' });
+  }
+});
 
-    // Création du post
-    const newPost = new PostChoice({
-      user_id,
-      target_id,
-      target_type,
-      content,
-      tags: tags || [],
-      media: media || [],
-      posted_at: new Date(),
+// POST /api/posts/:id/like - Aimer un post
+router.post('/:id/like', auth, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    
+    if (!post) {
+      return res.status(404).json({ error: 'Post non trouvé' });
+    }
+    
+    // Vérifier si l'utilisateur a déjà aimé ce post
+    const likeIndex = post.likes.indexOf(req.user.id);
+    
+    if (likeIndex > -1) {
+      // Retirer le like
+      post.likes.splice(likeIndex, 1);
+      await post.save();
+      
+      res.status(200).json({ message: 'Like retiré', isLiked: false, likesCount: post.likes.length });
+    } else {
+      // Ajouter le like
+      post.likes.push(req.user.id);
+      await post.save();
+      
+      res.status(200).json({ message: 'Post aimé', isLiked: true, likesCount: post.likes.length });
+    }
+  } catch (error) {
+    console.error('Erreur lors du like du post:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour du like' });
+  }
+});
+
+// POST /api/posts/:id/comment - Commenter un post
+router.post('/:id/comment', auth, async (req, res) => {
+  try {
+    const { text } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ error: 'Le texte du commentaire est requis' });
+    }
+    
+    const post = await Post.findById(req.params.id);
+    
+    if (!post) {
+      return res.status(404).json({ error: 'Post non trouvé' });
+    }
+    
+    // Ajouter le commentaire
+    post.comments.push({
+      userId: req.user.id,
+      text,
+      createdAt: new Date()
     });
+    
+    await post.save();
+    
+    res.status(201).json({ message: 'Commentaire ajouté', comment: post.comments[post.comments.length - 1] });
+  } catch (error) {
+    console.error('Erreur lors de l\'ajout du commentaire:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'ajout du commentaire' });
+  }
+});
 
-    // Sauvegarder le post
-    const savedPost = await newPost.save();
+// GET /api/posts/user/:userId - Obtenir les posts d'un utilisateur
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const posts = await Post.find({ userId: req.params.userId })
+      .sort({ createdAt: -1 });
+    
+    res.status(200).json(posts);
+  } catch (error) {
+    console.error('Erreur de récupération des posts de l\'utilisateur:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des posts de l\'utilisateur' });
+  }
+});
 
-    // Ajouter l'utilisateur au choix de la cible si "choice" est précisé
-    if (choice) {
-      targetEntity.choices = targetEntity.choices || [];
-      if (!targetEntity.choices.includes(user_id)) {
-        targetEntity.choices.push(user_id);
-        await targetEntity.save();
-      }
+// GET /api/posts/producer/:producerId - Obtenir les posts liés à un producteur
+router.get('/producer/:producerId', async (req, res) => {
+  try {
+    const posts = await Post.find({ producerId: req.params.producerId })
+      .sort({ createdAt: -1 });
+    
+    res.status(200).json(posts);
+  } catch (error) {
+    console.error('Erreur de récupération des posts du producteur:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des posts du producteur' });
+  }
+});
+
+// GET /api/posts/event/:eventId - Obtenir les posts liés à un événement
+router.get('/event/:eventId', async (req, res) => {
+  try {
+    const posts = await Post.find({ eventId: req.params.eventId })
+      .sort({ createdAt: -1 });
+    
+    res.status(200).json(posts);
+  } catch (error) {
+    console.error('Erreur de récupération des posts de l\'événement:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des posts de l\'événement' });
+  }
+});
+
+// POST /api/posts/:id/share - Partager un post
+router.post('/:id/share', auth, async (req, res) => {
+  try {
+    const originalPost = await Post.findById(req.params.id);
+    
+    if (!originalPost) {
+      return res.status(404).json({ error: 'Post non trouvé' });
+    }
+    
+    // Incrémenter le compteur de partages du post original
+    originalPost.shares = (originalPost.shares || 0) + 1;
+    await originalPost.save();
+    
+    // Créer un nouveau post qui partage l'original
+    const { text } = req.body;
+    
+    const sharedPost = new Post({
+      userId: req.user.id,
+      text: text || '',
+      sharedPostId: originalPost._id,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    
+    await sharedPost.save();
+    
+    res.status(201).json(sharedPost);
+  } catch (error) {
+    console.error('Erreur lors du partage du post:', error);
+    res.status(500).json({ error: 'Erreur lors du partage du post' });
+  }
+});
+
+// POST /api/posts/:id/view - Enregistrer une vue sur un post
+router.post('/:id/view', async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const { userId } = req.body;
+
+    if (!postId) {
+      return res.status(400).json({ error: 'ID du post est requis' });
     }
 
-    res.status(201).json({
-      message: 'Post créé avec succès.',
-      post_id: savedPost._id,
+    // Vérifier si le post existe
+    const post = await Post.findById(postId);
+    
+    if (!post) {
+      return res.status(404).json({ error: 'Post non trouvé' });
+    }
+    
+    // Incrémenter le compteur de vues du post
+    post.views_count = (post.views_count || 0) + 1;
+    
+    // Si c'est la première vue, initialiser le tableau des vues
+    if (!post.views) {
+      post.views = [];
+    }
+    
+    // Ajouter un enregistrement de vue si userId est fourni
+    if (userId) {
+      post.views.push({
+        userId,
+        timestamp: new Date()
+      });
+    }
+    
+    await post.save();
+    
+    res.status(200).json({ 
+      success: true,
+      views_count: post.views_count
     });
   } catch (error) {
-    console.error('Erreur lors de la création du post :', error.message);
-    res.status(500).json({ error: 'Erreur interne du serveur.' });
+    console.error('Erreur lors de l\'enregistrement de la vue du post:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'enregistrement de la vue' });
   }
 });
 

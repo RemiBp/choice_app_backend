@@ -5,22 +5,35 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "check-db": "node check_all_mongodb.js",
+    "check-indexes": "node scripts/createIndexes.js --check-only",
+    "fix-indexes": "node scripts/createIndexes.js",
+    "fix-fields": "node scripts/fixMissingFields.js",
+    "fix-collections": "node scripts/fixCollections.js",
+    "repair-db": "npm run fix-collections && npm run fix-indexes && npm run fix-fields",
+    "backup-db": "node scripts/backupMongoDB.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@sendgrid/mail": "^7.7.0",
     "axios": "^1.8.0",
     "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
     "body-parser": "^1.20.3",
+    "compression": "^1.8.0",
     "cors": "^2.8.5",
+    "crypto": "^1.0.1",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.12.1",
     "node-cron": "^3.0.3",
+    "nodemailer": "^6.10.0",
     "openai": "^4.86.1",
     "stripe": "^17.6.0"
   }

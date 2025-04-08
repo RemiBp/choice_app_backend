@@ -1,37 +1,40 @@
 const mongoose = require('mongoose');
+const { choiceAppDb } = require('../index');
 
 // Schéma pour les messages
 const MessageSchema = new mongoose.Schema({
-  senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  content: { type: String, required: true },
+  senderId: String,
+  content: String,
   timestamp: { type: Date, default: Date.now },
+  media: [String],
+  contentType: { type: String, default: 'text' },
+  readBy: [String],
+  sharedContent: mongoose.Schema.Types.Mixed
 });
 
-// Schéma pour les conversations
+// Schéma pour une conversation
 const ConversationSchema = new mongoose.Schema({
-  participants: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true, // Validation pour s'assurer que les participants sont fournis
-      validate: {
-        validator: mongoose.Types.ObjectId.isValid,
-        message: 'Participant doit être un ObjectId valide.',
-      },
-    },
-  ],
+  participants: [String],
+  isGroup: { type: Boolean, default: false },
+  groupName: String,
+  groupAvatar: String,
   messages: [MessageSchema],
+  createdAt: { type: Date, default: Date.now },
   lastUpdated: { type: Date, default: Date.now },
+  lastMessage: String,
+  unreadCount: { type: Number, default: 0 },
+  isProducerConversation: { type: Boolean, default: false },
+  producerId: String,
+  producerType: { type: String, enum: ['restaurant', 'leisure', 'beauty', 'wellness'] }
+}, {
+  strict: false
 });
 
-// Créer un tableau de participants à partir des IDs
-module.exports.createConversationParticipants = (senderId, recipientIds) => {
-  if (!senderId || !recipientIds) {
-    throw new Error('Les IDs des participants ne peuvent pas être vides.');
-  }
+// Création des modèles
+const Conversation = choiceAppDb.model('Conversation', ConversationSchema, 'conversations');
+const Message = choiceAppDb.model('Message', MessageSchema, 'messages');
 
-  return [senderId, ...recipientIds].map((id) => mongoose.Types.ObjectId(id));
+module.exports = {
+  Conversation,
+  Message
 };
-
-// Exporter le modèle Conversation
-module.exports = mongoose.model('Conversation', ConversationSchema);

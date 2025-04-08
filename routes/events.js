@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const eventController = require('../controllers/eventController');
+const Event = require('../models/event');
+const auth = require('../middleware/auth');
 
 // Connexion à la base Loisir&Culture
 const eventDb = mongoose.createConnection(process.env.MONGO_URI, {
@@ -10,11 +13,17 @@ const eventDb = mongoose.createConnection(process.env.MONGO_URI, {
 });
 
 // Modèle pour la collection des événements
-const Event = eventDb.model(
+const EventModel = eventDb.model(
   'Event',
   new mongoose.Schema({}, { strict: false }),
   'Loisir_Paris_Evenements' // Nom exact de la collection dans MongoDB
 );
+
+// Utiliser le contrôleur pour les routes standard
+router.get('/', eventController.getAllEvents);
+router.post('/', eventController.createEvent);
+router.put('/:id', eventController.updateEvent);
+router.delete('/:id', eventController.deleteEvent);
 
 // **Recherche avancée avec filtres**
 router.get('/advanced-search', async (req, res) => {
@@ -73,7 +82,7 @@ router.get('/advanced-search', async (req, res) => {
     console.log('🔍 Recherche avancée avec les critères :', query);
 
     // Exécuter la requête
-    const events = await Event.find(query);
+    const events = await EventModel.find(query);
 
     console.log(`🔍 ${events.length} événement(s) trouvé(s)`);
 
@@ -109,58 +118,153 @@ router.get('/advanced-search', async (req, res) => {
 });
 
 // **Recherche par mot-clé**
-router.get('/search', async (req, res) => {
+router.get('/search', eventController.searchEvents);
+
+// GET /api/events/category/:category - Obtenir les événements par catégorie
+router.get('/category/:category', async (req, res) => {
   try {
-    const { query } = req.query;
-
-    if (!query || query.trim() === '') {
-      return res.status(400).json({ message: 'Veuillez fournir un mot-clé pour la recherche.' });
-    }
-
-    console.log('🔍 Recherche pour le mot-clé :', query);
-
-    const events = await Event.find({
+    const events = await EventModel.find({
       $or: [
-        { intitulé: { $regex: query, $options: 'i' } },
-        { catégorie: { $regex: query, $options: 'i' } },
-        { détail: { $regex: query, $options: 'i' } },
-      ],
-    }).select('intitulé catégorie photo adresse');
-
-    console.log(`🔍 ${events.length} événement(s) trouvé(s)`);
-
-    if (events.length === 0) {
-      return res.status(404).json([]);
-    }
-
-    res.json(events);
-  } catch (err) {
-    console.error('❌ Erreur lors de la recherche des événements :', err);
-    res.status(500).json({ message: 'Erreur interne du serveur.' });
+        { catégorie: { $regex: req.params.category, $options: 'i' } },
+        { category: { $regex: req.params.category, $options: 'i' } }
+      ]
+    }).limit(50);
+    
+    res.status(200).json(events);
+  } catch (error) {
+    console.error('Erreur de récupération des événements par catégorie:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des événements par catégorie' });
   }
 });
 
-// **Recherche par ID**
-router.get('/:id', async (req, res) => {
-  const { id } = req.params;
-
+// GET /api/events/filter/upcoming - Obtenir les événements à venir
+router.get('/filter/upcoming', async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ message: 'ID invalide.' });
-    }
-
-    console.log(`🔍 Recherche d'un événement avec ID : ${id}`);
-    const event = await Event.findById(id);
-
-    if (!event) {
-      return res.status(404).json({ message: 'Événement non trouvé.' });
-    }
-
-    res.status(200).json(event);
-  } catch (err) {
-    console.error(`❌ Erreur lors de la récupération de l'événement :`, err.message);
-    res.status(500).json({ message: 'Erreur interne du serveur.' });
+    const today = new Date();
+    
+    const events = await EventModel.find({
+      $or: [
+        { date_debut: { $gte: today } },
+        { date: { $gte: today } },
+        { startDate: { $gte: today } },
+        { prochaines_dates: { $gte: today } }
+      ]
+    }).limit(50).sort({ date_debut: 1 });
+    
+    res.status(200).json(events);
+  } catch (error) {
+    console.error('Erreur de récupération des événements à venir:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des événements à venir' });
   }
 });
+
+// GET /api/events/nearby - Obtenir les événements à proximité
+router.get('/nearby', eventController.getNearbyEvents);
+
+// GET /api/events/popular - Obtenir les événements populaires
+router.get('/popular', eventController.getPopularEvents);
+
+// POST /api/events/:id/interested - Marquer l'intérêt pour un événement
+router.post('/:id/interested', auth, async (req, res) => {
+  try {
+    const event = await EventModel.findById(req.params.id);
+    
+    if (!event) {
+      return res.status(404).json({ error: 'Événement non trouvé' });
+    }
+    
+    // Initialiser le tableau si nécessaire
+    if (!event.interestedUsers) {
+      event.interestedUsers = [];
+    }
+    
+    // Vérifier si l'utilisateur est déjà intéressé
+    const userIndex = event.interestedUsers.indexOf(req.user.id);
+    
+    if (userIndex > -1) {
+      // Retirer l'intérêt
+      event.interestedUsers.splice(userIndex, 1);
+      await event.save();
+      
+      res.status(200).json({ message: 'Vous n\'êtes plus intéressé par cet événement', isInterested: false });
+    } else {
+      // Ajouter l'intérêt
+      event.interestedUsers.push(req.user.id);
+      await event.save();
+      
+      res.status(200).json({ message: 'Vous êtes maintenant intéressé par cet événement', isInterested: true });
+    }
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de l\'intérêt:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour de l\'intérêt' });
+  }
+});
+
+// POST /api/events/:id/choice - Marquer un événement comme un choix
+router.post('/:id/choice', auth, async (req, res) => {
+  try {
+    const event = await EventModel.findById(req.params.id);
+    
+    if (!event) {
+      return res.status(404).json({ error: 'Événement non trouvé' });
+    }
+    
+    // Initialiser le tableau si nécessaire
+    if (!event.choiceUsers) {
+      event.choiceUsers = [];
+    }
+    
+    // Vérifier si l'utilisateur a déjà choisi cet événement
+    const userIndex = event.choiceUsers.findIndex(choice => choice.userId === req.user.id);
+    
+    if (userIndex > -1) {
+      // Retirer le choix
+      event.choiceUsers.splice(userIndex, 1);
+      event.choice_count = Math.max(0, (event.choice_count || 0) - 1);
+      await event.save();
+      
+      res.status(200).json({ message: 'Événement retiré de vos choix', isChoice: false });
+    } else {
+      // Ajouter le choix
+      event.choiceUsers.push({ userId: req.user.id });
+      event.choice_count = (event.choice_count || 0) + 1;
+      await event.save();
+      
+      res.status(200).json({ message: 'Événement ajouté à vos choix', isChoice: true });
+    }
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du choix:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour du choix' });
+  }
+});
+
+// POST /api/events/user/:userId/favorites - Ajouter un événement aux favoris
+router.post('/user/:userId/favorites', eventController.addToFavorites);
+
+// DELETE /api/events/user/:userId/favorites - Retirer un événement des favoris
+router.delete('/user/:userId/favorites', eventController.removeFromFavorites);
+
+// GET /api/events/producer/:producerId - Obtenir les événements d'un producteur
+router.get('/producer/:producerId', async (req, res) => {
+  try {
+    const { producerId } = req.params;
+    
+    const events = await EventModel.find({
+      $or: [
+        { producer_id: producerId },
+        { producerId: producerId },
+        { venue_id: producerId }
+      ]
+    }).sort({ date_debut: 1 });
+    
+    res.status(200).json({ events });
+  } catch (error) {
+    console.error('Erreur de récupération des événements du producteur:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des événements du producteur' });
+  }
+});
+
+// GET /api/events/:id - Obtenir un événement par ID (doit être placé à la fin pour éviter les conflits de routes)
+router.get('/:id', eventController.getEventById);
 
 module.exports = router;

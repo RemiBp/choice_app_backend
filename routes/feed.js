@@ -1,83 +1,30 @@
 const express = require('express');
-const router = express.Router(); // Définition du routeur
-const calculateDistance = require('../services/distanceService'); // Fonction utilitaire pour la distance
+const router = express.Router();
+const feedController = require('../controllers/feedController');
 
-// Fonction pour calculer le score du post
-function calculatePostScore(user, post, now) {
-  let score = 0;
+/**
+ * Routes pour le flux d'activité
+ */
 
-  // Correspondance des tags
-  const tagsMatched = post.tags?.filter((tag) => user.liked_tags.includes(tag)).length || 0;
-  score += tagsMatched * 10;
+// GET /api/feed - Obtenir le flux d'activité principal
+router.get('/', feedController.getFeed);
 
-  // Cercle de confiance
-  if (user.trusted_circle?.includes(post.author_id)) score += 25;
+// GET /api/feed/discovery - Obtenir le flux de découverte
+router.get('/discovery', feedController.getDiscoveryFeed);
 
-  // Bonus de récence
-  const hoursSincePosted = (now - new Date(post.time_posted)) / (1000 * 60 * 60);
-  score += Math.max(0, 20 - hoursSincePosted);
+// GET /api/feed/following - Obtenir le flux des utilisateurs suivis
+router.get('/following', feedController.getFollowingFeed);
 
-  // Retour du score
-  return score;
-}
+// GET /api/feed/trending - Obtenir les contenus tendance
+router.get('/trending', feedController.getTrendingContent);
 
-// Route principale pour générer le feed
-router.get('/', async (req, res) => {
-  const { userId, limit = 10, query } = req.query;
+// GET /api/feed/nearby - Obtenir les activités à proximité
+router.get('/nearby', feedController.getNearbyActivities);
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID est requis.' });
-  }
+// GET /api/feed/categories - Obtenir le flux par catégorie
+router.get('/categories/:category', feedController.getFeedByCategory);
 
-  try {
-    // Récupération des collections MongoDB
-    const usersCollection = req.app.locals.db.usersCollection;
-    const postsCollection = req.app.locals.db.postsCollection;
-
-    // Récupération de l'utilisateur
-    const user = await usersCollection.findOne({ _id: userId });
-    if (!user) {
-      return res.status(404).json({ error: 'Utilisateur non trouvé.' });
-    }
-
-    // Récupération de tous les posts
-    let posts = await postsCollection.find().toArray();
-
-    // Filtrer par mots-clés si une requête est fournie
-    if (query) {
-      const queryRegex = new RegExp(query, 'i');
-      posts = posts.filter(
-        (post) =>
-          queryRegex.test(post.description) ||
-          post.tags.some((tag) => queryRegex.test(tag))
-      );
-    }
-
-    const now = new Date();
-
-    // Enrichir les posts et calculer le score
-    const feed = await Promise.all(
-      posts.map(async (post) => {
-        const score = calculatePostScore(user, post, now);
-        return {
-          ...post,
-          author_name: post.author_type === 'user' ? 'John Doe' : 'Terry\'s',
-          author_photo: post.author_photo || null,
-          relevance_score: score,
-        };
-      })
-    );
-
-    // Trier les posts par score et limiter les résultats
-    const sortedFeed = feed
-      .sort((a, b) => b.relevance_score - a.relevance_score)
-      .slice(0, limit);
-
-    res.json(sortedFeed);
-  } catch (error) {
-    console.error('Erreur lors de la génération du feed :', error);
-    res.status(500).json({ error: 'Erreur interne du serveur.' });
-  }
-});
+// GET /api/feed/user/:userId - Obtenir le flux d'un utilisateur
+router.get('/user/:userId', feedController.getUserFeed);
 
 module.exports = router; // Exportation du routeur

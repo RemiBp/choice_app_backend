@@ -1,7 +1,40 @@
 const express = require('express');
-const router = express.Router();
 const Post = require('../models/Post');
+const User = require('../models/User');
 const { UserChoice } = require('../models/User');
+const router = express.Router();
+
+// Routes pour le partage de contenus
+router.post('/post/:postId', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { userId, text } = req.body;
+
+    // Vérifier si le post existe
+    const originalPost = await Post.findById(postId);
+    if (!originalPost) {
+      return res.status(404).json({ message: 'Post non trouvé' });
+    }
+
+    // Créer un nouveau post de partage
+    const sharedPost = new Post({
+      userId,
+      text,
+      sharedPostId: postId,
+      isChoice: false
+    });
+
+    await sharedPost.save();
+
+    // Incrementer le compteur de partages du post original
+    originalPost.shares = (originalPost.shares || 0) + 1;
+    await originalPost.save();
+
+    res.status(201).json(sharedPost);
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur lors du partage', error: error.message });
+  }
+});
 
 // Sauvegarder un post
 router.post('/save', async (req, res) => {

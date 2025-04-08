@@ -2,6 +2,11 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Conversation = require('../models/conversation'); // Import du modèle
+const producerController = require('../controllers/producerController');
+const { restaurationDb } = require('../index');
+const Producer = require('../models/Producer');
+const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 
 // Connexion à la base Restauration_Officielle
 const producerDb = mongoose.createConnection(process.env.MONGO_URI, {
@@ -11,131 +16,301 @@ const producerDb = mongoose.createConnection(process.env.MONGO_URI, {
 });
 
 // Modèle pour la collection producers
-const Producer = producerDb.model(
-  'Producer',
-  new mongoose.Schema({}, { strict: false }),
-  'producers'
-);
+const ProducerSchema = new mongoose.Schema({
+  place_id: String,
+  name: String,
+  verified: Boolean,
+  photo: String,
+  description: String,
+  menu: Array,
+  address: String,
+  gps_coordinates: {
+    type: { type: String, enum: ['Point'] },
+    coordinates: [Number]
+  },
+  category: [String],
+  opening_hours: [String],
+  phone_number: String,
+  website: String,
+  notes_globales: {
+    service: Number,
+    lieu: Number,
+    portions: Number,
+    ambiance: Number
+  },
+  abonnés: Number,
+  photos: [String],
+  rating: Number,
+  price_level: Number,
+  promotion: {
+    active: Boolean,
+    discountPercentage: Number,
+    endDate: Date
+  }
+});
 
-// Endpoint : Recherche de producteurs proches avec filtres avancés
+// Ajouter l'index géospatial
+ProducerSchema.index({ gps_coordinates: '2dsphere' });
+
+// Création du modèle
+const ProducerModel = producerDb.model('producer', ProducerSchema, 'producers');
+
+// Middleware d'authentification (à importer si nécessaire)
+const auth = async (req, res, next) => {
+  // Votre logique d'authentification ici
+  next();
+};
+
+/**
+ * Routes pour les producteurs (restaurants)
+ */
+
+// GET /api/producers - Obtenir tous les restaurants avec pagination
+router.get('/', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    
+    const producers = await ProducerModel.find()
+      .skip(skip)
+      .limit(limit);
+    
+    const total = await ProducerModel.countDocuments();
+    
+    res.status(200).json({
+      producers,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      total
+    });
+  } catch (error) {
+    console.error('Erreur de récupération des restaurants:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des restaurants' });
+  }
+});
+
+// GET /api/producers/search - Rechercher des restaurants
+router.get('/search', async (req, res) => {
+  try {
+    const { query, category, price_level, rating } = req.query;
+    const searchQuery = {};
+    
+    if (query) {
+      searchQuery.$or = [
+        { name: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } }
+      ];
+    }
+    
+    if (category) {
+      searchQuery.category = { $in: Array.isArray(category) ? category : [category] };
+    }
+    
+    if (price_level) {
+      searchQuery.price_level = parseInt(price_level);
+    }
+    
+    if (rating) {
+      searchQuery.rating = { $gte: parseFloat(rating) };
+    }
+    
+    const producers = await ProducerModel.find(searchQuery).limit(50);
+    
+    res.status(200).json(producers);
+  } catch (error) {
+    console.error('Erreur de recherche des restaurants:', error);
+    res.status(500).json({ error: 'Erreur lors de la recherche des restaurants' });
+  }
+});
+
+// GET /api/producers/featured - Obtenir les restaurants mis en avant
+router.get('/featured', async (req, res) => {
+  try {
+    const featured = await ProducerModel.find({ featured: true }).limit(10);
+    res.status(200).json(featured);
+  } catch (error) {
+    console.error('Erreur de récupération des restaurants en vedette:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des restaurants en vedette' });
+  }
+});
+
+// GET /api/producers/:id - Obtenir un restaurant par son ID
+router.get('/:id', async (req, res) => {
+  try {
+    const producer = await ProducerModel.findById(req.params.id);
+    
+    if (!producer) {
+      return res.status(404).json({ error: 'Restaurant non trouvé' });
+    }
+    
+    res.status(200).json(producer);
+  } catch (error) {
+    console.error('Erreur de récupération du restaurant:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération du restaurant' });
+  }
+});
+
+// POST /api/producers/:id/follow - Suivre un restaurant (nécessite authentification)
+router.post('/:id/follow', auth, async (req, res) => {
+  try {
+    const producer = await ProducerModel.findById(req.params.id);
+    
+    if (!producer) {
+      return res.status(404).json({ error: 'Restaurant non trouvé' });
+    }
+    
+    // Si l'utilisateur suit déjà ce restaurant, le retirer de la liste
+    const userIndex = producer.followers.indexOf(req.user.id);
+    
+    if (userIndex > -1) {
+      producer.followers.splice(userIndex, 1);
+      producer.abonnés = Math.max(0, producer.abonnés - 1);
+      await producer.save();
+      
+      res.status(200).json({ message: 'Vous ne suivez plus ce restaurant', isFollowing: false });
+    } else {
+      // Sinon, ajouter l'utilisateur à la liste des abonnés
+      producer.followers.push(req.user.id);
+      producer.abonnés += 1;
+      await producer.save();
+      
+      res.status(200).json({ message: 'Vous suivez désormais ce restaurant', isFollowing: true });
+    }
+  } catch (error) {
+    console.error('Erreur lors du suivi du restaurant:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour du suivi' });
+  }
+});
+
+// GET /api/producers/by-place-id/:placeId - Obtenir un restaurant par place_id (Google Maps)
+router.get('/by-place-id/:placeId', async (req, res) => {
+  try {
+    const producer = await ProducerModel.findOne({ place_id: req.params.placeId });
+    
+    if (!producer) {
+      return res.status(404).json({ error: 'Restaurant non trouvé' });
+    }
+    
+    res.status(200).json(producer);
+  } catch (error) {
+    console.error('Erreur de récupération du restaurant:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération du restaurant' });
+  }
+});
+
+// GET /api/producers/category/:category - Obtenir les restaurants par catégorie
+router.get('/category/:category', async (req, res) => {
+  try {
+    const producers = await ProducerModel.find({
+      category: { $in: [req.params.category] }
+    }).limit(50);
+    
+    res.status(200).json(producers);
+  } catch (error) {
+    console.error('Erreur de récupération des restaurants par catégorie:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des restaurants par catégorie' });
+  }
+});
+
+// GET /api/producers/nearby - Obtenir les restaurants à proximité
 router.get('/nearby', async (req, res) => {
   try {
-    const {
-      latitude,
-      longitude,
-      radius = 5000,
-      minRating,
-      minServiceRating,
-      minLocationRating,
-      minPortionRating,
-      minAmbianceRating,
-      openingHours, // Format attendu : "Monday: 9:00 AM – 12:00 AM"
-      choice,
-      minFavorites,
-      maxCarbonFootprint,
-      minCalories,
-      maxCalories,
-      nutriScores, // A, B, C, D, E
-      itemName,
-      category,
-      minPrice,
-      maxPrice,
-      minItemRating, // Renommé pour les filtres de note des items
-      maxItemRating,
-    } = req.query;
-
-    if (!latitude || !longitude) {
-      return res.status(400).json({ message: 'Latitude et longitude sont nécessaires.' });
+    const { lat, lng, radius = 5000, limit = 20 } = req.query;
+    
+    if (!lat || !lng) {
+      return res.status(400).json({ error: 'Les coordonnées GPS sont requises (lat, lng)' });
     }
-
-    console.log(`🔍 Recherche combinée : [lat=${latitude}, long=${longitude}, rayon=${radius}m]`);
-
-    // Filtres spécifiques aux restaurants
-    const restaurantFilters = {
+    
+    const producers = await ProducerModel.find({
       gps_coordinates: {
         $near: {
           $geometry: {
             type: 'Point',
-            coordinates: [parseFloat(longitude), parseFloat(latitude)],
+            coordinates: [parseFloat(lng), parseFloat(lat)]
           },
-          $maxDistance: parseInt(radius),
-        },
-      },
-      ...(minRating && { rating: { $gte: parseFloat(minRating) } }),
-      ...(minServiceRating && { 'notes_globales.service': { $gte: parseFloat(minServiceRating) } }),
-      ...(minLocationRating && { 'notes_globales.lieu': { $gte: parseFloat(minLocationRating) } }),
-      ...(minPortionRating && { 'notes_globales.portions': { $gte: parseFloat(minPortionRating) } }),
-      ...(minAmbianceRating && { 'notes_globales.ambiance': { $gte: parseFloat(minAmbianceRating) } }),
-      ...(minFavorites && { abonnés: { $gte: parseInt(minFavorites) } }),
-      ...(category && { category: { $regex: category, $options: 'i' } }),
-      ...(choice && { choice: { $regex: choice, $options: 'i' } }),
-    };
-
-    // Gestion des horaires d'ouverture
-    if (openingHours) {
-      const [day, timeRange] = openingHours.split(':'); // Ex : "Monday: 9:00 AM – 12:00 AM"
-      if (day && timeRange) {
-        const times = timeRange.trim().split('–'); // Ex : ["9:00 AM", "12:00 AM"]
-        if (times.length === 2) {
-          const [startTime, endTime] = times.map((time) => time.trim());
-          restaurantFilters.opening_hours = {
-            $regex: new RegExp(`${day}:.*(${startTime}|${endTime})`, 'i'),
-          };
-        } else {
-          console.error('❌ Format des horaires incorrect:', timeRange);
+          $maxDistance: parseInt(radius)
         }
-      } else {
-        console.error('❌ Format des horaires incorrect:', openingHours);
       }
-    }
-
-    // Filtres spécifiques aux items des menus
-    const itemFilters = {
-      ...(itemName && { 'structured_data.Items Indépendants.items.nom': { $regex: itemName, $options: 'i' } }),
-      ...(minPrice && { 'structured_data.Items Indépendants.items.prix': { $gte: parseFloat(minPrice) } }),
-      ...(maxPrice && { 'structured_data.Items Indépendants.items.prix': { $lte: parseFloat(maxPrice) } }),
-      ...(minCalories && {
-        'structured_data.Items Indépendants.items.nutrition.calories': { $gte: parseFloat(minCalories) },
-      }),
-      ...(maxCalories && {
-        'structured_data.Items Indépendants.items.nutrition.calories': { $lte: parseFloat(maxCalories) },
-      }),
-      ...(maxCarbonFootprint && {
-        'structured_data.Items Indépendants.items.carbon_footprint': { $lte: parseFloat(maxCarbonFootprint) },
-      }),
-      ...(nutriScores && {
-        'structured_data.Items Indépendants.items.nutri_score': { $in: nutriScores.split(',') },
-      }),
-      ...(minItemRating && {
-        'structured_data.Items Indépendants.items.note': {
-          $gte: parseFloat(minItemRating), // Utilisation de minItemRating
-        },
-      }),
-      ...(maxItemRating && {
-        'structured_data.Items Indépendants.items.note': {
-          $lte: parseFloat(maxItemRating), // Idem pour la note maximale
-        },
-      }),
-    };
-
-    // Combiner les deux filtres
-    const query = {
-      ...restaurantFilters,
-      ...(Object.keys(itemFilters).length > 0 && { $and: [itemFilters] }),
-    };
-
-    // Effectuer la requête sur la base de données
-    const producers = await Producer.find(query).select(
-      'name address gps_coordinates photo description abonnés rating notes_globales opening_hours structured_data'
-    );
-
-    console.log(`🔍 Producteurs trouvés : ${producers.length}`);
-    res.json(producers);
-  } catch (err) {
-    console.error('❌ Erreur lors de la recherche combinée :', err);
-    res.status(500).json({ message: 'Erreur interne du serveur.' });
+    }).limit(parseInt(limit));
+    
+    res.status(200).json(producers);
+  } catch (error) {
+    console.error('Erreur de récupération des restaurants à proximité:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des restaurants à proximité' });
   }
 });
+
+/**
+ * @route GET /api/producers/:producerId/events
+ * @desc Get events for a specific producer
+ * @access Public
+ */
+router.get('/:producerId/events', async (req, res) => {
+  try {
+    const { producerId } = req.params;
+
+    // Find producer to validate it exists
+    const producer = await ProducerModel.findById(producerId);
+    
+    if (!producer) {
+      return res.status(404).json({ message: 'Producer not found' });
+    }
+    
+    // Query events from the events collection
+    // First try to get events where this producer is marked as producerId
+    const EventModel = mongoose.model('Event');
+    let events = await EventModel.find({ producerId: producerId })
+      .sort({ startTime: 1 })
+      .limit(50);
+    
+    // If no events found, also try to find by venueId
+    if (!events || events.length === 0) {
+      events = await EventModel.find({ venueId: producerId })
+        .sort({ startTime: 1 })
+        .limit(50);
+    }
+    
+    // If the producer has embedded events in their data, include those too
+    let combinedEvents = [...events];
+    
+    if (producer.events && Array.isArray(producer.events) && producer.events.length > 0) {
+      // Add any events that aren't already included (check by ID)
+      const existingIds = events.map(e => e._id.toString());
+      
+      for (const event of producer.events) {
+        // Check if this embedded event is already included
+        if (event._id && !existingIds.includes(event._id.toString())) {
+          combinedEvents.push(event);
+        } else if (!event._id) {
+          // If no ID, just add it
+          combinedEvents.push(event);
+        }
+      }
+    }
+    
+    // Sort all events by date
+    combinedEvents.sort((a, b) => {
+      const dateA = new Date(a.startTime || a.date || 0);
+      const dateB = new Date(b.startTime || b.date || 0);
+      return dateA - dateB;
+    });
+    
+    res.status(200).json(combinedEvents);
+  } catch (error) {
+    console.error('Error fetching producer events:', error);
+    res.status(500).json({ message: 'Error fetching producer events', error: error.message });
+  }
+});
+
+// GET /api/producers/:producerId/relations - Obtenir les relations d'un producteur
+router.get('/:producerId/relations', producerController.getProducerRelations);
+
+// POST /api/producers/user/:userId/favorites - Ajouter un producteur aux favoris
+router.post('/user/:userId/favorites', producerController.addToFavorites);
+
+// DELETE /api/producers/user/:userId/favorites - Retirer un producteur des favoris
+router.delete('/user/:userId/favorites', producerController.removeFromFavorites);
 
 // Endpoint : Recherche de producteurs par mots-clés
 router.get('/search', async (req, res) => {
@@ -148,7 +323,7 @@ router.get('/search', async (req, res) => {
 
     console.log('🔍 Recherche pour le mot-clé :', query);
 
-    const producers = await Producer.find({
+    const producers = await ProducerModel.find({
       $or: [
         { name: { $regex: query, $options: 'i' } },
         { address: { $regex: query, $options: 'i' } },
@@ -179,7 +354,7 @@ router.get('/:id', async (req, res) => {
     }
 
     console.log(`🔍 Recherche d'un producteur avec ID : ${id}`);
-    const producer = await Producer.findById(id);
+    const producer = await ProducerModel.findById(id);
 
     if (!producer) {
       return res.status(404).json({ message: 'Producteur non trouvé.' });
@@ -240,7 +415,7 @@ router.post('/conversations/new-message', async (req, res) => {
 
     // Mettre à jour le champ `conversations` des producteurs concernés
     const updateProducerConversations = async (producerId) => {
-      await Producer.findByIdAndUpdate(
+      await ProducerModel.findByIdAndUpdate(
         producerId,
         { $addToSet: { conversations: conversation._id } }, // $addToSet évite les doublons
         { new: true }
@@ -263,14 +438,13 @@ router.post('/conversations/new-message', async (req, res) => {
   }
 });
 
-
-// Endpoint : Récupérer les conversations d’un producteur
+// Endpoint : Récupérer les conversations d'un producteur
 router.get('/:producerId/conversations', async (req, res) => {
   const { producerId } = req.params;
 
   try {
     // Vérifiez que le producteur existe
-    const producer = await Producer.findById(producerId);
+    const producer = await ProducerModel.findById(producerId);
     if (!producer) {
       return res.status(404).json({ message: 'Producteur non trouvé.' });
     }
@@ -287,52 +461,6 @@ router.get('/:producerId/conversations', async (req, res) => {
   }
 });
 
-// Endpoint : Récupérer les informations sur interestedUsers, choiceUsers, following, et followers d'un producteur
-// Endpoint : Récupérer les relations (followers, following, interestedUsers, choiceUsers) d'un producteur
-router.get('/:producerId/relations', async (req, res) => {
-  const { producerId } = req.params;
-
-  try {
-    // Vérifiez que le producteur existe
-    const producer = await Producer.findById(producerId).select(
-      'followers following choiceUsers interestedUsers'
-    );
-
-    if (!producer) {
-      return res.status(404).json({ message: 'Producteur non trouvé.' });
-    }
-
-    console.log('Relations récupérées depuis la base de données:', producer);
-
-    // Structure des données avec les décomptes
-    const data = {
-      followers: {
-        count: producer.followers?.length || 0,
-        users: producer.followers?.map((id) => id.toString()) || [], // Conversion en string
-      },
-      following: {
-        count: producer.following?.length || 0,
-        users: producer.following?.map((id) => id.toString()) || [], // Conversion en string
-      },
-      choiceUsers: {
-        count: producer.choiceUsers?.length || 0,
-        users: producer.choiceUsers?.map(({ userId }) => userId.toString()) || [], // Conversion en string
-      },
-      interestedUsers: {
-        count: producer.interestedUsers?.length || 0,
-        users: producer.interestedUsers?.map((id) => id.toString()) || [], // Conversion en string
-      },
-    };  
-
-    console.log('Données à renvoyer au frontend:', data);
-
-    res.status(200).json(data);
-  } catch (error) {
-    console.error('Erreur lors de la récupération des relations :', error.message);
-    res.status(500).json({ message: 'Erreur interne du serveur.' });
-  }
-});
-
 // Endpoint : Mettre à jour les menus et les items d'un producteur
 router.post('/:producerId/update-items', async (req, res) => {
   console.log('Update items endpoint hit!');
@@ -344,7 +472,7 @@ router.post('/:producerId/update-items', async (req, res) => {
   }
 
   try {
-    const updatedProducer = await Producer.findByIdAndUpdate(
+    const updatedProducer = await ProducerModel.findByIdAndUpdate(
       producerId,
       { 
         $set: { structured_data }, // Met à jour uniquement le champ structured_data
@@ -373,7 +501,7 @@ router.put('/:producerId/items/:itemId', async (req, res) => {
   const { description, prix } = req.body;
 
   try {
-    const producer = await Producer.findById(producerId);
+    const producer = await ProducerModel.findById(producerId);
 
     if (!producer) {
       return res.status(404).json({ message: 'Producteur non trouvé.' });
@@ -407,12 +535,11 @@ router.put('/:producerId/items/:itemId', async (req, res) => {
   }
 });
 
-
 router.delete('/:producerId/items/:itemId', async (req, res) => {
   const { producerId, itemId } = req.params;
 
   try {
-    const producer = await Producer.findById(producerId);
+    const producer = await ProducerModel.findById(producerId);
 
     if (!producer) {
       return res.status(404).json({ message: 'Producteur non trouvé.' });
@@ -444,7 +571,6 @@ router.delete('/:producerId/items/:itemId', async (req, res) => {
   }
 });
 
-
 // Endpoint : Ajouter un nouvel item
 router.post('/:producerId/items', async (req, res) => {
   const { producerId } = req.params;
@@ -455,7 +581,7 @@ router.post('/:producerId/items', async (req, res) => {
   }
 
   try {
-    const producer = await Producer.findById(producerId);
+    const producer = await ProducerModel.findById(producerId);
 
     if (!producer) {
       return res.status(404).json({ message: 'Producteur non trouvé.' });
@@ -484,8 +610,6 @@ router.post('/:producerId/items', async (req, res) => {
   }
 });
 
-
-
 router.post('/:producerId/categories', async (req, res) => {
   const { producerId } = req.params;
   const { catégorie } = req.body;
@@ -495,7 +619,7 @@ router.post('/:producerId/categories', async (req, res) => {
   }
 
   try {
-    const producer = await Producer.findById(producerId);
+    const producer = await ProducerModel.findById(producerId);
 
     if (!producer) {
       return res.status(404).json({ message: 'Producteur non trouvé.' });
@@ -523,13 +647,12 @@ router.post('/:producerId/categories', async (req, res) => {
   }
 });
 
-
 // Endpoint : Supprimer une catégorie
 router.delete('/:producerId/categories/:categoryName', async (req, res) => {
   const { producerId, categoryName } = req.params;
 
   try {
-    const producer = await Producer.findById(producerId);
+    const producer = await ProducerModel.findById(producerId);
 
     if (!producer) {
       return res.status(404).json({ message: 'Producteur non trouvé.' });
@@ -555,7 +678,6 @@ router.delete('/:producerId/categories/:categoryName', async (req, res) => {
   }
 });
 
-
 // Endpoint : Mettre à jour un menu global
 router.post('/:producerId/menus', async (req, res) => {
   const { producerId } = req.params;
@@ -566,7 +688,7 @@ router.post('/:producerId/menus', async (req, res) => {
   }
 
   try {
-    const producer = await Producer.findById(producerId);
+    const producer = await ProducerModel.findById(producerId);
 
     if (!producer) {
       return res.status(404).json({ message: 'Producteur non trouvé.' });
@@ -591,33 +713,419 @@ router.post('/:producerId/menus', async (req, res) => {
   }
 });
 
-
-
-// Endpoint : Ajouter un nouveau menu global
-router.post('/:producerId/menus', async (req, res) => {
-  const { producerId } = req.params;
-  const { nom, prix, inclus } = req.body;
-
-  if (!nom || !prix) {
-    return res.status(400).json({ message: 'Le nom et le prix sont obligatoires.' });
-  }
-
+// Récupérer les relations d'un producteur (followers, suivis...)
+router.get('/:id/relations', async (req, res) => {
   try {
-    const producer = await Producer.findById(producerId);
-
-    if (!producer) {
-      return res.status(404).json({ message: 'Producteur non trouvé.' });
-    }
-
-    producer.structured_data['Menus Globaux'].push({ nom, prix, inclus });
-    await producer.save();
-
-    res.status(201).json({ message: 'Menu ajouté avec succès.' });
-  } catch (err) {
-    console.error('❌ Erreur lors de l\'ajout du menu :', err.message);
-    res.status(500).json({ message: 'Erreur interne du serveur.' });
+    // Cette route serait liée à d'autres collections comme les utilisateurs
+    // Pour l'instant, on renvoie une structure simplifiée
+    res.json({
+      followers: [],
+      following: [],
+      total_followers: 0,
+      total_following: 0
+    });
+  } catch (error) {
+    console.error(`Erreur lors de la récupération des relations du producteur ${req.params.id}:`, error);
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 });
 
+// Récupérer les posts d'un producteur
+router.get('/:id/posts', async (req, res) => {
+  try {
+    // Simulation de posts à renvoyer
+    res.json({
+      posts: [],
+      total: 0,
+      hasMore: false
+    });
+  } catch (error) {
+    console.error(`Erreur lors de la récupération des posts du producteur ${req.params.id}:`, error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// Récupérer les posts génériques pour tous les producteurs
+router.get('/posts', async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    
+    if (!userId) {
+      return res.status(400).json({ message: 'userId est requis' });
+    }
+    
+    // Simulation de posts à renvoyer
+    res.json([
+      {
+        id: '1',
+        content: 'Nouveau plat disponible !',
+        authorId: userId,
+        authorName: 'Restaurant Test',
+        authorAvatar: 'https://via.placeholder.com/150',
+        postedAt: new Date(),
+        isProducerPost: true,
+        isLeisureProducer: false,
+        isAutomated: false,
+        likesCount: 5,
+        media: [
+          {
+            type: 'image',
+            url: 'https://via.placeholder.com/500x300'
+          }
+        ],
+        comments: []
+      },
+      {
+        id: '2',
+        content: 'Offre spéciale ce weekend !',
+        authorId: userId,
+        authorName: 'Restaurant Test',
+        authorAvatar: 'https://via.placeholder.com/150',
+        postedAt: new Date(),
+        isProducerPost: true,
+        isLeisureProducer: false,
+        isAutomated: false,
+        likesCount: 8,
+        media: [],
+        comments: []
+      }
+    ]);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des posts:', error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// Récupérer les interactions du producteur
+router.get('/interactions/:userId', async (req, res) => {
+  try {
+    // Simulation d'interactions à renvoyer
+    res.json([
+      {
+        id: '1',
+        content: 'Un utilisateur a aimé votre post',
+        type: 'like',
+        timestamp: new Date(),
+        user: {
+          id: 'user123',
+          name: 'John Doe',
+          avatar: 'https://via.placeholder.com/150'
+        },
+        postId: 'post123'
+      }
+    ]);
+  } catch (error) {
+    console.error(`Erreur lors de la récupération des interactions du producteur ${req.params.userId}:`, error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// Récupérer les tendances locales
+router.get('/trends/:userId', async (req, res) => {
+  try {
+    // Simulation de tendances à renvoyer
+    res.json([
+      {
+        id: '1',
+        content: 'Les restaurants italiens sont populaires dans votre quartier',
+        type: 'trend',
+        timestamp: new Date()
+      }
+    ]);
+  } catch (error) {
+    console.error(`Erreur lors de la récupération des tendances pour ${req.params.userId}:`, error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// Récupérer les conversations d'un producteur
+router.get('/:id/conversations', async (req, res) => {
+  try {
+    const producerType = req.query.producerType || 'restaurant';
+    
+    // Simulation de conversations à renvoyer
+    res.json([
+      {
+        id: 'conv1',
+        name: 'John Doe',
+        avatar: 'https://via.placeholder.com/150',
+        lastMessage: 'Bonjour, êtes-vous ouvert aujourd\'hui ?',
+        time: new Date().toISOString(),
+        unreadCount: 1,
+        isUser: true,
+        isGroup: false
+      },
+      {
+        id: 'conv2',
+        name: 'Restaurants du quartier',
+        avatar: 'https://via.placeholder.com/150',
+        lastMessage: 'Bienvenue dans le groupe !',
+        time: new Date().toISOString(),
+        unreadCount: 0,
+        isUser: false,
+        isGroup: true
+      }
+    ]);
+  } catch (error) {
+    console.error(`Erreur lors de la récupération des conversations du producteur ${req.params.id}:`, error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+/**
+ * @route POST /api/recovery/producer
+ * @desc Récupérer un compte producteur
+ * @access Public
+ */
+router.post('/recovery', async (req, res) => {
+  try {
+    const { email, phone, name, type } = req.body;
+    
+    if (!email && !phone) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Email ou téléphone requis pour la récupération' 
+      });
+    }
+    
+    // Construire la requête de recherche
+    let query = {};
+    
+    if (email) {
+      query.email = email;
+    }
+    
+    if (phone) {
+      query.phone = phone;
+    }
+    
+    if (name) {
+      query.name = { $regex: name, $options: 'i' };
+    }
+    
+    // Déterminer le modèle à utiliser en fonction du type
+    let Producer;
+    if (type === 'leisure') {
+      Producer = LeisureProducer;
+    } else if (type === 'wellness' || type === 'beauty') {
+      Producer = BeautyProducer;
+    } else {
+      // Par défaut utiliser le modèle restaurant
+      Producer = RestaurantProducer;
+    }
+    
+    // Chercher le producteur
+    const producer = await Producer.findOne(query);
+    
+    if (!producer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Aucun compte producteur trouvé avec ces informations'
+      });
+    }
+    
+    // Générer un token de récupération
+    const recoveryToken = crypto.randomBytes(20).toString('hex');
+    
+    // Stocker le token et sa date d'expiration
+    producer.recoveryToken = recoveryToken;
+    producer.recoveryTokenExpires = Date.now() + 3600000; // 1 heure
+    
+    await producer.save();
+    
+    // Envoyer un email avec le lien de récupération
+    // TODO: Implémenter l'envoi d'email
+    
+    res.status(200).json({
+      success: true,
+      message: 'Instructions de récupération envoyées à votre adresse email',
+      recoveryToken // À retirer en production
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la récupération du compte:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur lors de la récupération du compte', 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * @route POST /api/recovery/producer/reset
+ * @desc Réinitialiser le mot de passe d'un compte producteur
+ * @access Public
+ */
+router.post('/recovery/reset', async (req, res) => {
+  try {
+    const { token, newPassword, producerType } = req.body;
+    
+    if (!token || !newPassword) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Token et nouveau mot de passe requis' 
+      });
+    }
+    
+    // Déterminer le modèle à utiliser en fonction du type
+    let Producer;
+    if (producerType === 'leisure') {
+      Producer = LeisureProducer;
+    } else if (producerType === 'wellness' || producerType === 'beauty') {
+      Producer = BeautyProducer;
+    } else {
+      // Par défaut utiliser le modèle restaurant
+      Producer = RestaurantProducer;
+    }
+    
+    // Chercher le producteur avec le token valide
+    const producer = await Producer.findOne({
+      recoveryToken: token,
+      recoveryTokenExpires: { $gt: Date.now() }
+    });
+    
+    if (!producer) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token invalide ou expiré'
+      });
+    }
+    
+    // Hashage du nouveau mot de passe
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    
+    // Mise à jour du mot de passe et suppression du token
+    producer.password = hashedPassword;
+    producer.recoveryToken = undefined;
+    producer.recoveryTokenExpires = undefined;
+    
+    await producer.save();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Mot de passe réinitialisé avec succès'
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la réinitialisation du mot de passe:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur lors de la réinitialisation du mot de passe', 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * @route GET /api/producers/:producerId/promotion
+ * @desc Get active promotion for a producer
+ * @access Private
+ */
+router.get('/:producerId/promotion', async (req, res) => {
+  try {
+    const { producerId } = req.params;
+
+    // Find producer
+    const producer = await ProducerModel.findById(producerId);
+    
+    if (!producer) {
+      return res.status(404).json({ message: 'Producer not found' });
+    }
+    
+    // Check if there's an active promotion
+    if (!producer.promotion || !producer.promotion.active) {
+      return res.status(200).json({
+        active: false,
+        message: 'No active promotion'
+      });
+    }
+    
+    // Check if promotion has expired
+    const now = new Date();
+    const endDate = new Date(producer.promotion.endDate);
+    
+    if (endDate < now) {
+      // Update producer to deactivate expired promotion
+      producer.promotion.active = false;
+      await producer.save();
+      
+      return res.status(200).json({
+        active: false,
+        message: 'Promotion has expired'
+      });
+    }
+    
+    // Return active promotion
+    return res.status(200).json({
+      active: true,
+      discountPercentage: producer.promotion.discountPercentage,
+      endDate: producer.promotion.endDate,
+      message: 'Active promotion found'
+    });
+    
+  } catch (error) {
+    console.error('Error fetching promotion:', error);
+    res.status(500).json({ message: 'Error fetching promotion', error: error.message });
+  }
+});
+
+/**
+ * @route POST /api/producers/:producerId/promotion
+ * @desc Create or update promotion for a producer
+ * @access Private
+ */
+router.post('/:producerId/promotion', async (req, res) => {
+  try {
+    const { producerId } = req.params;
+    const { active, discountPercentage, endDate } = req.body;
+
+    // Find producer
+    const producer = await ProducerModel.findById(producerId);
+    
+    if (!producer) {
+      return res.status(404).json({ message: 'Producer not found' });
+    }
+    
+    // Initialize promotion object if not exists
+    if (!producer.promotion) {
+      producer.promotion = {
+        active: false,
+        discountPercentage: 0,
+        endDate: null
+      };
+    }
+    
+    // Update promotion based on request
+    if (active !== undefined) {
+      producer.promotion.active = active;
+    }
+    
+    if (discountPercentage !== undefined && active) {
+      // Ensure discount percentage is between 0 and 100
+      producer.promotion.discountPercentage = Math.min(100, Math.max(0, discountPercentage));
+    }
+    
+    if (endDate !== undefined && active) {
+      producer.promotion.endDate = new Date(endDate);
+    }
+    
+    // Save the updated producer
+    await producer.save();
+    
+    // Return the updated promotion
+    return res.status(200).json({
+      active: producer.promotion.active,
+      discountPercentage: producer.promotion.discountPercentage,
+      endDate: producer.promotion.endDate,
+      message: producer.promotion.active ? 'Promotion activated' : 'Promotion deactivated'
+    });
+    
+  } catch (error) {
+    console.error('Error updating promotion:', error);
+    res.status(500).json({ message: 'Error updating promotion', error: error.message });
+  }
+});
 
 module.exports = router;
