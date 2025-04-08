@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { choiceAppDb, restaurationDb, loisirDb, beautyWellnessDb } = require('../index');
-const User = require('../models/user');
+const User = require('../models/User');
 
 // Modèles pour les différents types de producteurs
 const Producer = restaurationDb.model(
