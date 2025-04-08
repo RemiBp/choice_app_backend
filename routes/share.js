@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const PostChoice = require('../models/post').PostChoice;
-const User = require('../models/user').User;
+const Post = require('../models/Post');
+const { UserChoice } = require('../models/User');
 
 // Sauvegarder un post
 router.post('/save', async (req, res) => {
   const { userId, postId } = req.body;
   try {
-    const user = await User.findById(userId);
+    const user = await UserChoice.findById(userId);
     if (!user.saved_posts) user.saved_posts = [];
     
     if (!user.saved_posts.includes(postId)) {

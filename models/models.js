@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
-const PostChoice = require('./post').PostChoice;
-const User = require('./user').UserChoice;
+const Post = require('./Post');
+const { UserChoice } = require('./User');
 
 module.exports = {
-  PostChoice,
-  User,
+  PostChoice: Post,
+  User: UserChoice,
 };
