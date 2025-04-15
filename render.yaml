@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: choice-app-backend
+    env: node
+    buildCommand: npm install && chmod +x start.sh && sed -i 's/\r$//' start.sh
+    startCommand: ./start.sh
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: PORT
+        value: 5000
+    autoDeploy: true 
