@@ -39,6 +39,17 @@ const beautyWellnessDb = mongoose.createConnection(process.env.MONGO_URI, {
 // Définir les modèles (sans les redéclarer s'ils existent déjà)
 let User, Restaurant, LeisureProducer, Event, BeautyPlace, WellnessPlace, Choice, AIQuery;
 
+// Defensive model loading
+function safeModelLoad(factory, connection, name) {
+  try {
+    if (!connection) throw new Error(`Missing DB connection for model ${name}`);
+    return factory(connection);
+  } catch (e) {
+    console.error(`❌ Failed to load model ${name}:`, e);
+    return null;
+  }
+}
+
 try {
   // On essaie d'accéder aux modèles existants
   User = mongoose.model('User');
@@ -51,23 +62,26 @@ try {
   AIQuery = mongoose.model('AIQuery');
 } catch (e) {
   // Si les modèles n'existent pas, on les crée
-  User = User || usersDb.model("User", new mongoose.Schema({}, { strict: false }), "Users");
-  Restaurant = Restaurant || restaurationDb.model("Restaurant", new mongoose.Schema({}, { strict: false }), "Restaurants_Paris");
-  LeisureProducer = LeisureProducer || loisirsDb.model("LeisureProducer", new mongoose.Schema({}, { strict: false }), "Loisir_Paris_Producers");
-  Event = Event || loisirsDb.model("Event", new mongoose.Schema({}, { strict: false }), "Loisir_Paris_Evenements");
-  BeautyPlace = BeautyPlace || beautyWellnessDb.model("BeautyPlace", new mongoose.Schema({}, { strict: false }), "BeautyPlaces");
-  WellnessPlace = WellnessPlace || beautyWellnessDb.model("WellnessPlace", new mongoose.Schema({}, { strict: false }), "WellnessPlaces");
-  
-  // Modèle pour les choices
-  Choice = Choice || usersDb.model("Choice", new mongoose.Schema({
-    user_id: String,
-    producer_id: String,
-    content: String,
-    created_at: { type: Date, default: Date.now }
-  }), "user_choices");
-
+  User = User || (usersDb ? usersDb.model("User", new mongoose.Schema({}, { strict: false }), "Users") : null);
+  Restaurant = Restaurant || (restaurationDb ? restaurationDb.model("Restaurant", new mongoose.Schema({}, { strict: false }), "Restaurants_Paris") : null);
+  LeisureProducer = LeisureProducer || (loisirsDb ? loisirsDb.model("LeisureProducer", new mongoose.Schema({}, { strict: false }), "Loisir_Paris_Producers") : null);
+  Event = Event || (loisirsDb ? loisirsDb.model("Event", new mongoose.Schema({}, { strict: false }), "Loisir_Paris_Evenements") : null);
+  BeautyPlace = BeautyPlace || (beautyWellnessDb ? beautyWellnessDb.model("BeautyPlace", new mongoose.Schema({}, { strict: false }), "BeautyPlaces") : null);
+  WellnessPlace = WellnessPlace || (beautyWellnessDb ? beautyWellnessDb.model("WellnessPlace", new mongoose.Schema({}, { strict: false }), "WellnessPlaces") : null);
+  // Modèle pour les choices (raffiné)
+  const ChoiceSchema = new mongoose.Schema({
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    producer_id: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    producer_type: { type: String, required: true, enum: ['restaurant', 'leisureProducer', 'event', 'beautyPlace', 'wellnessProducer', 'other'], index: true },
+    rating: Number,
+    comment: String,
+    emotions: [String],
+    tags: [String],
+    created_at: { type: Date, default: Date.now, index: true }
+  }, { timestamps: { createdAt: 'created_at', updatedAt: false } });
+  Choice = Choice || (usersDb ? usersDb.model("Choice", ChoiceSchema, "user_choices") : null);
   // Modèle pour journaliser les requêtes et réponses de l'IA
-  AIQuery = AIQuery || usersDb.model(
+  AIQuery = AIQuery || (usersDb ? usersDb.model(
     "AIQuery",
     new mongoose.Schema({
       timestamp: { type: Date, default: Date.now },
@@ -82,7 +96,7 @@ try {
       response: String,
     }),
     "ai_queries"
-  );
+  ) : null);
 }
 
 // Créer un client OpenAI seulement si la clé est disponible
@@ -224,6 +238,17 @@ async function analyzeQuery(query) {
       };
     }
 
+    // Define rules and examples as separate strings to avoid template literal issues
+    const rulesText = "RÈGLES STRICTES:\n" +
+      "1. social_context: Ne définis social_context que si la requête contient explicitement des mots-clés sociaux forts comme 'amis', 'following', 'entourage', 'contacts', 'recommandé par X'. Une requête comme \"restaurants bien notés\" NE DOIT PAS avoir de social_context.\n" +
+      "2. sequence: Ne définis sequence à true que si la requête utilise des mots-clés temporels clairs indiquant plusieurs étapes comme 'puis', 'ensuite', 'après', 'suivi de', 'et après ça'. Une requête comme \"restaurant avec terrasse pour ce soir\" ou \"pièce de théâtre et bar sympa\" NE DOIT PAS avoir sequence: true si elle ne décrit pas un ordre chronologique.\n" +
+      "3. sequence_types: Si sequence est true, détermine les types d'activités dans l'ordre mentionné (ex: ['restaurant', 'event']).\n";
+
+    const examplesText = "EXEMPLES:\n" +
+      "- \"Je cherche une pièce de théâtre pour ce soir\": { \"intent\": \"event_search\", \"entities\": {\"event_type\": \"pièce de théâtre\", \"date\": \"ce soir\"}, \"sequence\": false, \"social_context\": undefined }\n" +
+      "- \"restaurant italien pour moi et mes amis\": { \"intent\": \"restaurant_search\", \"entities\": {\"cuisine_type\": \"italien\"}, \"sequence\": false, \"social_context\": {\"check_friends\": true} }\n" +
+      "- \"un bon resto puis un bar sympa\": { \"intent\": \"restaurant_search\", \"entities\": {\"rating\": \"bon\"}, \"sequence\": true, \"sequence_types\": [\"restaurant\", \"leisure\"], \"social_context\": undefined }\n";
+
     // Ensure query contains 'json' keyword for response_format compatibility
     const systemMessage = `Tu es un assistant spécialisé dans l'analyse de requêtes gastronomiques, loisirs et préférences sociales pour l'application Choice.
           
@@ -251,19 +276,38 @@ SCHÉMAS DE DONNÉES:
    - collection des lieux aimés/choisis par les utilisateurs
    - lié aux ID utilisateurs et ID producteurs
 
+INTENTIONS À DÉTECTER (intents):
+- restaurant_search
+- event_search
+- leisure_search
+- friend_choices (ex: "quels restaurants ont été choisis par mes amis ?")
+- check_friends_choice_for_producer (ex: "quel ami a choisi le restaurant X ?")
+- competitor_analysis
+- general_query
+
+ENTITÉS À EXTRAIRE (entities):
+- cuisine_type, price_level, rating, location, date, event_type, activity_type, calories, promotion
+- friend_name (nom d'un ami ou d'un contact)
+- producer_name (nom d'un restaurant, lieu, etc.)
+- producer_id (id d'un producteur si mentionné)
+- social_context (ex: entourage, amis, following, followers)
+
 Analyse attentivement la requête pour identifier:
 1. Préférences alimentaires spécifiques (ingrédients, régimes)
 2. Contraintes de prix/budget (maximum, fourchette)
 3. Contraintes de calories/nutrition
 4. Demandes de promotions/réductions
-5. Références sociales (amis, following, recommandations)
+5. Références sociales (amis, following, recommandations, nom d'ami, nom de lieu)
 6. Séquence chronologique (restaurant puis spectacle)
 7. Contraintes horaires (heure précise, ce soir, etc.)
 8. Popularité/tendances recherchées
 9. Notations minimales demandées
+10. Requêtes sociales spécifiques (choices d'amis, qui a choisi quoi, etc.)
 
+${rulesText}
+${examplesText}
 Réponds au format JSON avec les champs intent, entities, sequence, sequence_types, et social_context.
-Sois particulièrement attentif aux requêtes complexes comme "restaurant puis spectacle" ou "recommandé par mes amis".`;
+Sois particulièrement attentif aux requêtes complexes comme "restaurant puis spectacle", "recommandé par mes amis", ou "qui a choisi le restaurant X ?".`;
 
     // Make sure 'json' keyword is present in the user message for OpenAI API
     const userMessage = `Analyse cette requête et fournis un résultat en json: "${query}"`;
@@ -388,133 +432,181 @@ Sois particulièrement attentif aux requêtes complexes comme "restaurant puis s
  * @param {Object} queryAnalysis - Le résultat de l'analyse de la requête
  * @returns {Object} - La requête MongoDB à exécuter
  */
-function buildMongoQuery(queryAnalysis) {
-  const { intent, entities } = queryAnalysis;
-  let mongoQuery = {};
+function buildMongoQuery(queryAnalysis, options = {}) {
+  const { intent, entities, social_context, location_context } = queryAnalysis;
+  const mongoQuery = {};
+  const conditions = []; // Use $and for combining conditions
 
-  if (intent === "restaurant_search") {
-    // Tableau de conditions OR pour la recherche
-    let orConditions = [];
-    
-    // Recherche par localisation
-    if (entities.location) {
-      orConditions.push({ address: { $regex: new RegExp(entities.location, "i") } });
-      orConditions.push({ formatted_address: { $regex: new RegExp(entities.location, "i") } });
-      orConditions.push({ vicinity: { $regex: new RegExp(entities.location, "i") } });
+  // --- Location Filtering --- 
+  if (location_context?.nearby && options.coordinates) {
+    // Use $geoNear for nearby searches - Note: $geoNear is typically the first stage in an aggregation pipeline
+    // This function primarily builds the $match part. GeoNear logic will be handled elsewhere (e.g., in processUserQuery)
+    console.log("📍 Nearby location detected, geo-query will be handled upstream.");
+    // We might add a basic location text search as a fallback or supplement if needed
+    if (entities?.location) {
+       conditions.push({
+        $or: [
+          { address: { $regex: new RegExp(entities.location, "i") } },
+          { vicinity: { $regex: new RegExp(entities.location, "i") } },
+          { city: { $regex: new RegExp(entities.location, "i") } }
+        ]
+      });
     }
-    
-    // Recherche par type de cuisine ou plat spécifique
-    if (entities.cuisine_type) {
-      const cuisineRegex = new RegExp(entities.cuisine_type, "i");
-      
-      // Recherche dans les champs standards
-      orConditions.push({ cuisine_type: { $regex: cuisineRegex } });
-      orConditions.push({ "category": { $regex: cuisineRegex } });
-      
-      // Recherche dans les plats (structured_data format)
-      orConditions.push({ "structured_data.Items Indépendants.items.nom": { $regex: cuisineRegex } });
-      orConditions.push({ "structured_data.Items Indépendants.items.description": { $regex: cuisineRegex } });
-      orConditions.push({ "structured_data.Menus Globaux.inclus": { $regex: cuisineRegex } });
-      
-      // Recherche dans les menus (format menu_items)
-      orConditions.push({ "menu_items.name": { $regex: cuisineRegex } });
-      orConditions.push({ "menu_items.description": { $regex: cuisineRegex } });
-      
-      // Recherche dans les specialties
-      orConditions.push({ "specialties": { $regex: cuisineRegex } });
-    }
-    
-    // Recherche par niveau de prix
-    if (entities.price_level) {
-      mongoQuery.price_level = { $lte: parseInt(entities.price_level) };
-    }
-    
-    // Recherche par note minimale
-    if (entities.rating) {
-      mongoQuery.rating = { $gte: parseFloat(entities.rating) };
-    }
-    
-    // Recherche de promotions actives
-    if (entities.promotion === true || entities.discount === true) {
-      orConditions.push({ "promotion.active": true });
-      orConditions.push({ "structured_data.Items Indépendants.items.promotion": true });
-      orConditions.push({ "menu_items.promotion": true });
-    }
-    
-    // Recherche par calories
-    if (entities.calories) {
-      const maxCalories = parseFloat(entities.calories);
-      if (!isNaN(maxCalories)) {
-        // Nous ne filtrons pas ici car tous les restaurants n'ont pas de données sur les calories,
-        // ce filtrage se fera après avoir récupéré les résultats dans findMenuItemsByKeyword
-        orConditions.push({ "structured_data.Items Indépendants.items.nutrition.calories": { $lte: maxCalories } });
-        orConditions.push({ "menu_items.nutritional_info.calories": { $lte: maxCalories } });
+  } else if (location_context?.specific_location) {
+    // Search within specific address fields for the named location
+    const locRegex = new RegExp(location_context.specific_location, "i");
+    conditions.push({
+      $or: [
+        { address: locRegex },
+        { formatted_address: locRegex },
+        { vicinity: locRegex },
+        { city: locRegex },
+        { "location.address": locRegex }, // Check nested address
+        { "plus_code.compound_code": locRegex }
+      ]
+    });
+  } else if (entities?.location) {
+    // General location text search if location mentioned but not specifically 'nearby'
+    const locRegex = new RegExp(entities.location, "i");
+     conditions.push({
+      $or: [
+        { address: locRegex },
+        { formatted_address: locRegex },
+        { vicinity: locRegex },
+        { city: locRegex }
+      ]
+    });
+  }
+
+  // --- Entity-based Filtering --- 
+
+  // Cuisine / Category / Event Type
+  let typeField = 'cuisine_type'; // Default for restaurants
+  let typeValue = entities?.cuisine_type;
+  if (intent?.includes('event')) { typeField = 'category'; typeValue = entities?.event_type || entities?.category; }
+  if (intent?.includes('leisure')) { typeField = 'category'; typeValue = entities?.activity_type || entities?.category; }
+  if (intent?.includes('wellness') || intent?.includes('beauty')) { typeField = 'category'; typeValue = entities?.category; }
+  
+  if (typeValue) {
+    conditions.push({ [typeField]: { $regex: new RegExp(typeValue, "i") } });
+    // Also check general 'category' and 'tags' fields
+    conditions.push({ category: { $regex: new RegExp(typeValue, "i") } }); 
+    conditions.push({ tags: { $regex: new RegExp(typeValue, "i") } });
+  }
+  
+  // Rating
+  if (entities?.rating_descriptor) {
+      let minRating = 0;
+      if (['bon', 'bien noté'].includes(entities.rating_descriptor.toLowerCase())) minRating = 4.0;
+      if (['très bon', 'excellent', 'meilleur', 'top'].includes(entities.rating_descriptor.toLowerCase())) minRating = 4.5;
+      if (minRating > 0) {
+          conditions.push({ rating: { $gte: minRating } });
+          conditions.push({ "notes_globales.average": { $gte: minRating } }); // Check alternative structure
       }
-    }
-    
-    // Limiter aux restaurants bien notés si indiqué
-    if (entities.best || entities.top) {
-      mongoQuery.rating = { $gte: 4.0 };
-    }
-    
-    // Combinaison des conditions OR
-    if (orConditions.length > 0) {
-      mongoQuery.$or = orConditions;
-    }
-  } else if (intent === "event_search") {
-    // Construction de la requête pour recherche d'événements
-    let eventConditions = [];
-    
-    if (entities.event_type) {
-      eventConditions.push({ 
-        category: { $regex: new RegExp(entities.event_type, "i") } 
+  } else if (entities?.rating && !isNaN(parseFloat(entities.rating))) {
+      conditions.push({ rating: { $gte: parseFloat(entities.rating) } });
+      conditions.push({ "notes_globales.average": { $gte: parseFloat(entities.rating) } });
+  }
+
+  // Price Level / Range
+  if (entities?.price_level && !isNaN(parseInt(entities.price_level))) {
+    conditions.push({ price_level: { $lte: parseInt(entities.price_level) } });
+  }
+  if (entities?.price_range) {
+      const priceMatch = entities.price_range.match(/(\d+)/);
+      if (priceMatch) {
+          const maxPrice = parseInt(priceMatch[1]);
+          conditions.push({ price_level: { $lte: maxPrice / 10 } }); // Approximate price level
+          // TODO: Add check against specific price fields if available (e.g., menu item prices)
+      }
+      if (entities.price_range.includes('pas cher') || entities.price_range.includes('économique')) {
+          conditions.push({ price_level: { $in: [1, 2] } }); 
+      }
+  }
+
+  // Promotions
+  if (entities?.promotion === true) {
+    conditions.push({ promotions: { $exists: true, $ne: [] } });
+    // TODO: Check specific promotion fields if models have them
+  }
+
+  // Specific Criteria (e.g., terrasse, vegan, piscine)
+  if (entities?.specific_criteria && entities.specific_criteria.length > 0) {
+    entities.specific_criteria.forEach(criterion => {
+      const critRegex = new RegExp(criterion, "i");
+      conditions.push({
+        $or: [
+          { description: critRegex },
+          { tags: critRegex },
+          { specialties: critRegex },
+          { services: critRegex }, // Assuming services is an array of strings
+          { amenities: critRegex }, // For leisure/wellness
+          { "service_options.dine_in": criterion.toLowerCase() === 'sur place' ? true : undefined }, // Example for specific boolean
+          { "service_options.takeaway": criterion.toLowerCase() === 'à emporter' ? true : undefined },
+          { "service_options.delivery": criterion.toLowerCase() === 'livraison' ? true : undefined }
+        ].filter(cond => Object.values(cond)[0] !== undefined) // Filter out undefined conditions
       });
-      eventConditions.push({ 
-        type: { $regex: new RegExp(entities.event_type, "i") } 
-      });
+    });
+  }
+
+  // Item Keywords (e.g., pizza, massage suédois)
+  if (entities?.item_keywords && entities.item_keywords.length > 0) {
+     entities.item_keywords.forEach(keyword => {
+        const itemRegex = new RegExp(keyword, "i");
+        conditions.push({
+            $or: [
+                { menu_items: { $elemMatch: { name: itemRegex } } }, // Assumes menu_items is array of objects
+                { menu_items: { $elemMatch: { description: itemRegex } } },
+                { menu: { $elemMatch: { name: itemRegex } } }, // If menu is also an array of objects
+                { menu: { $elemMatch: { description: itemRegex } } },
+                { specialties: itemRegex },
+                { description: itemRegex }, // Search in main description too
+                { services: itemRegex }, // Check services list
+                // Add specific checks for menu structures if needed (like 'Items Indépendants')
+                { "structured_data.Items Indépendants.items.nom": itemRegex },
+                { "structured_data.Menus Globaux.inclus.items.nom": itemRegex }
+            ]
+        });
+     });
+  }
+  
+  // Specific Place Name
+  if (entities?.place_name) {
+      const nameRegex = new RegExp(entities.place_name, "i");
+      // Prioritize name match if a specific place is mentioned
+      mongoQuery.name = nameRegex; 
+      // Remove other conditions if a specific place name is the main entity?
+      // Or keep them to verify the place matches other criteria? Let's keep them for verification.
+       conditions.push({ name: nameRegex }); // Add to conditions as well for $and logic
+  }
+
+  // --- Social Context Handling (Placeholder/Deferral) --- 
+  // If the primary intent is social (handled by other functions), keep this query simple
+  if (social_context?.check_friends && intent?.includes('friends_choices')) {
+      console.log("🤝 Social context detected, detailed friend filtering handled elsewhere.");
+      // Return a potentially simpler query or let the calling function decide
+      // For now, we'll build the query based on other entities, and the calling function will combine it.
+  }
+  
+  // --- Combine conditions --- 
+  if (conditions.length > 0) {
+    if (mongoQuery.$or) { // If $or already exists (e.g., from location)
+        mongoQuery.$and = [ ...conditions, { $or: mongoQuery.$or } ];
+        delete mongoQuery.$or;
+    } else if (mongoQuery.$and) { // If $and already exists
+        mongoQuery.$and = [ ...mongoQuery.$and, ...conditions ];
+    } else if (conditions.length === 1) {
+        // If only one condition, merge it directly into the query
+        Object.assign(mongoQuery, conditions[0]);
+    } else {
+        mongoQuery.$and = conditions;
     }
-    
-    if (entities.date) {
-      // TODO: Logique pour filtrer par date
-    }
-    
-    if (entities.location) {
-      eventConditions.push({ 
-        location: { $regex: new RegExp(entities.location, "i") } 
-      });
-      eventConditions.push({ 
-        address: { $regex: new RegExp(entities.location, "i") } 
-      });
-    }
-    
-    if (eventConditions.length > 0) {
-      mongoQuery.$or = eventConditions;
-    }
-  } else if (intent === "leisure_search") {
-    // Construction de la requête pour recherche de lieux de loisir
-    let leisureConditions = [];
-    
-    if (entities.activity_type) {
-      leisureConditions.push({ 
-        activity_type: { $regex: new RegExp(entities.activity_type, "i") } 
-      });
-      leisureConditions.push({ 
-        category: { $regex: new RegExp(entities.activity_type, "i") } 
-      });
-    }
-    
-    if (entities.location) {
-      leisureConditions.push({ 
-        location: { $regex: new RegExp(entities.location, "i") } 
-      });
-      leisureConditions.push({ 
-        address: { $regex: new RegExp(entities.location, "i") } 
-      });
-    }
-    
-    if (leisureConditions.length > 0) {
-      mongoQuery.$or = leisureConditions;
-    }
+  }
+
+  // Handle specific intents that might require different base queries
+  if (intent === 'opening_hours_query' && entities?.place_name) {
+    // For opening hours, we only need to find the place by name
+    return { name: { $regex: new RegExp(entities.place_name, "i") } };
   }
 
   console.log("📊 Query MongoDB construite:", JSON.stringify(mongoQuery, null, 2));
@@ -1145,204 +1237,452 @@ function calculateItemScore(item, keywords) {
  * @returns {Promise<Object>} - La réponse à la requête
  */
 async function processUserQuery(query, userId = null, options = {}) {
-  console.log(`🧠 Traitement de la requête utilisateur: "${query}" (userId: ${userId || 'anonyme'})`);
   const startTime = Date.now();
-  
+  let user = null;
+  // Use coordinates from options first, then try fetching from user profile
+  let userCoordinates = options.coordinates || null;
+  let mongoQueryResult = [];
+  let socialDataForResponse = {}; // Data to potentially pass to generateResponse
+  let responseText = "Désolé, je n'ai pas pu traiter votre demande."; // Default response
+  let queryAnalysis = {}; // Store analysis result
+  let modelType = 'unknown'; // To track the type of results found
+
   try {
-    // Default options with simpler logic
-    options = {
-      checkSocial: false, // Vérifier les données sociales
-      useMockData: !process.env.OPENAI_API_KEY, // Mode simulé si pas de clé API
-      ...options
-    };
-
-    // Simulation mode for quick tests
-    if (options.useMockData) {
-      console.log('🤖 Mode simulé activé pour le test');
-      return getMockQueryResponse(query);
-    }
-
-    // Analyse avancée de la requête pour déterminer l'intention et les entités
-    const queryAnalysis = await analyzeQuery(query);
-    console.log(`📊 Analyse avancée de la requête:`, queryAnalysis);
-
-    // Extraire les flags de contexte social et de séquence
-    const hasSocialContext = queryAnalysis.social_context && Object.keys(queryAnalysis.social_context).length > 0;
-    const hasSequence = queryAnalysis.sequence && queryAnalysis.sequence_types && queryAnalysis.sequence_types.length > 0;
-
-    // Si l'utilisateur est authentifié et qu'il y a un contexte social, chercher des données sociales
-    let socialData = {};
-    if (userId && hasSocialContext) {
-      // Récupération des données sociales
+    // --- 0. Fetch User Data (including coordinates if needed) ---
+    if (userId) {
       try {
-        const user = await User.findById(userId);
-        if (user) {
-          if (queryAnalysis.social_context.friends_preferences) {
-            // Préférences des amis
-            socialData.friends = await User.find(
-              { _id: { $in: user.following || [] } },
-              { name: 1, photo_url: 1, interests: 1, liked_tags: 1 }
-            ).limit(10);
-          }
-          
-          if (queryAnalysis.social_context.relation === 'friends' && 
-              queryAnalysis.social_context.action === 'recent_choices') {
-            // Recherche des choices récents des amis  
-            socialData.friendsChoices = await getFriendsChoices(userId);
-            
-            // Si on a des choices d'amis, on peut retourner directement ces résultats
-            if (socialData.friendsChoices && socialData.friendsChoices.length > 0) {
-              const profiles = socialData.friendsChoices.map(item => ({
-                id: item.choice.producer_id,
-                name: item.user.name + ' - ' + (item.choice.content || 'A partagé un choice'),
-                type: 'user',
-                image: item.user.photo_url,
-                description: item.choice.content,
-                timestamp: item.choice.created_at
-              }));
-              
-              return {
-                query,
-                intent: 'social_choices',
-                entities: queryAnalysis.entities,
-                resultCount: socialData.friendsChoices.length,
-                executionTimeMs: Date.now() - startTime,
-                response: `Voici les derniers choices de vos amis. J'ai trouvé ${socialData.friendsChoices.length} choix récents.`,
-                profiles: profiles,
-                hasSocialContext: true,
-                hasSequence: false
-              };
-            }
-          }
+        // Select fields needed for coordinates and social data fetching
+        user = await User.findById(userId).select('location connections choices interests following trusted_circle').lean();
+        if (user && user.location && user.location.coordinates && user.location.coordinates.longitude && user.location.coordinates.latitude && !userCoordinates) {
+          // Ensure coordinates format { longitude: Number, latitude: Number }
+           userCoordinates = {
+               longitude: user.location.coordinates.longitude,
+               latitude: user.location.coordinates.latitude
+           };
+          console.log(`📍 User coordinates loaded from profile: ${JSON.stringify(userCoordinates)}`);
         }
-      } catch (error) {
-        console.error('❌ Erreur lors de la récupération des données sociales:', error);
+      } catch (userError) {
+        console.error(`❌ Error fetching user data for ${userId}:`, userError);
+        // Non-fatal, proceed without user-specific context
       }
     }
-    
-    // Traitement spécifique pour la recherche de lieux populaires
-    if (queryAnalysis.intent === 'recherche_lieux_avec_choices' || 
-        (queryAnalysis.entities && queryAnalysis.entities.criteria === 'nombre de choix')) {
-      const popularPlaces = await getPlacesWithMostChoices(20);
-      
-      if (popularPlaces && popularPlaces.length > 0) {
-        // Convertir en profils pour l'affichage
-        const profiles = popularPlaces.map(place => ({
-          id: place.id,
-          name: place.name,
-          type: place.type,
-          image: place.image,
-          address: place.address,
-          description: place.description,
-          category: Array.isArray(place.category) ? place.category : [place.category],
-          choiceCount: place.choiceCount
-        }));
-        
-        return {
-          query,
-          intent: 'popular_places',
-          entities: queryAnalysis.entities,
-          resultCount: popularPlaces.length,
-          executionTimeMs: Date.now() - startTime,
-          response: `Voici les lieux les plus populaires basés sur le nombre de choix. J'ai trouvé ${popularPlaces.length} établissements.`,
-          profiles: profiles,
-          hasSocialContext: false,
-          hasSequence: false
+
+    // --- 1. Analyze the user query using LLM ---
+    queryAnalysis = await analyzeQuery(query); // Assumes analyzeQuery returns the enhanced structure
+    const { intent, entities, social_context, location_context, sequence, sequence_types } = queryAnalysis;
+
+    // --- 2. Handle Different Intents ---
+
+    // A. Socially Focused Intents (Delegate to specific handlers)
+    if (intent?.startsWith('friends_choices') || intent === 'check_friend_choice_at_place') {
+      console.log(`🤝 Handling socially focused intent: ${intent}`);
+      if (!userId) {
+        responseText = "Je ne peux pas répondre à cette question sans savoir qui vous êtes. Veuillez vous connecter.";
+        mongoQueryResult = [];
+      } else {
+        // Call the appropriate handler function (defined elsewhere in the file)
+        let socialResult;
+        if (intent === 'handleFriendChoicesQuery' || intent === 'friends_choices_general' || intent === 'friends_choices_specific_place' ) {
+           // Assuming handleFriendChoicesQuery handles both general and specific based on entities
+           socialResult = await handleFriendChoicesQuery(query, userId, queryAnalysis, options); // Assumes this function exists and returns results/profiles
+        } else if (intent === 'check_friend_choice_at_place') {
+           socialResult = await handleCheckFriendsChoiceQuery(query, userId, queryAnalysis, options);
+        } else {
+            // Fallback if a new social intent isn't routed
+            socialResult = { response: "Logique pour cet intent social spécifique à implémenter.", profiles: [], resultCount: 0 };
+        }
+        // Use the response and profiles directly from the handler
+        responseText = socialResult.response;
+        mongoQueryResult = socialResult.profiles || []; // These should already be profile objects
+        queryAnalysis.resultCount = socialResult.resultCount; // Pass result count if available
+        // We skip standard response generation as handlers should provide the final text
+        const executionTimeMs = Date.now() - startTime;
+        await logUserQuery(userId, query, queryAnalysis, mongoQueryResult, executionTimeMs, responseText);
+        return { // Return early as social handlers manage the full response
+            query: query,
+            intent: intent,
+            entities: entities || {},
+            resultCount: mongoQueryResult.length,
+            executionTimeMs: executionTimeMs,
+            response: responseText,
+            profiles: mongoQueryResult, // Already formatted profiles
+            hasSocialContext: !!social_context,
+            hasSequence: !!sequence,
+            socialData: socialResult.socialData || {}
         };
       }
     }
+    // B. Sequence Queries (Placeholder)
+    else if (sequence && sequence_types && sequence_types.length > 1) {
+       console.log("🔄 Handling sequence query:", sequence_types);
+       // Proper implementation requires careful handling of multiple queries and combining results.
+       // responseText = await handleSequenceQuery(query, userId, queryAnalysis, userCoordinates); // Delegate
+       responseText = `Je ne peux pas encore gérer les demandes multi-étapes comme \"${query}\". Pouvez-vous demander chaque étape séparément ?`;
+       mongoQueryResult = [];
+    }
+    // C. Standard Search/Info Queries (Potentially with Geo/Social context)
+    else {
+      console.log(`📌 Handling standard intent: ${intent || 'unknown'}`);
+      // Determine target model based on intent
+      let TargetModel = Restaurant; // Default
+      modelType = 'restaurant'; // Reset modelType
 
-    // Construction de la requête MongoDB basée sur l'analyse
-    const mongoQuery = buildMongoQuery(queryAnalysis);
-    console.log(`📊 Query MongoDB construite:`, mongoQuery);
+      // Prioritize specific place info if name is given
+       if (intent === 'specific_place_info' && entities?.place_name) {
+            // Try finding across multiple collections if type isn't certain
+            const potentialModels = [Restaurant, LeisureProducer, Event, WellnessPlace, BeautyPlace];
+             let foundPlace = null;
+             for (const Model of potentialModels) {
+                  if (Model) { // Check if model loaded correctly
+                     try {
+                         foundPlace = await Model.findOne({ name: { $regex: new RegExp(entities.place_name, "i") } }).lean();
+                         if (foundPlace) {
+                              TargetModel = Model;
+                              // Infer modelType from the collection found
+                              if (Model === Restaurant) modelType = 'restaurant';
+                              else if (Model === LeisureProducer) modelType = 'leisureProducer';
+                              else if (Model === Event) modelType = 'event';
+                              else if (Model === WellnessPlace) modelType = 'wellnessPlace';
+                              else if (Model === BeautyPlace) modelType = 'beautyPlace';
+                              break;
+                         }
+                     } catch (modelFindError) {
+                         console.warn(`⚠️ Error searching for place in ${Model.modelName}:`, modelFindError.message);
+                     }
+                  }
+             }
+             if (foundPlace) {
+                 mongoQueryResult = [foundPlace];
+                 console.log(`🏠 Found specific place "${entities.place_name}" in ${TargetModel.modelName}`);
+             } else {
+                 console.log(`🏠 Could not find specific place "${entities.place_name}"`);
+                 mongoQueryResult = [];
+             }
+       } else {
+           // Determine model based on intent for broader searches
+           if (intent?.includes('event')) { TargetModel = Event; modelType = 'event'; }
+           else if (intent?.includes('leisure')) { TargetModel = LeisureProducer; modelType = 'leisureProducer'; }
+           else if (intent?.includes('wellness')) { TargetModel = WellnessPlace; modelType = 'wellnessPlace'; }
+           else if (intent?.includes('beauty')) { TargetModel = BeautyPlace; modelType = 'beautyPlace'; }
+           // Keep default Restaurant otherwise
 
-    // Exécution de la requête MongoDB
-    const primaryResults = await executeMongoQuery(mongoQuery, queryAnalysis.intent, queryAnalysis.entities);
-    console.log(`🔍 ${primaryResults?.length || 0} résultats primaires trouvés`);
-    
-    // Traitement de séquence le cas échéant
-    let sequentialResults = [];
-    if (hasSequence && queryAnalysis.sequence_types && queryAnalysis.sequence_types.length > 0) {
-      console.log(`🔄 Requête séquentielle détectée: ${queryAnalysis.sequence_types.join(' -> ')}`);
-      
-      // Pour chaque type dans la séquence, exécuter une requête spécifique
-      for (const seqType of queryAnalysis.sequence_types) {
-        let seqResults = [];
-        
-        // Adapter la requête en fonction du type d'objet dans la séquence
-        if (seqType === 'restaurant' || seqType === 'gastronomie') {
-          seqResults = await findProducers(queryAnalysis.entities);
-        } else if (seqType === 'spectacle' || seqType === 'event') {
-          seqResults = await findEvents(queryAnalysis.entities);
-        } else if (seqType === 'loisir' || seqType === 'leisure' || seqType === 'activity') {
-          seqResults = await findLoisirs(queryAnalysis.entities);
-        }
-        
-        if (seqResults.length > 0) {
-          sequentialResults.push(...seqResults);
-        }
+           if (!TargetModel) {
+                console.error(`❌ Could not determine target model for intent: ${intent}`);
+                // Fallback to Restaurant if model determination failed but intent suggested something else
+                TargetModel = Restaurant;
+                modelType = 'restaurant';
+           }
+           console.log(`🔍 Determined TargetModel: ${TargetModel.modelName} based on intent: ${intent}`);
+
+           // Build the base query conditions
+           const baseQueryConditions = buildMongoQuery(queryAnalysis, { coordinates: userCoordinates });
+
+           // --- Execute Query (Geo or Standard) ---
+           if (location_context?.nearby && userCoordinates && userCoordinates.longitude && userCoordinates.latitude) {
+               console.log(`🌍 Executing geospatial query near [${userCoordinates.longitude}, ${userCoordinates.latitude}] for ${modelType}`);
+               const geoPipeline = [
+                 {
+                   $geoNear: {
+                     near: { type: "Point", coordinates: [userCoordinates.longitude, userCoordinates.latitude] },
+                     distanceField: "distance", // Output distance in meters
+                     maxDistance: options.maxDistance || 20000, // Default 20km
+                     query: baseQueryConditions, // Apply other filters HERE
+                     spherical: true
+                   }
+                 },
+                 // Optional: Add $match stage here if more filtering needed *after* $geoNear
+                 { $limit: options.limit || 20 } // Limit results
+               ];
+               try {
+                   mongoQueryResult = await TargetModel.aggregate(geoPipeline);
+                   console.log(`🌍 GeoNear query returned ${mongoQueryResult.length} results.`);
+                   // Add distance to results if needed by frontend
+                   mongoQueryResult.forEach(r => r.distance = r.distance); // Keep distance field
+               } catch (aggError) {
+                   console.error(`❌ Error executing GeoNear aggregation for ${modelType}:`, aggError);
+                   mongoQueryResult = [];
+               }
+           } else {
+               // Execute standard query
+               console.log(`🔍 Executing standard find query for ${modelType}`);
+               try {
+                   mongoQueryResult = await TargetModel.find(baseQueryConditions).limit(options.limit || 20).lean();
+                   console.log(`🔍 Standard query returned ${mongoQueryResult.length} results.`);
+               } catch (findError) {
+                   console.error(`❌ Error executing standard find query for ${modelType}:`, findError);
+                   mongoQueryResult = [];
+               }
+           }
+       } // End of standard search logic (else block for specific_place_info)
+
+       // --- Enrich with Friend Data (if applicable) ---
+       if (social_context?.check_friends && userId && mongoQueryResult.length > 0) {
+           console.log("🤝 Enriching results with friend choice data...");
+           try {
+               const friendsData = await getUserSocialData(userId); // Ensure this returns { friends: [id1, id2...] }
+               // Use 'friends' from trusted_circle or 'following' based on context/preference
+               const friendIds = friendsData?.friends || []; // Using trusted_circle as friends for now
+
+               if (friendIds.length > 0) {
+                   const placeIds = mongoQueryResult.map(p => p._id); // Assumes results have _id
+                   if (placeIds.length > 0 && Choice) { // Check if Choice model is loaded
+                        const friendChoices = await Choice.find({
+                            user_id: { $in: friendIds.map(id => mongoose.Types.ObjectId(id)) }, // Ensure IDs are ObjectIds
+                            producer_id: { $in: placeIds },
+                            producer_type: modelType // Filter by the correct type
+                        }).select('user_id producer_id rating comment created_at').lean(); // Select needed fields
+
+                        // Create a map for quick lookup
+                        const choicesMap = friendChoices.reduce((map, choice) => {
+                            const key = choice.producer_id.toString();
+                            if (!map[key]) map[key] = [];
+                            map[key].push(choice);
+                            return map;
+                        }, {});
+
+                        // Add friend choice info to results
+                        mongoQueryResult = mongoQueryResult.map(place => {
+                            const placeIdStr = place._id.toString();
+                            const choicesForPlace = choicesMap[placeIdStr] || [];
+                            // Fetch user details for sample choices (can be optimized)
+                            const sampleChoices = choicesForPlace.slice(0, 3).map(c => ({
+                                userId: c.user_id, // Keep ID for potential linking
+                                rating: c.rating,
+                                comment: c.comment,
+                                date: c.created_at
+                                // TODO: Add username/avatar by fetching user data if needed frontend-side
+                            }));
+
+                            return {
+                                ...place, // Spread existing place data
+                                friendChoiceCount: choicesForPlace.length,
+                                friendChoicesSample: sampleChoices
+                            };
+                        });
+
+                        // Optional: Re-sort results to prioritize places friends chose
+                        mongoQueryResult.sort((a, b) => (b.friendChoiceCount || 0) - (a.friendChoiceCount || 0));
+                        console.log(`🤝 Enrichment complete. ${friendChoices.length} friend choices found for ${Object.keys(choicesMap).length} places.`);
+                   } else {
+                        console.log("🤝 Friend enrichment skipped: No place IDs or Choice model unavailable.");
+                   }
+               } else {
+                 console.log("🤝 Friend enrichment skipped: User has no friends.");
+               }
+           } catch (socialEnrichError) {
+                console.error(`❌ Error enriching results with social data:`, socialEnrichError);
+                // Continue without enrichment
+           }
+       } // End social enrichment block
+    } // End of standard intent handling
+
+    // --- 3. Generate final response using LLM ---
+    // Use queryAnalysis, the potentially enriched mongoQueryResult, and determined modelType
+    console.log(`📝 Generating final response for intent: ${intent || 'unknown'}`);
+    // Pass user ID for potential personalization in response generation
+    const responseContext = { userId: userId, queryAnalysis: queryAnalysis }; 
+    responseText = await generateResponse(query, queryAnalysis, mongoQueryResult, socialDataForResponse, modelType, responseContext);
+
+  } catch (error) {
+    console.error('❌❌ Top-level error in processUserQuery:', error);
+    // Provide a more informative error if possible
+    responseText = `Désolé, une erreur technique est survenue (${error.message || 'inconnue'}). Veuillez réessayer plus tard.`;
+    mongoQueryResult = []; // Ensure empty results on error
+  }
+
+  // --- 4. Format results and return ---
+  const executionTimeMs = Date.now() - startTime;
+  // Ensure extractProfiles handles the enriched data (like friendChoiceCount) if needed by frontend
+  const extractedProfiles = extractProfiles(mongoQueryResult || []); 
+  console.log(`🏁 Query processed in ${executionTimeMs}ms. Returning ${extractedProfiles.length} profiles.`);
+
+  // Log the query and response
+  await logUserQuery(userId, query, queryAnalysis, mongoQueryResult, executionTimeMs, responseText);
+  
+  return {
+    query: query,
+    intent: queryAnalysis?.intent || 'unknown',
+    entities: queryAnalysis?.entities || {},
+    resultCount: extractedProfiles.length,
+    executionTimeMs: executionTimeMs,
+    response: responseText,
+    profiles: extractedProfiles,
+    hasSocialContext: !!queryAnalysis?.social_context,
+    hasSequence: !!queryAnalysis?.sequence,
+    socialData: socialDataForResponse // Include any fetched social data used
+  };
+}
+
+// Fonction utilitaire pour construire une requête géographique
+function buildGeoQuery(queryAnalysis, coordinates, type) {
+  const { entities } = queryAnalysis;
+  const query = {
+    location: {
+      $near: {
+        $geometry: {
+          type: "Point",
+          coordinates: [coordinates.longitude, coordinates.latitude]
+        },
+        $maxDistance: 5000 // 5km par défaut
       }
+    }
+  };
+  
+  // Ajouter des filtres spécifiques au type
+  if (type === 'beauty') {
+    if (entities.beauty_type) {
+      query.$or = [
+        { category: { $regex: new RegExp(entities.beauty_type, 'i') } },
+        { service: { $regex: new RegExp(entities.beauty_type, 'i') } },
+        { tags: { $regex: new RegExp(entities.beauty_type, 'i') } }
+      ];
     } else {
-      console.log(`🔄 Requête séquentielle détectée: []`);
+      // Filtres génériques pour la beauté
+      query.$or = [
+        { category: { $regex: /beauté|coiffure|manucure|pédicure/i } },
+        { service: { $regex: /beauté|coiffure|manucure|pédicure/i } }
+      ];
+    }
+  } else if (type === 'wellness') {
+    if (entities.wellness_type) {
+      query.$or = [
+        { category: { $regex: new RegExp(entities.wellness_type, 'i') } },
+        { service: { $regex: new RegExp(entities.wellness_type, 'i') } },
+        { tags: { $regex: new RegExp(entities.wellness_type, 'i') } }
+      ];
+    } else {
+      // Filtres génériques pour le bien-être
+      query.$or = [
+        { category: { $regex: /bien-être|massage|spa|détente|relaxation/i } },
+        { service: { $regex: /bien-être|massage|spa|détente|relaxation/i } }
+      ];
+    }
+  } else if (type === 'restaurant') {
+    // Ajouter des filtres pour les restaurants
+    if (entities.cuisine_type) {
+      query.$or = [
+        { cuisine_type: { $regex: new RegExp(entities.cuisine_type, 'i') } },
+        { category: { $regex: new RegExp(entities.cuisine_type, 'i') } },
+        { "menu_items.name": { $regex: new RegExp(entities.cuisine_type, 'i') } }
+      ];
     }
     
-    // Combiner les résultats primaires et séquentiels
-    const allResults = [
-      ...(Array.isArray(primaryResults) ? primaryResults : []),
-      ...sequentialResults
-    ];
+    if (entities.price_level) {
+      query.price_level = { $lte: parseInt(entities.price_level) };
+    }
     
-    // Extraction de profils pour l'interface
-    const profiles = extractProfiles(allResults);
+    if (entities.rating) {
+      query.rating = { $gte: parseFloat(entities.rating) };
+    }
+  }
+  
+  return query;
+}
+
+// Fonction utilitaire pour diviser les entités pour une séquence
+function splitEntitiesForSequence(entities, sequenceTypes) {
+  const result = [];
+  
+  // Copier les entités communes à toutes les étapes
+  const commonEntities = {
+    location: entities.location,
+    rating: entities.rating
+  };
+  
+  for (const type of sequenceTypes) {
+    if (type === 'restaurant') {
+      result.push({
+        ...commonEntities,
+        cuisine_type: entities.cuisine_type,
+        price_level: entities.price_level
+      });
+    } else if (type === 'event' || type === 'spectacle') {
+      result.push({
+        ...commonEntities,
+        event_type: entities.event_type,
+        date: entities.date
+      });
+    } else if (type === 'leisure' || type === 'loisir') {
+      result.push({
+        ...commonEntities,
+        activity_type: entities.activity_type
+      });
+    } else {
+      // Type générique
+      result.push(commonEntities);
+    }
+  }
+  
+  return result;
+}
+
+// Fonction utilitaire pour générer une réponse de séquence
+async function generateSequenceResponse(query, queryAnalysis, sequenceResults) {
+  try {
+    // Utiliser l'API OpenAI ou autre méthode pour générer une réponse naturelle
+    let prompt = `Voici une requête utilisateur pour une séquence d'activités: "${query}"\n\n`;
     
-    // Génération de la réponse
-    const response = await generateResponse(query, queryAnalysis, allResults, socialData, 'restaurant', {
-      hasSocialContext,
-      hasSequence,
-      userId
+    for (let i = 0; i < sequenceResults.length; i++) {
+      const { type, results, count } = sequenceResults[i];
+      
+      prompt += `Étape ${i+1} (${type}): ${count} résultats trouvés\n`;
+      
+      // Ajouter les 3 meilleurs résultats pour chaque étape
+      const topResults = results.slice(0, 3);
+      if (topResults.length > 0) {
+        prompt += "Top résultats:\n";
+        
+        topResults.forEach((result, idx) => {
+          prompt += `${idx+1}. ${result.name || result.lieu || result.intitulé || 'Sans nom'} - `;
+          if (result.rating) prompt += `Note: ${result.rating}/5 - `;
+          if (result.address || result.adresse) prompt += `Adresse: ${result.address || result.adresse} - `;
+          if (type === 'restaurant' && result.cuisine_type) prompt += `Cuisine: ${result.cuisine_type}`;
+          prompt += "\n";
+        });
+      } else {
+        prompt += "Aucun résultat trouvé pour cette étape.\n";
+      }
+      
+      prompt += "\n";
+    }
+    
+    prompt += "Génère une réponse en français pour l'utilisateur qui combine ces différentes étapes en une expérience cohérente. Sois précis dans tes recommandations et donne quelques détails sur chaque lieu.";
+    
+    // Appel à OpenAI
+    const client = openai || simulatedOpenAI;
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Tu es un assistant de recherche d'activités pour l'application Choice." },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.7
     });
     
-    const executionTimeMs = Date.now() - startTime;
+    const responseText = response.choices[0].message.content;
+    return responseText;
+  } catch (error) {
+    console.error('❌ Erreur lors de la génération de la réponse de séquence:', error);
     
-    // Journaliser la requête
-    try {
-      await AIQuery.create({
-        timestamp: new Date(),
-        userId: userId || 'anonymous',
-        query,
-        intent: queryAnalysis.intent,
-        entities: Object.keys(queryAnalysis.entities || {}),
-        mongoQuery,
-        resultCount: allResults.length,
-        executionTimeMs,
-        response
-      });
-    } catch (error) {
-      console.error('❌ Erreur lors de l\'enregistrement de la requête:', error);
+    // Fallback: générer une réponse simple sans API
+    let response = `Voici une suggestion pour votre demande "${query}":\n\n`;
+    
+    for (let i = 0; i < sequenceResults.length; i++) {
+      const { type, results } = sequenceResults[i];
+      const topResult = results[0];
+      
+      if (topResult) {
+        response += `Étape ${i+1} (${type}): ${topResult.name || topResult.lieu || topResult.intitulé || 'Sans nom'}`;
+        if (topResult.rating) response += ` - Note: ${topResult.rating}/5`;
+        if (topResult.address || topResult.adresse) response += ` - Adresse: ${topResult.address || topResult.adresse}`;
+        response += '\n\n';
+      } else {
+        response += `Étape ${i+1} (${type}): Aucune suggestion disponible.\n\n`;
+      }
     }
     
-    return {
-      query,
-      intent: queryAnalysis.intent,
-      entities: queryAnalysis.entities,
-      resultCount: allResults.length,
-      executionTimeMs,
-      response,
-      profiles,
-      hasSocialContext,
-      hasSequence
-    };
-  } catch (error) {
-    console.error('❌ Erreur lors du traitement de la requête utilisateur:', error);
-    return {
-      query,
-      intent: 'error',
-      entities: {},
-      resultCount: 0,
-      executionTimeMs: Date.now() - startTime,
-      response: `Désolé, une erreur s'est produite lors du traitement de votre requête. ${error.message}`,
-      profiles: []
-    };
+    response += "N'hésitez pas à me demander plus de détails sur ces suggestions.";
+    return response;
   }
 }
 
@@ -2070,7 +2410,7 @@ async function findCompetitors(producer, producerType) {
       case 'wellnessProducer':
         results = await WellnessPlace.find(query).limit(10);
         break;
-      case 'beautyPlace':
+      case 'beautyProducer':
         results = await BeautyPlace.find(query).limit(10);
         break;
     }
@@ -2188,35 +2528,200 @@ function formatPerformanceAnalysis(performanceData, producer) {
 function extractProfiles(results) {
   if (!results || !Array.isArray(results)) return [];
   
-  return results.map(result => {
-    const profile = {
-      id: result._id,
-      name: result.name || result.lieu || result.intitulé || 'Sans nom'
-    };
+  // Map pour éviter les doublons (par ID producteur)
+  const uniqueProfiles = new Map();
+  
+  results.forEach(result => {
+    // Déterminer si c'est un choice/interest (avec producer) ou un lieu direct
+    const isActivity = result.producer_id && (result.user_id || result.isChoice || result.isInterest);
+    const producer = isActivity ? result.producer : result;
     
-    // Déterminer le type de profil
-    if (result.date_debut) {
-      profile.type = 'event';
-      profile.date = result.date_debut;
-      profile.lieu = result.lieu;
-    } else if (result.activities || result.category?.includes('loisir')) {
-      profile.type = 'leisureProducer';
-      profile.address = result.adresse;
-      profile.category = result.category;
-    } else if (result.price_level !== undefined) {
-      profile.type = 'restaurant';
-      profile.address = result.address;
-      profile.rating = result.rating;
-      profile.price_level = result.price_level;
-    } else {
-      profile.type = 'generic';
+    if (!producer || !producer.id) return; // Ignorer les résultats sans producteur valide
+    
+    // Si le producteur existe déjà, on met à jour uniquement certaines informations
+    if (uniqueProfiles.has(producer.id)) {
+      const existingProfile = uniqueProfiles.get(producer.id);
+      
+      // Conserver les informations d'activité les plus pertinentes
+      if (isActivity) {
+        // Ajouter à la liste des utilisateurs ayant choisi/aimé ce lieu
+        if (result.user && result.user.id) {
+          if (!existingProfile.userActivity) existingProfile.userActivity = [];
+          
+          const activityType = result.isInterest ? 'interest' : 'choice';
+          const activityExists = existingProfile.userActivity.some(
+            ua => ua.userId === result.user.id && ua.type === activityType
+          );
+          
+          if (!activityExists) {
+            existingProfile.userActivity.push({
+              userId: result.user.id,
+              username: result.user.username,
+              fullName: result.user.fullName,
+              type: activityType,
+              date: result.created_at || result.date,
+              comment: result.comment
+            });
+          }
+        }
+        
+        // Mettre à jour la date si plus récente
+        if ((result.created_at || result.date) && !existingProfile.lastActivityDate) {
+          existingProfile.lastActivityDate = result.created_at || result.date;
+        } else if ((result.created_at || result.date) && existingProfile.lastActivityDate) {
+          const currentDate = new Date(existingProfile.lastActivityDate);
+          const newDate = new Date(result.created_at || result.date);
+          if (newDate > currentDate) {
+            existingProfile.lastActivityDate = result.created_at || result.date;
+          }
+        }
+        
+        // Conserver la popularité la plus élevée
+        if (result.popularity && (!existingProfile.popularity || result.popularity > existingProfile.popularity)) {
+          existingProfile.popularity = result.popularity;
+        }
+      }
+      
+      return; // Continuer avec l'élément suivant
     }
     
-    // Ajouter l'image si disponible
-    profile.image = result.photo_url || result.photo || result.image || null;
+    // Déterminer le type de lieu
+    let profileType = 'unknown';
     
-    return profile;
+    if (producer.type) {
+      profileType = producer.type;
+    } else if (result.type) {
+      profileType = result.type;
+    } else {
+      // Deviner le type en fonction des propriétés
+      if (result.menu_items || result.cuisine_type || producer.menu_items || producer.cuisine_type) {
+        profileType = 'restaurant';
+      } else if (result.event_date || result.performances || producer.event_date || producer.performances) {
+        profileType = 'event';
+      } else if (result.activities || producer.activities) {
+        profileType = 'leisureProducer';
+      } else if (result.wellness_services || producer.wellness_services || 
+                 (producer.category && Array.isArray(producer.category) && 
+                  producer.category.some(c => /spa|massage|bien-être/i.test(c)))) {
+        profileType = 'wellnessProducer';
+      } else if (result.beauty_services || producer.beauty_services || 
+                 (producer.category && Array.isArray(producer.category) && 
+                  producer.category.some(c => /beauté|coiffure|manucure/i.test(c)))) {
+        profileType = 'beautyPlace';
+      }
+    }
+    
+    // Normaliser les catégories
+    let categories = [];
+    if (producer.category) {
+      categories = Array.isArray(producer.category) 
+        ? producer.category 
+        : (typeof producer.category === 'string' ? [producer.category] : []);
+    } else if (producer.cuisine_type) {
+      categories = Array.isArray(producer.cuisine_type) 
+        ? producer.cuisine_type 
+        : (typeof producer.cuisine_type === 'string' ? [producer.cuisine_type] : []);
+    }
+    
+    // Créer un profil normalisé pour l'UI
+    const profile = {
+      id: producer.id,
+      type: profileType,
+      name: producer.name || producer.lieu || producer.intitulé || 'Sans nom',
+      address: producer.address || producer.adresse || null,
+      description: producer.description || producer.présentation || null,
+      rating: producer.rating ? parseFloat(producer.rating) : null,
+      image: producer.image || producer.photo || (producer.photos && producer.photos.length > 0 ? producer.photos[0] : null),
+      category: categories,
+      priceLevel: producer.price_level || null,
+      // Structuration des données UI pour faciliter le rendu
+      ui: {
+        primaryLabel: producer.name || producer.lieu || producer.intitulé || 'Sans nom',
+        secondaryLabel: producer.address || producer.adresse || null,
+        rating: producer.rating ? {
+          value: parseFloat(producer.rating),
+          count: producer.user_ratings_total || producer.avis_total || 0
+        } : null,
+        priceLabel: producer.price_level ? '€'.repeat(parseInt(producer.price_level)) : null,
+        categoryLabel: categories.length > 0 ? categories.join(', ') : null,
+        color: getColorForType(profileType),
+        icon: getIconNameForType(profileType)
+      }
+    };
+    
+    // Si c'est une activité (choice/interest), ajouter les informations d'utilisateur
+    if (isActivity) {
+      profile.userActivity = [];
+      
+      if (result.user && result.user.id) {
+        profile.userActivity.push({
+          userId: result.user.id,
+          username: result.user.username,
+          fullName: result.user.fullName,
+          type: result.isInterest ? 'interest' : 'choice',
+          date: result.created_at || result.date,
+          comment: result.comment
+        });
+      }
+      
+      profile.lastActivityDate = result.created_at || result.date;
+      profile.popularity = result.popularity || 1;
+    }
+    
+    // Ajouter le profil à la map
+    uniqueProfiles.set(producer.id, profile);
   });
+  
+  // Convertir la map en array
+  return Array.from(uniqueProfiles.values());
+}
+
+/**
+ * Retourne une couleur hexadécimale pour un type de profil
+ * @param {string} type - Type de profil
+ * @returns {string} - Code couleur hexadécimal
+ */
+function getColorForType(type) {
+  switch (type) {
+    case 'restaurant':
+      return '#FF5722'; // Orange
+    case 'leisureProducer':
+      return '#673AB7'; // Deep Purple
+    case 'event':
+      return '#4CAF50'; // Green
+    case 'wellnessProducer':
+      return '#00BCD4'; // Cyan
+    case 'beautyPlace':
+      return '#E91E63'; // Pink
+    case 'user':
+      return '#2196F3'; // Blue
+    default:
+      return '#9E9E9E'; // Grey
+  }
+}
+
+/**
+ * Retourne un nom d'icône pour un type de profil
+ * @param {string} type - Type de profil
+ * @returns {string} - Nom d'icône (compatible Material Icons)
+ */
+function getIconNameForType(type) {
+  switch (type) {
+    case 'restaurant':
+      return 'restaurant';
+    case 'leisureProducer':
+      return 'local_activity';
+    case 'event':
+      return 'event';
+    case 'wellnessProducer':
+      return 'spa';
+    case 'beautyPlace':
+      return 'content_cut';
+    case 'user':
+      return 'person';
+    default:
+      return 'place';
+  }
 }
 
 /**
@@ -2408,78 +2913,295 @@ function itemMatchesKeywords(item, keywords) {
 }
 
 /**
- * Récupère les données sociales d'un utilisateur (following, intérêts communs)
- * @param {string} userId - L'ID de l'utilisateur
- * @returns {Promise<Object>} - Les données sociales pertinentes
+ * Récupère les données sociales d'un utilisateur (amis, following, choices, interests)
+ * @param {string} userId - ID de l'utilisateur
+ * @returns {Promise<Object>} - Données sociales complètes
  */
 async function getUserSocialData(userId) {
   try {
-    // Récupérer l'utilisateur avec ses relations
-    const user = await User.findById(userId).select('following followers interests preferences');
-    
-    if (!user) {
-      console.warn(`⚠️ Utilisateur non trouvé: ${userId}`);
-      return { 
-        following: [], 
-        followingCount: 0,
-        sharedInterests: []
-      };
+    if (!userId) {
+      console.warn('⚠️ getUserSocialData called with no userId.');
+      return { friends: [], following: [], interests: [] };
     }
-    
-    // Récupérer la liste des personnes suivies
-    const following = user.following || [];
-    
-    console.log(`👥 ${userId} suit ${following.length} utilisateurs`);
-    
-    // Récupérer les intérêts/choix des personnes suivies
-    const followingData = {
-      following: following,
-      followingCount: following.length,
-      interestsMap: new Map() // Map pour compter les intérêts communs
+
+    // Log connection state and model availability
+    const connectionState = usersDb ? usersDb.readyState : 'N/A'; // 0: disconnected, 1: connected, 2: connecting, 3: disconnecting
+    console.log(`ℹ️ [getUserSocialData] usersDb connection state: ${connectionState} (1 = connected)`);
+    const User = mongoose.models['User']; // More robust way to check if model exists
+    if (!User) {
+      console.error('❌ [getUserSocialData] User model is not defined/loaded!');
+      return { friends: [], following: [], interests: [] };
+    }
+    console.log(`ℹ️ [getUserSocialData] User model found. Attempting lookup for ID: ${userId}`);
+
+    // Find the user by ID
+    const userData = await User.findById(userId)
+      .select('following followers trusted_circle interests followingProducers')
+      .lean();
+      
+    if (!userData) {
+      // This is the log you are seeing
+      console.warn(`⚠️ [getUserSocialData] User data not found in DB for ID: ${userId}`); 
+      return { friends: [], following: [], interests: [] };
+    }
+
+    // Ensure all social arrays are actually arrays
+    const socialData = {
+      friends: Array.isArray(userData.trusted_circle) ? userData.trusted_circle : [],
+      following: Array.isArray(userData.following) ? userData.following : [],
+      followers: Array.isArray(userData.followers) ? userData.followers : [],
+      interests: Array.isArray(userData.interests) ? userData.interests : [],
+      followingProducers: Array.isArray(userData.followingProducers) ? userData.followingProducers : []
     };
     
-    // Si l'utilisateur suit d'autres personnes, récupérer leurs intérêts
-    if (following.length > 0) {
-      // Récupérer les choix/intérêts des personnes suivies (limité à 200 pour performance)
-      const choices = await usersDb.collection('user_choices').find({
-        userId: { $in: following }
-      }).limit(200).toArray();
-      
-      console.log(`🔍 Récupération de ${choices.length} choix des personnes suivies`);
-      
-      // Organiser les choix par type et compter leur fréquence
-      choices.forEach(choice => {
-        const itemId = choice.itemId;
-        const itemType = choice.itemType;
-        
-        if (!followingData.interestsMap.has(`${itemType}:${itemId}`)) {
-          followingData.interestsMap.set(`${itemType}:${itemId}`, {
-            id: itemId,
-            type: itemType,
-            count: 1,
-            userIds: [choice.userId]
-          });
-        } else {
-          const existingEntry = followingData.interestsMap.get(`${itemType}:${itemId}`);
-          existingEntry.count += 1;
-          if (!existingEntry.userIds.includes(choice.userId)) {
-            existingEntry.userIds.push(choice.userId);
-          }
-        }
-      });
-      
-      // Convertir la Map en Array pour faciliter le tri et l'utilisation
-      followingData.sharedInterests = Array.from(followingData.interestsMap.values())
-        .sort((a, b) => b.count - a.count) // Trier par popularité
-        .slice(0, 20); // Limiter aux 20 plus populaires
-      
-      delete followingData.interestsMap; // Nettoyer la Map temporaire
-    }
-    
-    return followingData;
+    console.log(`📊 Social data found for user ${userId}: ${socialData.friends.length} friends, ${socialData.following.length} following`);
+    return socialData;
   } catch (error) {
-    console.error('❌ Erreur lors de la récupération des données sociales:', error);
-    return { following: [], followingCount: 0, sharedInterests: [] };
+    console.error('❌ Error getting user social data:', error);
+    return { friends: [], following: [], interests: [] };
+  }
+}
+
+/**
+ * Enrichit les choices avec les détails des producteurs
+ * @param {Array} choices - Liste des choices
+ * @returns {Promise<Array>} - Choices enrichis
+ */
+async function enrichChoicesWithProducerDetails(choices) {
+  if (!choices || choices.length === 0) return [];
+  
+  try {
+    const producerIds = [...new Set(choices.map(c => c.producer_id))];
+    if (producerIds.length === 0) return choices;
+    
+    // Créer un Map pour retrouver rapidement les producteurs
+    const producerMap = new Map();
+    
+    // Récupérer les différents types de producteurs
+    await Promise.all([
+      // Restaurants
+      (async () => {
+        try {
+          const Restaurant = restaurationDb.model("Restaurant", new mongoose.Schema({}, { strict: false }), "Lieux_Paris");
+          const restaurants = await Restaurant.find({ _id: { $in: producerIds } });
+          restaurants.forEach(r => {
+            producerMap.set(r._id.toString(), {
+              ...r.toObject(),
+              type: 'restaurant'
+            });
+          });
+        } catch (err) {
+          console.error('Erreur lors de la récupération des restaurants:', err);
+        }
+      })(),
+      
+      // Loisirs
+      (async () => {
+        try {
+          const LeisureProducer = loisirsDb.model("LeisureProducer", new mongoose.Schema({}, { strict: false }), "leisure_producers");
+          const leisures = await LeisureProducer.find({ _id: { $in: producerIds } });
+          leisures.forEach(l => {
+            producerMap.set(l._id.toString(), {
+              ...l.toObject(),
+              type: 'leisureProducer'
+            });
+          });
+        } catch (err) {
+          console.error('Erreur lors de la récupération des loisirs:', err);
+        }
+      })(),
+      
+      // Événements
+      (async () => {
+        try {
+          const Event = loisirsDb.model("Event", new mongoose.Schema({}, { strict: false }), "events");
+          const events = await Event.find({ _id: { $in: producerIds } });
+          events.forEach(e => {
+            producerMap.set(e._id.toString(), {
+              ...e.toObject(),
+              type: 'event'
+            });
+          });
+        } catch (err) {
+          console.error('Erreur lors de la récupération des événements:', err);
+        }
+      })(),
+      
+      // Bien-être
+      (async () => {
+        try {
+          const WellnessProducer = beautyWellnessDb.model("WellnessProducer", new mongoose.Schema({}, { strict: false }), "wellness_producers");
+          const wellness = await WellnessProducer.find({ _id: { $in: producerIds } });
+          wellness.forEach(w => {
+            producerMap.set(w._id.toString(), {
+              ...w.toObject(),
+              type: 'wellnessProducer'
+            });
+          });
+        } catch (err) {
+          console.error('Erreur lors de la récupération des établissements bien-être:', err);
+        }
+      })(),
+      
+      // Beauté
+      (async () => {
+        try {
+          const BeautyPlace = beautyWellnessDb.model("BeautyPlace", new mongoose.Schema({}, { strict: false }), "beauty_places");
+          const beauty = await BeautyPlace.find({ _id: { $in: producerIds } });
+          beauty.forEach(b => {
+            producerMap.set(b._id.toString(), {
+              ...b.toObject(),
+              type: 'beautyPlace'
+            });
+          });
+        } catch (err) {
+          console.error('Erreur lors de la récupération des lieux de beauté:', err);
+        }
+      })()
+    ]);
+    
+    // Enrichir les choices avec les données producteurs
+    return choices.map(choice => {
+      const producer = producerMap.get(choice.producer_id);
+      return {
+        ...choice.toObject(),
+        producer: producer ? {
+          id: producer._id.toString(),
+          name: producer.name || producer.lieu || producer.intitulé,
+          address: producer.address || producer.adresse,
+          type: producer.type,
+          rating: producer.rating,
+          category: producer.category || producer.type_cuisine || [],
+          image: producer.photo || producer.image || producer.photos?.[0],
+          structured_data: producer.structured_data || null
+        } : null
+      };
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'enrichissement des choices:', error);
+    return choices;
+  }
+}
+
+/**
+ * Enrichit les interests avec les détails des producteurs correspondants
+ * @param {Array} interests - Liste des interests
+ * @returns {Promise<Array>} - Interests enrichis avec les détails des producteurs
+ */
+async function enrichInterestsWithProducerDetails(interests) {
+  if (!interests || interests.length === 0) return [];
+  
+  try {
+    const producerIds = [...new Set(interests.map(i => i.producer_id).filter(id => id))];
+    if (producerIds.length === 0) return interests;
+    
+    // Créer un Map pour retrouver rapidement les producteurs
+    const producerMap = new Map();
+    
+    // Récupérer les différents types de producteurs
+    await Promise.all([
+      // Restaurants
+      (async () => {
+        try {
+          const Restaurant = restaurationDb.model("Restaurant", new mongoose.Schema({}, { strict: false }), "Lieux_Paris");
+          const restaurants = await Restaurant.find({ _id: { $in: producerIds } });
+          restaurants.forEach(r => {
+            producerMap.set(r._id.toString(), {
+              ...r.toObject(),
+              type: 'restaurant'
+            });
+          });
+        } catch (err) {
+          console.error('Erreur lors de la récupération des restaurants:', err);
+        }
+      })(),
+      
+      // Loisirs
+      (async () => {
+        try {
+          const LeisureProducer = loisirDb.model("LeisureProducer", new mongoose.Schema({}, { strict: false }), "leisure_producers");
+          const leisures = await LeisureProducer.find({ _id: { $in: producerIds } });
+          leisures.forEach(l => {
+            producerMap.set(l._id.toString(), {
+              ...l.toObject(),
+              type: 'leisureProducer'
+            });
+          });
+        } catch (err) {
+          console.error('Erreur lors de la récupération des loisirs:', err);
+        }
+      })(),
+      
+      // Événements
+      (async () => {
+        try {
+          const Event = loisirDb.model("Event", new mongoose.Schema({}, { strict: false }), "events");
+          const events = await Event.find({ _id: { $in: producerIds } });
+          events.forEach(e => {
+            producerMap.set(e._id.toString(), {
+              ...e.toObject(),
+              type: 'event'
+            });
+          });
+        } catch (err) {
+          console.error('Erreur lors de la récupération des événements:', err);
+        }
+      })(),
+      
+      // Bien-être
+      (async () => {
+        try {
+          const WellnessProducer = beautyWellnessDb.model("WellnessProducer", new mongoose.Schema({}, { strict: false }), "wellness_producers");
+          const wellness = await WellnessProducer.find({ _id: { $in: producerIds } });
+          wellness.forEach(w => {
+            producerMap.set(w._id.toString(), {
+              ...w.toObject(),
+              type: 'wellnessProducer'
+            });
+          });
+        } catch (err) {
+          console.error('Erreur lors de la récupération des établissements bien-être:', err);
+        }
+      })(),
+      
+      // Beauté
+      (async () => {
+        try {
+          const BeautyPlace = beautyWellnessDb.model("BeautyPlace", new mongoose.Schema({}, { strict: false }), "beauty_places");
+          const beauty = await BeautyPlace.find({ _id: { $in: producerIds } });
+          beauty.forEach(b => {
+            producerMap.set(b._id.toString(), {
+              ...b.toObject(),
+              type: 'beautyPlace'
+            });
+          });
+        } catch (err) {
+          console.error('Erreur lors de la récupération des lieux de beauté:', err);
+        }
+      })()
+    ]);
+    
+    // Enrichir les interests avec les données producteurs
+    return interests.map(interest => {
+      const producer = producerMap.get(interest.producer_id);
+      return {
+        ...interest._doc || interest,
+        producer: producer ? {
+          id: producer._id.toString(),
+          name: producer.name || producer.lieu || producer.intitulé,
+          address: producer.address || producer.adresse,
+          type: producer.type,
+          rating: producer.rating,
+          category: producer.category || producer.type_cuisine || [],
+          image: producer.photo || producer.image || producer.photos?.[0],
+          structured_data: producer.structured_data || null
+        } : null,
+        isInterest: true // Marqueur pour différencier des choices
+      };
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'enrichissement des interests:', error);
+    return interests.map(i => ({...i._doc || i, isInterest: true}));
   }
 }
 
@@ -2818,6 +3540,502 @@ function getMockQueryResponse(query) {
   };
 }
 
+// Fonction pour formater les réponses aux requêtes sociales
+function formatSocialResponse(query, socialIntent, trendingData, socialData) {
+  if (!trendingData || !trendingData.items || trendingData.items.length === 0) {
+    if (socialData && (socialData.following.length > 0 || socialData.friends.length > 0)) {
+      return `Je n'ai pas trouvé de choices correspondant à votre requête parmi votre réseau social de ${socialData.following.length + socialData.friends.length} personnes.`;
+    } else {
+      return "Je n'ai pas trouvé de relations sociales ou de choices correspondant à votre requête.";
+    }
+  }
+
+  const { items, count } = trendingData;
+  const totalConnections = (socialData?.following?.length || 0) + (socialData?.friends?.length || 0);
+
+  let intro = '';
+  switch (socialIntent) {
+    case 'recent_choices':
+      intro = `Voici les ${items.length} derniers choices de vos amis${getQueryContext(query)}:`;
+      break;
+    case 'best_choices':
+      intro = `Voici les ${items.length} meilleurs choices de vos amis${getQueryContext(query)} (basés sur leurs notes et fréquentation):`;
+      break;
+    case 'popular_choices':
+      intro = `Voici les ${items.length} choices les plus populaires parmi vos amis${getQueryContext(query)}:`;
+      break;
+    default:
+      intro = `Voici ${items.length} choices de vos amis${getQueryContext(query)}:`;
+  }
+
+  // Formater chaque item
+  const formattedItems = items.map((item, index) => {
+    const producer = item.producer || {};
+    const user = item.user || {};
+    
+    return `${index + 1}. **${producer.name || 'Lieu sans nom'}**
+    - Choisi par: ${user.username || 'Anonyme'}${user.fullName ? ` (${user.fullName})` : ''}
+    - Quand: ${formatDate(item.date || item.created_at)}
+    - Adresse: ${producer.address || 'Non spécifiée'}
+    - Note: ${producer.rating ? `${producer.rating}/5` : 'Non notée'}
+    ${item.comment ? `- Commentaire: "${item.comment}"` : ''}`;
+  }).join('\n\n');
+
+  // Créer la réponse finale avec statistiques
+  const response = `${intro}\n\n${formattedItems}\n\n${count > items.length ? `Il y a ${count} choices au total parmi vos ${totalConnections} relations.` : `Ce sont tous les choices correspondants parmi vos ${totalConnections} relations.`}`;
+  
+  return response;
+}
+
+// Fonction utilitaire pour extraire le contexte de la requête
+function getQueryContext(query) {
+  // Extraire le contexte (ex: "dans la restauration", "de manucure")
+  const categoryMatches = query.match(/dans (la |le |les )?([\w\s]+)/) || 
+                          query.match(/de ([\w\s]+)/);
+  
+  if (categoryMatches && categoryMatches.length > 1) {
+    const category = categoryMatches[categoryMatches.length - 1].trim();
+    return ` dans ${category}`;
+  }
+  
+  // Détecter des catégories spécifiques
+  if (query.toLowerCase().includes('restaurant') || 
+      query.toLowerCase().includes('gastronomie') || 
+      query.toLowerCase().includes('cuisine')) {
+    return ' dans la restauration';
+  }
+  
+  if (query.toLowerCase().includes('spectacle') || 
+      query.toLowerCase().includes('théâtre') || 
+      query.toLowerCase().includes('concert')) {
+    return ' dans les spectacles';
+  }
+  
+  if (query.toLowerCase().includes('musée') || 
+      query.toLowerCase().includes('exposition') || 
+      query.toLowerCase().includes('culture')) {
+    return ' culturels';
+  }
+  
+  return '';
+}
+
+// Fonction utilitaire pour formater les dates
+function formatDate(dateString) {
+  if (!dateString) return 'Date inconnue';
+  
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return 'Date invalide';
+  
+  const now = new Date();
+  const diffTime = now - date;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) {
+    return "Aujourd'hui";
+  } else if (diffDays === 1) {
+    return "Hier";
+  } else if (diffDays < 7) {
+    return `Il y a ${diffDays} jours`;
+  } else if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `Il y a ${weeks} semaine${weeks > 1 ? 's' : ''}`;
+  } else if (diffDays < 365) {
+    const months = Math.floor(diffDays / 30);
+    return `Il y a ${months} mois`;
+  } else {
+    const years = Math.floor(diffDays / 365);
+    return `Il y a ${years} an${years > 1 ? 's' : ''}`;
+  }
+}
+
+/**
+ * Récupère les tendances parmi les amis et following d'un utilisateur
+ * @param {string} userId - ID de l'utilisateur
+ * @param {string} type - Type de tendance ('recent_choices', 'best_choices', 'popular_choices')
+ * @param {Object} filters - Filtres supplémentaires (catégorie, etc.)
+ * @returns {Promise<Object>} - Tendances trouvées
+ */
+async function getTrendingAmongFriends(userId, type = 'recent_choices', filters = {}) {
+  try {
+    // Récupérer les données sociales complètes
+    const socialData = await getUserSocialData(userId);
+    
+    if (!socialData || (!socialData.friends.length && !socialData.following.length)) {
+      console.log(`❌ Aucune relation sociale trouvée pour l'utilisateur ${userId}`);
+      return { items: [], count: 0 };
+    }
+    
+    // Fusionner les choices et interests pour une vision complète
+    const allConnectionsActivity = socialData.allConnectionsActivity || [];
+    
+    // Si vide, essayer de fusionner manuellement
+    if (!allConnectionsActivity.length) {
+      const choicesConnections = socialData.choices?.connections || [];
+      const interestsConnections = socialData.interests?.connections || [];
+      
+      allConnectionsActivity.push(...choicesConnections, ...interestsConnections);
+      
+      // Trier par date décroissante
+      allConnectionsActivity.sort((a, b) => {
+        const dateA = new Date(a.created_at || a.date);
+        const dateB = new Date(b.created_at || b.date);
+        return dateB - dateA;
+      });
+    }
+    
+    console.log(`📊 Activités sociales trouvées: ${allConnectionsActivity.length}`);
+    
+    if (allConnectionsActivity.length === 0) {
+      return { items: [], count: 0 };
+    }
+
+    // Appliquer les filtres de catégorie
+    let filteredActivity = [...allConnectionsActivity];
+    
+    if (filters.category) {
+      const categoryRegex = new RegExp(filters.category, 'i');
+      
+      filteredActivity = filteredActivity.filter(item => {
+        const producer = item.producer || {};
+        const categories = Array.isArray(producer.category) 
+          ? producer.category 
+          : (typeof producer.category === 'string' ? [producer.category] : []);
+          
+        return categories.some(cat => categoryRegex.test(cat)) ||
+               categoryRegex.test(producer.type) ||
+               (producer.name && categoryRegex.test(producer.name));
+      });
+    }
+    
+    // Si le filtre de restaurant est explicitement demandé
+    if (filters.isRestaurant === true) {
+      filteredActivity = filteredActivity.filter(item => 
+        (item.producer?.type === 'restaurant') || 
+        (item.producer?.category && item.producer.category.some(c => /restaurant|cuisine|gastro/i.test(c)))
+      );
+    }
+    
+    // Si le filtre de loisir est explicitement demandé
+    if (filters.isLeisure === true) {
+      filteredActivity = filteredActivity.filter(item => 
+        (item.producer?.type === 'leisureProducer') || 
+        (item.producer?.category && item.producer.category.some(c => /loisir|activité|culture|musée|cinéma|théâtre/i.test(c)))
+      );
+    }
+    
+    // Si le filtre d'événement est explicitement demandé
+    if (filters.isEvent === true) {
+      filteredActivity = filteredActivity.filter(item => 
+        (item.producer?.type === 'event') || 
+        (item.producer?.category && item.producer.category.some(c => /évènement|événement|festival|concert/i.test(c)))
+      );
+    }
+    
+    // Si le filtre de bien-être est explicitement demandé
+    if (filters.isWellness === true) {
+      filteredActivity = filteredActivity.filter(item => 
+        (item.producer?.type === 'wellnessProducer') || 
+        (item.producer?.category && item.producer.category.some(c => /bien-être|spa|massage|wellness/i.test(c)))
+      );
+    }
+    
+    // Si le filtre de beauté est explicitement demandé
+    if (filters.isBeauty === true) {
+      filteredActivity = filteredActivity.filter(item => 
+        (item.producer?.type === 'beautyPlace') || 
+        (item.producer?.category && item.producer.category.some(c => /beauté|maquillage|coiffure|manucure/i.test(c)))
+      );
+    }
+    
+    // Filtrer selon le type demandé
+    let result = [];
+    
+    switch (type) {
+      case 'recent_choices':
+        // Prioriser les choices récents
+        result = filteredActivity
+          .filter(item => item.created_at || item.date)
+          .sort((a, b) => {
+            const dateA = new Date(a.created_at || a.date);
+            const dateB = new Date(b.created_at || b.date);
+            return dateB - dateA;
+          });
+        break;
+        
+      case 'best_choices':
+        // Prioriser les lieux les mieux notés
+        result = filteredActivity
+          .filter(item => item.producer?.rating)
+          .sort((a, b) => {
+            const ratingA = parseFloat(a.producer?.rating || 0);
+            const ratingB = parseFloat(b.producer?.rating || 0);
+            return ratingB - ratingA;
+          });
+        break;
+        
+      case 'popular_choices':
+        // Agréger par producteur et compter les occurrences
+        const producerCounts = {};
+        filteredActivity.forEach(item => {
+          if (item.producer_id) {
+            producerCounts[item.producer_id] = (producerCounts[item.producer_id] || 0) + 1;
+          }
+        });
+        
+        // Créer un Map pour éliminer les doublons et garder le plus récent
+        const uniqueProducers = new Map();
+        filteredActivity.forEach(item => {
+          if (item.producer_id && (!uniqueProducers.has(item.producer_id) || 
+             new Date(item.created_at || item.date) > new Date(uniqueProducers.get(item.producer_id).created_at || uniqueProducers.get(item.producer_id).date))) {
+            uniqueProducers.set(item.producer_id, item);
+          }
+        });
+        
+        // Convertir en array et trier par popularité
+        result = Array.from(uniqueProducers.values()).sort((a, b) => {
+          const countA = producerCounts[a.producer_id] || 0;
+          const countB = producerCounts[b.producer_id] || 0;
+          return countB - countA;
+        });
+        
+        // Ajouter le compteur de popularité
+        result.forEach(item => {
+          item.popularity = producerCounts[item.producer_id] || 1;
+        });
+        break;
+        
+      case 'interests_only':
+        // Uniquement les interests (désirs), pas les choices (expériences réelles)
+        result = filteredActivity.filter(item => item.isInterest).sort((a, b) => {
+          const dateA = new Date(a.created_at || a.date);
+          const dateB = new Date(b.created_at || b.date);
+          return dateB - dateA;
+        });
+        break;
+        
+      case 'choices_only':
+        // Uniquement les choices (expériences réelles), pas les interests (désirs)
+        result = filteredActivity.filter(item => item.isChoice).sort((a, b) => {
+          const dateA = new Date(a.created_at || a.date);
+          const dateB = new Date(b.created_at || b.date);
+          return dateB - dateA;
+        });
+        break;
+        
+      default:
+        // Par défaut, tout récupérer par ordre chronologique
+        result = filteredActivity.sort((a, b) => {
+          const dateA = new Date(a.created_at || a.date);
+          const dateB = new Date(b.created_at || b.date);
+          return dateB - dateA;
+        });
+    }
+    
+    // Limiter le nombre de résultats (mais garder le count total)
+    const limit = filters.limit || 10;
+    return {
+      items: result.slice(0, limit),
+      count: result.length,
+      type
+    };
+  } catch (error) {
+    console.error('❌ Erreur lors de la récupération des tendances:', error);
+    return { items: [], count: 0 };
+  }
+}
+
+// Step 4a: Handler for friend_choices intent
+async function handleFriendChoicesQuery(query, userId, queryAnalysis, options = {}) {
+  const startTime = Date.now();
+  let result = {
+    query,
+    intent: 'friend_choices',
+    entities: queryAnalysis.entities || {},
+    resultCount: 0,
+    executionTimeMs: 0,
+    response: '',
+    profiles: []
+  };
+  try {
+    if (!userId) {
+      result.response = "Vous devez être connecté pour voir les choices de vos amis.";
+      return result;
+    }
+    // Get social data
+    const socialData = await getUserSocialData(userId);
+    
+    // Determine if we should look at friends or followings based on entities or query text
+    let sourceType = 'friends';
+    const hasFollowingContext = 
+      (queryAnalysis.entities && queryAnalysis.entities.social_context === 'followings') ||
+      query.toLowerCase().includes('following') || 
+      query.toLowerCase().includes('followings');
+    
+    if (hasFollowingContext) {
+      sourceType = 'followings';
+    }
+    
+    // Get the appropriate list of IDs based on sourceType
+    let sourceIds = [];
+    if (sourceType === 'friends') {
+      sourceIds = socialData.friends || [];
+      if (!sourceIds.length) {
+        result.response = "Vous n'avez pas d'amis enregistrés dans l'application.";
+        return result;
+      }
+    } else { // followings
+      sourceIds = socialData.following || [];
+      if (!sourceIds.length) {
+        result.response = "Vous ne suivez aucun utilisateur dans l'application.";
+        return result;
+      }
+    }
+    
+    // Get all choices made by friends/followings
+    const Choice = mongoose.model('Choice');
+    let choiceQuery = { user_id: { $in: sourceIds.map(id => mongoose.Types.ObjectId(id)) } };
+    // Optional: filter by category/producer if present
+    if (queryAnalysis.entities && queryAnalysis.entities.producer_id) {
+      choiceQuery.producer_id = mongoose.Types.ObjectId(queryAnalysis.entities.producer_id);
+    }
+    if (queryAnalysis.entities && queryAnalysis.entities.producer_name) {
+      // Try to find producer by name (restaurant, etc.)
+      // For now, just log; could be improved with fuzzy search
+    }
+    // Find choices (most recent first)
+    const choices = await Choice.find(choiceQuery).sort({ created_at: -1 }).limit(30);
+    // Enrich with producer and user info
+    const enrichedChoices = await enrichChoicesWithProducerDetails(choices);
+    // Attach user info
+    for (const choice of enrichedChoices) {
+      const user = sourceIds.find(id => id === (choice.user_id?.toString?.() || choice.user_id));
+      choice.user = user || null;
+    }
+    // Format response
+    result.resultCount = enrichedChoices.length;
+    result.profiles = extractProfiles(enrichedChoices);
+    if (enrichedChoices.length === 0) {
+      result.response = sourceType === 'friends' 
+        ? "Aucun choix récent trouvé parmi vos amis."
+        : "Aucun choix récent trouvé parmi les utilisateurs que vous suivez.";
+    } else {
+      const sourceLabel = sourceType === 'friends' ? 'vos amis' : 'les utilisateurs que vous suivez';
+      result.response = `Voici les derniers lieux choisis par ${sourceLabel} :\n` +
+        enrichedChoices.slice(0, 5).map((c, i) => `${i+1}. ${(c.producer && c.producer.name) || 'Lieu inconnu'}${c.comment ? ` ("${c.comment}")` : ''}`).join('\n');
+    }
+    result.executionTimeMs = Date.now() - startTime;
+    return result;
+  } catch (error) {
+    console.error('❌ Erreur dans handleFriendChoicesQuery:', error);
+    result.response = "Erreur lors de la récupération des choices des amis.";
+    result.error = error.message;
+    result.executionTimeMs = Date.now() - startTime;
+    return result;
+  }
+}
+
+// Step 4b: Handler for check_friends_choice_for_producer intent
+async function handleCheckFriendsChoiceQuery(query, userId, queryAnalysis, options = {}) {
+  const startTime = Date.now();
+  let result = {
+    query,
+    intent: 'check_friends_choice_for_producer',
+    entities: queryAnalysis.entities || {},
+    resultCount: 0,
+    executionTimeMs: 0,
+    response: '',
+    profiles: []
+  };
+  try {
+    if (!userId) {
+      result.response = "Vous devez être connecté pour voir quels amis ont choisi ce lieu.";
+      return result;
+    }
+    // Get social data
+    const socialData = await getUserSocialData(userId);
+    
+    // Determine if we should look at friends or followings based on entities or query text
+    let sourceType = 'friends';
+    const hasFollowingContext = 
+      (queryAnalysis.entities && queryAnalysis.entities.social_context === 'followings') ||
+      query.toLowerCase().includes('following') || 
+      query.toLowerCase().includes('followings');
+    
+    if (hasFollowingContext) {
+      sourceType = 'followings';
+    }
+    
+    // Get the appropriate list of IDs based on sourceType
+    let sourceIds = [];
+    if (sourceType === 'friends') {
+      sourceIds = socialData.friends || [];
+      if (!sourceIds.length) {
+        result.response = "Vous n'avez pas d'amis enregistrés dans l'application.";
+        return result;
+      }
+    } else { // followings
+      sourceIds = socialData.following || [];
+      if (!sourceIds.length) {
+        result.response = "Vous ne suivez aucun utilisateur dans l'application.";
+        return result;
+      }
+    }
+    
+    // Determine producer filter
+    let producerId = null;
+    if (queryAnalysis.entities && queryAnalysis.entities.producer_id) {
+      producerId = queryAnalysis.entities.producer_id;
+    }
+    // If only producer_name is present, try to find the producer by name
+    if (!producerId && queryAnalysis.entities && queryAnalysis.entities.producer_name) {
+      // Try to find a producer by name (restaurant, etc.)
+      const name = queryAnalysis.entities.producer_name;
+      // Try in Restaurant collection first
+      const found = await Restaurant.findOne({ name: { $regex: new RegExp(name, 'i') } });
+      if (found) producerId = found._id;
+      // Could add more collections if needed
+    }
+    if (!producerId) {
+      result.response = "Je n'ai pas pu identifier le lieu demandé dans votre requête.";
+      return result;
+    }
+    // Get all choices made by friends/followings for this producer
+    const Choice = mongoose.model('Choice');
+    let choiceQuery = {
+      user_id: { $in: sourceIds.map(id => mongoose.Types.ObjectId(id)) },
+      producer_id: mongoose.Types.ObjectId(producerId)
+    };
+    const choices = await Choice.find(choiceQuery).sort({ created_at: -1 }).limit(30);
+    // Enrich with producer and user info
+    const enrichedChoices = await enrichChoicesWithProducerDetails(choices);
+    // Attach user info
+    for (const choice of enrichedChoices) {
+      const user = sourceIds.find(id => id === (choice.user_id?.toString?.() || choice.user_id));
+      choice.user = user || null;
+    }
+    // Format response
+    result.resultCount = enrichedChoices.length;
+    result.profiles = extractProfiles(enrichedChoices);
+    if (enrichedChoices.length === 0) {
+      const sourceLabel = sourceType === 'friends' ? 'vos amis' : 'des utilisateurs que vous suivez';
+      result.response = `Aucun ${sourceLabel} n'a encore choisi ce lieu.`;
+    } else {
+      const sourceLabel = sourceType === 'friends' ? 'amis' : 'utilisateurs suivis';
+      result.response = `Voici les ${sourceLabel} ayant choisi ce lieu :\n` +
+        enrichedChoices.slice(0, 5).map((c, i) => `${i+1}. ID: ${(c.user && c.user.toString()) || 'Inconnu'}${c.comment ? ` ("${c.comment}")` : ''}`).join('\n');
+    }
+    result.executionTimeMs = Date.now() - startTime;
+    return result;
+  } catch (error) {
+    console.error('❌ Erreur dans handleCheckFriendsChoiceQuery:', error);
+    result.response = "Erreur lors de la récupération des choices pour ce lieu.";
+    result.error = error.message;
+    result.executionTimeMs = Date.now() - startTime;
+    return result;
+  }
+}
+
 module.exports = {
   processUserQuery,
   processProducerQuery,
@@ -2835,5 +4053,11 @@ module.exports = {
   getTrendingAmongFriends,
   getFriendsChoices,
   getPlacesWithMostChoices,
-  getMockQueryResponse
+  getMockQueryResponse,
+  formatSocialResponse,
+  getQueryContext,
+  formatDate,
+  // Export new handlers for social intents
+  handleFriendChoicesQuery,
+  handleCheckFriendsChoiceQuery
 };

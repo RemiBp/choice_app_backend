@@ -1,447 +1,771 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const auth = require('../middleware/auth');
+const { io } = require('../index'); // Socket.IO pour les notifications en temps réel
+const Call = require('../models/call');
+const { createModel, databases } = require('../utils/modelCreator');
 
-// Connexion aux bases nécessaires
-const usersDbChoice = mongoose.connection.useDb('choice_app');
+// Modèles nécessaires
+const User = createModel(databases.CHOICE_APP, 'User', 'Users');
+const Conversation = createModel(databases.CHOICE_APP, 'Conversation', 'conversations');
 
-// Modèles
-const User = usersDbChoice.model(
-  'User',
-  new mongoose.Schema({}, { strict: false }),
-  'Users'
-);
-
-const Call = usersDbChoice.model(
-  'Call',
-  new mongoose.Schema({
-    callerId: String,
-    recipientId: String,
-    status: String, // 'initiated', 'accepted', 'rejected', 'completed', 'missed'
-    startTime: Date,
-    endTime: Date,
-    duration: Number, // en secondes
-    isVideo: Boolean,
-    createdAt: { type: Date, default: Date.now }
-  }),
-  'Calls'
-);
-
-// Stockage temporaire des sessions d'appel (à remplacer par Redis en production)
-const activeCalls = new Map();
+// Configuration pour WebRTC
 const iceServers = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' }
 ];
 
-// Middleware d'authentification (à implémenter avec les tokens JWT)
-const authenticate = (req, res, next) => {
-  // Pour la démo, on accepte tous les appels
-  next();
-};
-
-// POST /api/call/start - Initier un appel
-router.post('/start', authenticate, async (req, res) => {
-  const { callerId, recipientId, isVideo = false } = req.body;
-  
-  if (!callerId || !recipientId) {
-    return res.status(400).json({
-      success: false,
-      message: 'Les identifiants d\'appelant et de destinataire sont requis'
-    });
+// Configuration Twilio (si utilisé)
+let twilioClient;
+try {
+  const twilio = require('twilio');
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+    console.log('✅ Twilio client initialized successfully');
   }
-  
+} catch (e) {
+  console.log('⚠️ Twilio not available, using default WebRTC');
+}
+
+// Configuration Agora (alternative à Twilio)
+let agoraClient;
+try {
+  const { RtcTokenBuilder, RtcRole } = require('agora-access-token');
+  if (process.env.AGORA_APP_ID && process.env.AGORA_APP_CERTIFICATE) {
+    agoraClient = { RtcTokenBuilder, RtcRole };
+    console.log('✅ Agora SDK initialized successfully');
+  }
+} catch (e) {
+  console.log('⚠️ Agora SDK not available');
+}
+
+/**
+ * @route POST /api/call/initiate
+ * @desc Initier un appel audio ou vidéo
+ * @access Private
+ */
+router.post('/initiate', auth, async (req, res) => {
   try {
-    // Vérifier si les utilisateurs existent
-    const [caller, recipient] = await Promise.all([
-      User.findById(callerId),
-      User.findById(recipientId)
-    ]);
+    const { 
+      conversationId, 
+      recipientIds, 
+      type = 'video',
+      useExternalProvider = false
+    } = req.body;
     
-    if (!caller || !recipient) {
-      return res.status(404).json({
-        success: false,
-        message: 'Un ou plusieurs utilisateurs n\'existent pas'
+    const initiatorId = req.user.id;
+    
+    if (!initiatorId || (!conversationId && (!recipientIds || !recipientIds.length))) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Données incomplètes pour l\'initiation de l\'appel'
       });
     }
     
-    // Vérifier si le destinataire est déjà en appel
-    if (activeCalls.has(recipientId) && activeCalls.get(recipientId).status === 'active') {
-      return res.status(409).json({
-        success: false,
-        message: 'Le destinataire est déjà en appel'
+    // Valider le type d'appel
+    if (!['audio', 'video'].includes(type)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Type d\'appel invalide, utilisez "audio" ou "video"'
+      });
+    }
+    
+    let targetRecipientIds = [];
+    
+    // Si conversationId est fourni, récupérer les participants de la conversation
+    if (conversationId) {
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Conversation non trouvée'
+        });
+      }
+      
+      // Vérifier que l'initiateur fait partie de la conversation
+      if (!conversation.participants.some(p => p.toString() === initiatorId)) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Vous n\'êtes pas autorisé à initier un appel dans cette conversation'
+        });
+      }
+      
+      // Récupérer tous les participants sauf l'initiateur
+      targetRecipientIds = conversation.participants
+        .filter(p => p.toString() !== initiatorId)
+        .map(p => p.toString());
+    } else {
+      // Utiliser les recipientIds fournis
+      targetRecipientIds = recipientIds;
+    }
+    
+    // Vérifier que les destinataires existent
+    const recipients = await User.find({
+      _id: { $in: targetRecipientIds }
+    }).select('_id name username profilePicture photo_url fcm_token device_info');
+    
+    if (recipients.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Aucun destinataire valide trouvé'
+      });
+    }
+    
+    // Récupérer l'initiateur
+    const initiator = await User.findById(initiatorId)
+      .select('_id name username profilePicture photo_url');
+    
+    if (!initiator) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Initiateur non trouvé'
       });
     }
     
     // Créer un nouvel appel
-    const callId = new mongoose.Types.ObjectId().toString();
     const call = new Call({
-      _id: callId,
-      callerId,
-      recipientId,
-      status: 'initiated',
-      startTime: new Date(),
-      isVideo
+      conversationId: conversationId || null,
+      initiator: initiatorId,
+      recipients: recipients.map(r => r._id),
+      type,
+      participants: [
+        {
+          userId: initiatorId,
+          status: 'joined',
+          joinedAt: new Date(),
+          device: req.body.deviceInfo || {}
+        },
+        ...recipients.map(r => ({
+          userId: r._id,
+          status: 'invited',
+          device: r.device_info || {}
+        }))
+      ]
     });
     
     await call.save();
     
-    // Stocker l'appel dans la mémoire temporaire
-    activeCalls.set(callId, {
-      callerId,
-      recipientId,
-      status: 'initiated',
-      isVideo,
-      startTime: new Date(),
-      signals: {
-        caller: null,
-        recipient: null
+    // Générer les tokens pour le service RTC si un fournisseur externe est utilisé
+    let rtcData = { provider: 'webrtc' };
+    const callId = call._id.toString();
+    
+    if (useExternalProvider) {
+      if (twilioClient) {
+        // Créer une salle Twilio Video
+        try {
+          const room = await twilioClient.video.v1.rooms.create({ 
+            uniqueName: `call-${callId}`, 
+            type: 'group' 
+          });
+          
+          // Générer un token pour l'initiateur
+          const token = await twilioClient.video.v1.rooms(room.sid)
+            .tokens.create({ identity: initiatorId });
+          
+          rtcData = {
+            provider: 'twilio',
+            roomId: room.sid,
+            token: token.toJwt()
+          };
+          
+          // Mettre à jour les données RTC dans l'appel
+          call.rtcData = rtcData;
+          await call.save();
+        } catch (twilioErr) {
+          console.error('Erreur Twilio:', twilioErr);
+          // Fallback au WebRTC standard
+        }
+      } else if (agoraClient) {
+        // Utiliser Agora comme alternative
+        try {
+          const { RtcTokenBuilder, RtcRole } = agoraClient;
+          const agoraAppId = process.env.AGORA_APP_ID;
+          const agoraChannelName = `call-${callId}`;
+          const uid = 0; // 0 signifie que nous laissons Agora attribuer un UID
+          const role = RtcRole.PUBLISHER;
+          const expirationTimeInSeconds = 3600; // 1 heure
+          const currentTimestamp = Math.floor(Date.now() / 1000);
+          const expirationTimestamp = currentTimestamp + expirationTimeInSeconds;
+          
+          // Générer le token
+          const token = RtcTokenBuilder.buildTokenWithUid(
+            agoraAppId,
+            process.env.AGORA_APP_CERTIFICATE,
+            agoraChannelName,
+            uid,
+            role,
+            expirationTimestamp
+          );
+          
+          rtcData = {
+            provider: 'agora',
+            roomId: agoraChannelName,
+            token,
+            appId: agoraAppId
+          };
+          
+          // Mettre à jour les données RTC dans l'appel
+          call.rtcData = rtcData;
+          await call.save();
+        } catch (agoraErr) {
+          console.error('Erreur Agora:', agoraErr);
+          // Fallback au WebRTC standard
+        }
       }
+    }
+    
+    // Notifier les destinataires via WebSocket
+    recipients.forEach(recipient => {
+      io.to(`user_${recipient._id}`).emit('incoming_call', {
+        callId,
+        conversationId: conversationId || null,
+        initiator: {
+          _id: initiator._id,
+          name: initiator.name || initiator.username || 'Utilisateur',
+          profilePicture: initiator.profilePicture || initiator.photo_url
+        },
+        type,
+        rtcData: rtcData.provider !== 'webrtc' ? rtcData : null,
+        iceServers: rtcData.provider === 'webrtc' ? iceServers : null
+      });
     });
     
-    // --- ENVOI DE NOTIFICATION PUSH AU DESTINATAIRE ---
-    try {
-      // Récupérer le nom de l'appelant
-      const callerName = caller.name || caller.username || 'Utilisateur';
-      // Appeler l'endpoint de notification push
-      const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-      await fetch(`${process.env.BASE_URL || 'http://localhost:5000'}/api/notifications/send-push`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: recipientId,
-          title: 'Appel entrant',
-          body: `Vous recevez un appel de ${callerName}`,
-          data: {
-            type: 'call',
-            callId,
-            from: callerId,
-            fromName: callerName,
-            isVideo
-          }
-        })
+    // Envoyer une notification push à chaque destinataire
+    const notificationPromises = recipients
+      .filter(r => r.fcm_token) // Filtrer ceux qui ont un token FCM
+      .map(async (recipient) => {
+        try {
+          const response = await fetch(`${process.env.BASE_URL || 'http://localhost:5000'}/api/notifications/send-push`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${req.headers.authorization.split(' ')[1]}` 
+            },
+            body: JSON.stringify({
+              userId: recipient._id,
+              title: `Appel ${type === 'video' ? 'vidéo' : 'audio'} entrant`,
+              body: `${initiator.name || initiator.username || 'Quelqu\'un'} vous appelle...`,
+              data: {
+                type: 'call',
+                callId,
+                conversationId: conversationId || null,
+                from: initiator._id,
+                callType: type
+              },
+              badge: 1,
+              sound: 'ringtone'
+            })
+          });
+          
+          return response.ok;
+        } catch (e) {
+          console.error(`Erreur lors de l'envoi de la notification à ${recipient._id}:`, e);
+          return false;
+        }
       });
-    } catch (notifErr) {
-      console.error('Erreur lors de l\'envoi de la notification push d\'appel:', notifErr);
-    }
-    // --- FIN ENVOI NOTIF ---
     
-    return res.status(200).json({
+    // Attendre l'envoi des notifications, mais ne pas bloquer la réponse
+    Promise.allSettled(notificationPromises).then(results => {
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
+      console.log(`✅ ${successCount}/${recipients.length} notifications d'appel envoyées`);
+    });
+    
+    // Répondre immédiatement
+    res.status(201).json({
       success: true,
       callId,
-      iceServers,
-      message: 'Appel initié avec succès'
+      rtcData,
+      iceServers: rtcData.provider === 'webrtc' ? iceServers : null,
+      recipients: recipients.map(r => ({
+        _id: r._id,
+        name: r.name || r.username || 'Utilisateur',
+        profilePicture: r.profilePicture || r.photo_url
+      }))
     });
   } catch (error) {
-    console.error('Erreur lors de l\'initiation de l\'appel:', error);
-    return res.status(500).json({
-      success: false,
+    console.error('❌ Erreur lors de l\'initiation de l\'appel:', error);
+    res.status(500).json({ 
+      success: false, 
       message: 'Erreur serveur lors de l\'initiation de l\'appel',
       error: error.message
     });
   }
 });
 
-// POST /api/call/answer - Répondre à un appel
-router.post('/answer', authenticate, async (req, res) => {
-  const { callId, accept = true } = req.body;
-  
-  if (!callId) {
-    return res.status(400).json({
-      success: false,
-      message: 'L\'identifiant d\'appel est requis'
-    });
-  }
-  
+/**
+ * @route POST /api/call/join
+ * @desc Rejoindre un appel existant
+ * @access Private
+ */
+router.post('/join', auth, async (req, res) => {
   try {
-    // Vérifier si l'appel existe
+    const { callId, deviceInfo } = req.body;
+    const userId = req.user.id;
+    
+    if (!callId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID d\'appel requis'
+      });
+    }
+    
+    // Vérifier que l'appel existe
     const call = await Call.findById(callId);
     if (!call) {
-      return res.status(404).json({
-        success: false,
+      return res.status(404).json({ 
+        success: false, 
         message: 'Appel non trouvé'
       });
     }
     
-    // Vérifier si l'appel est toujours en cours d'initiation
-    if (call.status !== 'initiated') {
-      return res.status(409).json({
-        success: false,
-        message: `L'appel a déjà été ${call.status === 'accepted' ? 'accepté' : 'terminé'}`
+    // Vérifier que l'utilisateur est invité à l'appel
+    const isInvited = call.initiator.toString() === userId || 
+                     call.recipients.some(r => r.toString() === userId);
+    
+    if (!isInvited) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Vous n\'êtes pas autorisé à rejoindre cet appel'
       });
     }
     
-    // Mettre à jour le statut de l'appel
-    call.status = accept ? 'accepted' : 'rejected';
-    if (accept) {
-      // Début de l'appel
-      call.startTime = new Date();
-    } else {
-      // Fin de l'appel (rejeté)
-      call.endTime = new Date();
-      call.duration = 0;
+    // Vérifier que l'appel n'est pas terminé
+    if (call.status === 'ended') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cet appel est déjà terminé'
+      });
     }
     
-    await call.save();
+    // Mettre à jour le statut du participant
+    call.updateParticipantStatus(userId, 'joined');
     
-    // Mettre à jour l'appel dans la mémoire
-    if (activeCalls.has(callId)) {
-      const activeCall = activeCalls.get(callId);
-      activeCall.status = accept ? 'active' : 'ended';
-      
-      if (!accept) {
-        // Nettoyer après un certain délai
-        setTimeout(() => {
-          activeCalls.delete(callId);
-        }, 5000);
+    // Si c'est le premier participant à rejoindre (à part l'initiateur), 
+    // mettre à jour le statut de l'appel
+    if (call.status === 'initiated' || call.status === 'ringing') {
+      call.status = 'ongoing';
+      await call.save();
+    }
+    
+    // Générer un token pour le service RTC si nécessaire
+    let rtcData = call.rtcData || { provider: 'webrtc' };
+    
+    // Si un service externe est utilisé, générer un token pour ce participant
+    if (rtcData.provider === 'twilio' && twilioClient) {
+      try {
+        const token = await twilioClient.video.v1.rooms(rtcData.roomId)
+          .tokens.create({ identity: userId });
+        
+        rtcData.token = token.toJwt();
+      } catch (twilioErr) {
+        console.error('Erreur Twilio lors du join:', twilioErr);
+        // Fallback aux données existantes
+      }
+    } else if (rtcData.provider === 'agora' && agoraClient) {
+      try {
+        const { RtcTokenBuilder, RtcRole } = agoraClient;
+        const agoraAppId = process.env.AGORA_APP_ID;
+        const agoraChannelName = rtcData.roomId;
+        const uid = 0; // 0 signifie que nous laissons Agora attribuer un UID
+        const role = RtcRole.PUBLISHER;
+        const expirationTimeInSeconds = 3600; // 1 heure
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        const expirationTimestamp = currentTimestamp + expirationTimeInSeconds;
+        
+        // Générer le token
+        const token = RtcTokenBuilder.buildTokenWithUid(
+          agoraAppId,
+          process.env.AGORA_APP_CERTIFICATE,
+          agoraChannelName,
+          uid,
+          role,
+          expirationTimestamp
+        );
+        
+        rtcData.token = token;
+      } catch (agoraErr) {
+        console.error('Erreur Agora lors du join:', agoraErr);
       }
     }
     
-    return res.status(200).json({
-      success: true,
+    // Notifier les autres participants de l'appel via WebSocket
+    io.to(`call_${callId}`).emit('participant_joined', {
       callId,
-      iceServers: accept ? iceServers : undefined,
-      message: accept ? 'Appel accepté' : 'Appel rejeté'
+      userId,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Faire rejoindre ce participant à la room Socket.IO de l'appel
+    const socketId = req.headers['socket-id'];
+    if (socketId && io.sockets.sockets.get(socketId)) {
+      io.sockets.sockets.get(socketId).join(`call_${callId}`);
+    }
+    
+    res.status(200).json({
+      success: true,
+      call: {
+        _id: call._id,
+        conversationId: call.conversationId,
+        type: call.type,
+        initiator: call.initiator,
+        status: call.status,
+        startTime: call.startTime,
+        participants: call.participants
+      },
+      rtcData,
+      iceServers: rtcData.provider === 'webrtc' ? iceServers : null
     });
   } catch (error) {
-    console.error('Erreur lors de la réponse à l\'appel:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Erreur serveur lors de la réponse à l\'appel',
+    console.error('❌ Erreur lors du join à l\'appel:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur serveur',
       error: error.message
     });
   }
 });
 
-// POST /api/call/end - Terminer un appel
-router.post('/end', authenticate, async (req, res) => {
-  const { callId } = req.body;
-  
-  if (!callId) {
-    return res.status(400).json({
-      success: false,
-      message: 'L\'identifiant d\'appel est requis'
-    });
-  }
-  
+/**
+ * @route POST /api/call/decline
+ * @desc Refuser un appel
+ * @access Private
+ */
+router.post('/decline', auth, async (req, res) => {
   try {
-    // Vérifier si l'appel existe
+    const { callId, reason = 'declined' } = req.body;
+    const userId = req.user.id;
+    
+    if (!callId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID d\'appel requis'
+      });
+    }
+    
+    // Vérifier que l'appel existe
     const call = await Call.findById(callId);
     if (!call) {
-      return res.status(404).json({
-        success: false,
+      return res.status(404).json({ 
+        success: false, 
         message: 'Appel non trouvé'
       });
     }
     
-    // Si l'appel est déjà terminé
-    if (call.status === 'completed' || call.status === 'rejected') {
-      return res.status(409).json({
-        success: false,
-        message: 'L\'appel est déjà terminé'
+    // Vérifier que l'utilisateur est invité à l'appel
+    const isInvited = call.recipients.some(r => r.toString() === userId);
+    
+    if (!isInvited) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Vous n\'êtes pas concerné par cet appel'
       });
     }
     
-    // Calculer la durée de l'appel
-    const endTime = new Date();
-    const duration = call.startTime 
-      ? Math.round((endTime - call.startTime) / 1000) 
-      : 0;
+    // Mettre à jour le statut du participant
+    call.updateParticipantStatus(userId, reason === 'busy' ? 'busy' : 'declined');
     
-    // Mettre à jour l'appel
-    call.status = 'completed';
-    call.endTime = endTime;
-    call.duration = duration;
-    
-    await call.save();
-    
-    // Nettoyer la mémoire temporaire
-    if (activeCalls.has(callId)) {
-      activeCalls.get(callId).status = 'ended';
+    // Vérifier si tous les participants ont refusé/manqué l'appel
+    if (call.areAllParticipantsUnavailable()) {
+      call.status = 'rejected';
+      call.endTime = new Date();
+      await call.save();
       
-      // Nettoyer après un certain délai
-      setTimeout(() => {
-        activeCalls.delete(callId);
-      }, 5000);
+      // Notifier l'initiateur que tout le monde a refusé
+      io.to(`user_${call.initiator}`).emit('call_rejected', {
+        callId,
+        reason: 'all_declined'
+      });
+    } else {
+      // Notifier les autres participants qu'un utilisateur a refusé
+      io.to(`call_${callId}`).emit('participant_declined', {
+        callId,
+        userId,
+        reason,
+        timestamp: new Date().toISOString()
+      });
     }
     
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
+      message: 'Appel refusé avec succès'
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors du refus de l\'appel:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur serveur',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/call/end
+ * @desc Terminer un appel
+ * @access Private
+ */
+router.post('/end', auth, async (req, res) => {
+  try {
+    const { callId } = req.body;
+    const userId = req.user.id;
+    
+    if (!callId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID d\'appel requis'
+      });
+    }
+    
+    // Vérifier que l'appel existe
+    const call = await Call.findById(callId);
+    if (!call) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Appel non trouvé'
+      });
+    }
+    
+    // Vérifier que l'utilisateur est participant à l'appel
+    const isParticipant = call.initiator.toString() === userId || 
+                          call.recipients.some(r => r.toString() === userId);
+    
+    if (!isParticipant) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Vous n\'êtes pas autorisé à terminer cet appel'
+      });
+    }
+    
+    // Si l'initiateur termine l'appel ou si c'est le dernier participant, terminer l'appel
+    const isInitiator = call.initiator.toString() === userId;
+    
+    if (isInitiator) {
+      // L'initiateur peut toujours terminer l'appel
+      await call.endCall();
+    } else {
+      // Mettre à jour le statut du participant
+      call.updateParticipantStatus(userId, 'left');
+      
+      // Vérifier s'il reste des participants actifs (à part l'initiateur)
+      const activeParticipants = call.participants.filter(
+        p => p.status === 'joined' && p.userId.toString() !== call.initiator.toString()
+      );
+      
+      if (activeParticipants.length === 0) {
+        // Plus personne n'est en ligne, terminer l'appel
+        await call.endCall();
+      }
+    }
+    
+    // Notifier tous les participants que l'appel est terminé
+    io.to(`call_${callId}`).emit('call_ended', {
       callId,
-      duration,
-      message: 'Appel terminé avec succès'
+      endedBy: userId,
+      wasInitiator: isInitiator,
+      timestamp: new Date().toISOString()
     });
-  } catch (error) {
-    console.error('Erreur lors de la terminaison de l\'appel:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Erreur serveur lors de la terminaison de l\'appel',
-      error: error.message
-    });
-  }
-});
-
-// POST /api/call/signal - Échanger des données de signalisation WebRTC
-router.post('/signal', authenticate, async (req, res) => {
-  const { callId, from, to, signal } = req.body;
-  
-  if (!callId || !from || !to || !signal) {
-    return res.status(400).json({
-      success: false,
-      message: 'Les paramètres callId, from, to et signal sont requis'
-    });
-  }
-  
-  try {
-    // Vérifier si l'appel existe en mémoire
-    if (!activeCalls.has(callId)) {
-      return res.status(404).json({
-        success: false,
-        message: 'Appel non trouvé ou terminé'
-      });
+    
+    // Fermer la room d'appel si l'appel est terminé
+    if (call.status === 'ended') {
+      // Terminer l'appel WebRTC (Twilio ou autre) si nécessaire
+      if (call.rtcData && call.rtcData.provider === 'twilio' && twilioClient) {
+        try {
+          await twilioClient.video.v1.rooms(call.rtcData.roomId).update({ status: 'completed' });
+        } catch (twilioErr) {
+          console.error('Erreur lors de la fermeture de la room Twilio:', twilioErr);
+        }
+      }
     }
     
-    const activeCall = activeCalls.get(callId);
-    
-    // Vérifier si l'appel est actif
-    if (activeCall.status !== 'initiated' && activeCall.status !== 'active') {
-      return res.status(409).json({
-        success: false,
-        message: 'L\'appel n\'est pas actif'
-      });
-    }
-    
-    // Stocker le signal pour qu'il soit récupéré par l'autre participant
-    // En production, on utiliserait un système de websockets ou push notifications
-    // pour transmettre le signal immédiatement
-    
-    // Pour cette démo, on stocke simplement le dernier signal
-    if (from === activeCall.callerId) {
-      activeCall.signals.caller = signal;
-    } else if (from === activeCall.recipientId) {
-      activeCall.signals.recipient = signal;
-    } else {
-      return res.status(403).json({
-        success: false,
-        message: 'Utilisateur non autorisé à signaler pour cet appel'
-      });
-    }
-    
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-      message: 'Signal enregistré avec succès'
+      message: 'Appel terminé avec succès',
+      duration: call.getCurrentDuration()
     });
   } catch (error) {
-    console.error('Erreur lors de la signalisation:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Erreur serveur lors de la signalisation',
+    console.error('❌ Erreur lors de la fin de l\'appel:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur serveur',
       error: error.message
     });
   }
 });
 
-// GET /api/call/signal/:callId/:userId - Récupérer les signaux d'un appel pour un utilisateur
-router.get('/signal/:callId/:userId', authenticate, async (req, res) => {
-  const { callId, userId } = req.params;
-  
-  if (!callId || !userId) {
-    return res.status(400).json({
-      success: false,
-      message: 'Les paramètres callId et userId sont requis'
-    });
-  }
-  
+/**
+ * @route GET /api/call/history
+ * @desc Récupérer l'historique des appels d'un utilisateur
+ * @access Private
+ */
+router.get('/history', auth, async (req, res) => {
   try {
-    // Vérifier si l'appel existe en mémoire
-    if (!activeCalls.has(callId)) {
-      return res.status(404).json({
-        success: false,
-        message: 'Appel non trouvé ou terminé'
-      });
-    }
+    const userId = req.user.id;
+    const { limit = 20, skip = 0 } = req.query;
     
-    const activeCall = activeCalls.get(callId);
-    
-    // Vérifier si l'utilisateur fait partie de l'appel
-    if (userId !== activeCall.callerId && userId !== activeCall.recipientId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Utilisateur non autorisé à accéder à cet appel'
-      });
-    }
-    
-    // Récupérer le signal de l'autre participant
-    let signal = null;
-    if (userId === activeCall.callerId) {
-      signal = activeCall.signals.recipient;
-    } else {
-      signal = activeCall.signals.caller;
-    }
-    
-    return res.status(200).json({
-      success: true,
-      signal,
-      callStatus: activeCall.status
-    });
-  } catch (error) {
-    console.error('Erreur lors de la récupération du signal:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Erreur serveur lors de la récupération du signal',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/call/history/:userId - Obtenir l'historique des appels d'un utilisateur
-router.get('/history/:userId', authenticate, async (req, res) => {
-  const { userId } = req.params;
-  const { limit = 20, offset = 0 } = req.query;
-  
-  if (!userId) {
-    return res.status(400).json({
-      success: false,
-      message: 'L\'identifiant d\'utilisateur est requis'
-    });
-  }
-  
-  try {
-    // Trouver tous les appels où l'utilisateur était impliqué
+    // Récupérer les appels où l'utilisateur est impliqué
     const calls = await Call.find({
       $or: [
-        { callerId: userId },
-        { recipientId: userId }
+        { initiator: userId },
+        { recipients: userId },
+        { 'participants.userId': userId }
       ]
     })
-    .sort({ createdAt: -1 })
-    .skip(parseInt(offset))
-    .limit(parseInt(limit));
+    .sort({ startTime: -1 })
+    .skip(Number(skip))
+    .limit(Number(limit))
+    .populate('initiator', '_id name username profilePicture photo_url')
+    .populate('recipients', '_id name username profilePicture photo_url');
     
-    // Compter le nombre total d'appels
-    const totalCalls = await Call.countDocuments({
-      $or: [
-        { callerId: userId },
-        { recipientId: userId }
-      ]
-    });
+    // Formater les résultats
+    const formattedCalls = await Promise.all(calls.map(async (call) => {
+      // Pour les appels liés à une conversation, récupérer les infos de la conversation
+      let conversationInfo = null;
+      if (call.conversationId) {
+        const conversation = await Conversation.findById(call.conversationId)
+          .select('_id groupName groupAvatar isGroup participants');
+        
+        if (conversation) {
+          conversationInfo = {
+            _id: conversation._id,
+            isGroup: conversation.isGroup,
+            name: conversation.groupName,
+            avatar: conversation.groupAvatar
+          };
+        }
+      }
+      
+      // Déterminer si c'est un appel entrant ou sortant pour cet utilisateur
+      const isOutgoing = call.initiator._id.toString() === userId;
+      
+      // Déterminer le statut de l'appel pour cet utilisateur
+      let userCallStatus = 'missed';
+      const participant = call.participants.find(p => p.userId.toString() === userId);
+      
+      if (participant) {
+        userCallStatus = participant.status;
+      } else if (isOutgoing) {
+        userCallStatus = 'initiated';
+      }
+      
+      return {
+        _id: call._id,
+        conversationId: call.conversationId,
+        conversation: conversationInfo,
+        type: call.type,
+        isOutgoing,
+        status: call.status,
+        userStatus: userCallStatus,
+        startTime: call.startTime,
+        endTime: call.endTime,
+        duration: call.metadata?.duration || call.getCurrentDuration(),
+        participants: call.participants.map(p => ({
+          userId: p.userId,
+          status: p.status,
+          joinedAt: p.joinedAt,
+          leftAt: p.leftAt
+        })),
+        // Pour les appels individuels, ajouter les informations de l'autre personne
+        contact: !conversationInfo && !isOutgoing ? call.initiator : 
+                 !conversationInfo && isOutgoing && call.recipients.length > 0 ? call.recipients[0] : null
+      };
+    }));
     
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-      calls,
-      total: totalCalls,
-      limit: parseInt(limit),
-      offset: parseInt(offset)
+      calls: formattedCalls,
+      total: await Call.countDocuments({
+        $or: [
+          { initiator: userId },
+          { recipients: userId },
+          { 'participants.userId': userId }
+        ]
+      })
     });
   } catch (error) {
-    console.error('Erreur lors de la récupération de l\'historique des appels:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Erreur serveur lors de la récupération de l\'historique des appels',
+    console.error('❌ Erreur lors de la récupération de l\'historique des appels:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur serveur',
       error: error.message
     });
   }
 });
 
+/**
+ * @route GET /api/call/:callId
+ * @desc Récupérer les détails d'un appel
+ * @access Private
+ */
+router.get('/:callId', auth, async (req, res) => {
+  try {
+    const { callId } = req.params;
+    const userId = req.user.id;
+    
+    const call = await Call.findById(callId)
+      .populate('initiator', '_id name username profilePicture photo_url')
+      .populate('recipients', '_id name username profilePicture photo_url');
+    
+    if (!call) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Appel non trouvé'
+      });
+    }
+    
+    // Vérifier que l'utilisateur est participant à l'appel
+    const isParticipant = call.initiator._id.toString() === userId || 
+                          call.recipients.some(r => r._id.toString() === userId);
+    
+    if (!isParticipant) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Vous n\'êtes pas autorisé à voir cet appel'
+      });
+    }
+    
+    // Récupérer les infos de la conversation si applicable
+    let conversationInfo = null;
+    if (call.conversationId) {
+      const conversation = await Conversation.findById(call.conversationId)
+        .select('_id groupName groupAvatar isGroup participants');
+      
+      if (conversation) {
+        conversationInfo = {
+          _id: conversation._id,
+          isGroup: conversation.isGroup,
+          name: conversation.groupName,
+          avatar: conversation.groupAvatar
+        };
+      }
+    }
+    
+    res.status(200).json({
+      success: true,
+      call: {
+        _id: call._id,
+        conversationId: call.conversationId,
+        conversation: conversationInfo,
+        type: call.type,
+        initiator: call.initiator,
+        recipients: call.recipients,
+        status: call.status,
+        startTime: call.startTime,
+        endTime: call.endTime,
+        duration: call.metadata?.duration || call.getCurrentDuration(),
+        participants: call.participants
+      }
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la récupération de l\'appel:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur serveur',
+      error: error.message
+    });
+  }
+});
+
+// Exporter le routeur
 module.exports = router; 

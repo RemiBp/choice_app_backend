@@ -51,7 +51,9 @@ router.get('/events', async (req, res) => {
       dateEnd,
       minPrice,
       maxPrice,
-      familyFriendly
+      familyFriendly,
+      sortBy = 'date', // Ajout du paramètre de tri
+      limit = 50 // Ajout de la limite pour la pagination future
     } = req.query;
 
     // Validation des paramètres obligatoires
@@ -60,221 +62,280 @@ router.get('/events', async (req, res) => {
     }
 
     console.log(`🔍 Recherche d'événements autour de (${latitude}, ${longitude}) dans un rayon de ${radius}m`);
-    console.log(`📊 Filtres: Catégories=${categories || 'toutes'}, Émotions=${emotions || 'toutes'}, Dates=${dateStart || 'non spécifié'} à ${dateEnd || 'non spécifié'}`);
+    console.log(`📊 Filtres: Catégories=${categories || 'toutes'}, Émotions=${emotions || 'toutes'}, Dates=${dateStart || 'non spécifié'} à ${dateEnd || 'non spécifié'}, Tri=${sortBy}`);
 
-    // Connexion à la base de données
+    // Connexion à la base de données Loisir&Culture
     const loisirDb = mongoose.connection.useDb('Loisir&Culture');
-    const collection = loisirDb.collection('Loisir_Paris_Evenements');
+    // Utiliser une collection qui correspond au modèle Event unifié
+    const collection = loisirDb.collection('Loisir_Paris_Evenements'); 
     
-    // Construction de la requête pour les événements
+    // Construction de la requête de filtre
     const query = {};
     
-    // Ajouter la contrainte géospatiale si les coordonnées sont valides
+    // Contrainte géospatiale
     if (latitude && longitude && radius) {
       const lat = parseFloat(latitude);
       const lng = parseFloat(longitude);
+      const rad = parseInt(radius);
       
-      if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-        // Désactiver temporairement la recherche géospatiale pour tester
-        // car de nombreux documents peuvent ne pas avoir de coordonnées
-        /*
+      if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && !isNaN(rad) && rad > 0) {
         query.location = {
-          $geoWithin: {
-            $centerSphere: [
-              [lng, lat],
-              parseInt(radius) / 6378137 // Convertir mètres en radians
-            ]
+          $nearSphere: {
+             $geometry: {
+                type : "Point",
+                coordinates : [ lng, lat ]
+             },
+             $maxDistance: rad 
           }
         };
-        */
-        console.log(`🔍 Contrainte géospatiale désactivée temporairement pour les tests.`);
+        // Alternative: query.location = { $geoWithin: { $centerSphere: [ [lng, lat], rad / 6378137 ] } }; 
+        console.log(`🔍 Filtre géospatial activé.`);
+      } else {
+         console.warn(`⚠️ Coordonnées ou rayon invalides : lat=${latitude}, lng=${longitude}, radius=${radius}`);
       }
+    } else {
+        console.log(`⚠️ Filtre géospatial désactivé (coordonnées/rayon manquants).`);
     }
-    
-    // Temporairement, ajouter des coordonnées factices pour tests 
-    // si les documents n'ont pas de géolocalisation
-    const pipeline = [
-      { $match: query },
-      { $limit: 50 },
-      {
-        $addFields: {
-          location: { 
-            $cond: { 
-              if: { $eq: ["$location", null] }, 
-              then: { 
-                type: "Point", 
-                coordinates: [parseFloat(longitude), parseFloat(latitude)] 
-              },
-              else: "$location"
-            }
-          },
-          latitude: { 
-            $cond: { 
-              if: { $eq: ["$latitude", null] }, 
-              then: parseFloat(latitude),
-              else: "$latitude"
-            }
-          },
-          longitude: { 
-            $cond: { 
-              if: { $eq: ["$longitude", null] }, 
-              then: parseFloat(longitude),
-              else: "$longitude"
-            }
-          }
-        }
-      }
-    ];
-    
+
     // Filtrage par catégorie
     if (categories) {
       const categoryList = categories.split(',');
+      const categoryRegexList = categoryList.map(category => new RegExp(category.trim(), 'i'));
       query.$or = query.$or || [];
-      
-      categoryList.forEach(category => {
-        query.$or.push(
-          { catégorie: { $regex: category, $options: 'i' } },
-          { category: { $regex: category, $options: 'i' } },
-          { catégorie_principale: { $regex: category, $options: 'i' } }
-        );
-      });
+      query.$or.push(
+        { catégorie: { $in: categoryRegexList } },
+        { category: { $in: categoryRegexList } },
+        { catégorie_principale: { $in: categoryRegexList } }
+      );
     }
     
     // Filtrage par émotions
     if (emotions) {
       const emotionsList = emotions.split(',');
-      query.emotions = { $in: emotionsList.map(e => new RegExp(e, 'i')) };
+      // Assumes emotions are stored in the 'emotions' field as an array of strings
+      query.emotions = { $in: emotionsList.map(e => new RegExp(e.trim(), 'i')) }; 
     }
     
-    // Filtrage par mot-clé
+    // Filtrage par mot-clé (recherche textuelle)
     if (keyword) {
+      const keywordRegex = new RegExp(keyword.trim(), 'i');
+      // Search in multiple relevant fields
       query.$or = query.$or || [];
       query.$or.push(
-        { intitulé: { $regex: keyword, $options: 'i' } },
-        { title: { $regex: keyword, $options: 'i' } },
-        { détail: { $regex: keyword, $options: 'i' } },
-        { description: { $regex: keyword, $options: 'i' } }
+        { intitulé: keywordRegex },
+        { title: keywordRegex },
+        { name: keywordRegex },
+        { détail: keywordRegex },
+        { description: keywordRegex },
+        { lieu: keywordRegex },
+        { venue: keywordRegex },
+        { tags: keywordRegex } // Search in tags as well
       );
     }
     
     // Filtrage par note minimum
-    if (minRating) {
-      query.$or = [
-        { note: { $gte: parseFloat(minRating) } },
-        { 'rating.average': { $gte: parseFloat(minRating) } }
-      ];
+    if (minRating && !isNaN(parseFloat(minRating))) {
+      const rating = parseFloat(minRating);
+      // Check multiple rating fields for compatibility
+      query.$or = query.$or || [];
+      query.$or.push(
+        // Check numeric note first if it exists
+        { note: { $gte: rating } }, 
+        // Check nested rating structure
+        { 'rating.average': { $gte: rating } },
+        // Check AI note if available
+        { note_ai: { $gte: rating } } 
+      );
     }
     
     // Filtrage par date
-    if (dateStart || dateEnd) {
-      const dateConditions = [];
-      
-      if (dateStart) {
-        try {
-          // Convertir la date de début en format ISO
-          const startDate = new Date(dateStart);
-          
-          // Ajouter la condition pour la date de début dans les différents formats possibles
+    const dateConditions = [];
+    if (dateStart) {
+      try {
+        const startDate = new Date(dateStart); // Attend format ISO YYYY-MM-DD
+        if (!isNaN(startDate.getTime())) {
           dateConditions.push({
             $or: [
-              { date_debut: { $gte: startDate.toISOString().substring(0, 10) } },
+              // Check actual Date fields
               { start_date: { $gte: startDate } },
-              { startDate: { $gte: startDate } }
+              { date: { $gte: startDate } },
+              { startDate: { $gte: startDate } },
+              // Check string format (less reliable)
+              { date_debut: { $gte: dateStart } } 
             ]
           });
-        } catch (e) {
-          console.error('Erreur lors du parsing de la date de début:', e);
+        } else {
+           console.warn(`⚠️ Date de début invalide ignorée: ${dateStart}`);
         }
+      } catch (e) {
+        console.error('Erreur lors du parsing de la date de début:', e);
       }
-      
-      if (dateEnd) {
-        try {
-          // Convertir la date de fin en format ISO
-          const endDate = new Date(dateEnd);
-          
-          // Ajouter la condition pour la date de fin dans les différents formats possibles
+    }
+    
+    if (dateEnd) {
+      try {
+        const endDate = new Date(dateEnd); // Attend format ISO YYYY-MM-DD
+        if (!isNaN(endDate.getTime())) {
+          // Set to end of day for inclusive search
+          endDate.setHours(23, 59, 59, 999); 
           dateConditions.push({
             $or: [
-              { date_fin: { $lte: endDate.toISOString().substring(0, 10) } },
-              { end_date: { $lte: endDate } },
-              { endDate: { $lte: endDate } }
+              // Check actual Date fields (use start_date/date for events ending on this day)
+              { start_date: { $lte: endDate } },
+              { date: { $lte: endDate } },
+              { startDate: { $lte: endDate } },
+              // Check end date fields
+              { end_date: { $lte: endDate } }, 
+              { endDate: { $lte: endDate } },
+              // Check string format (less reliable)
+              { date_fin: { $lte: dateEnd } }
             ]
           });
-        } catch (e) {
-          console.error('Erreur lors du parsing de la date de fin:', e);
+        } else {
+           console.warn(`⚠️ Date de fin invalide ignorée: ${dateEnd}`);
         }
+      } catch (e) {
+        console.error('Erreur lors du parsing de la date de fin:', e);
       }
-      
-      // Ajouter les conditions de date à la requête si elles existent
-      if (dateConditions.length > 0) {
-        query.$and = dateConditions;
+    }
+    
+    // Combine date conditions using $and
+    if (dateConditions.length > 0) {
+      if (query.$and) {
+         query.$and.push(...dateConditions);
+      } else {
+         query.$and = dateConditions;
       }
     }
     
     // Filtrage par prix
-    if (minPrice || maxPrice) {
-      const priceConditions = [];
-      
-      if (minPrice) {
-        priceConditions.push({
-          $or: [
-            { price_amount: { $gte: parseFloat(minPrice) } },
-            { 'price.amount': { $gte: parseFloat(minPrice) } }
-          ]
-        });
-      }
-      
-      if (maxPrice) {
-        priceConditions.push({
-          $or: [
-            { price_amount: { $lte: parseFloat(maxPrice) } },
-            { 'price.amount': { $lte: parseFloat(maxPrice) } }
-          ]
-        });
-      }
-      
-      // Ajouter les conditions de prix à la requête si elles existent
-      if (priceConditions.length > 0) {
-        query.$and = query.$and || [];
-        query.$and.push(...priceConditions);
-      }
+    const priceConditions = [];
+    if (minPrice && !isNaN(parseFloat(minPrice))) {
+      priceConditions.push({
+        $or: [
+          { price_amount: { $gte: parseFloat(minPrice) } },
+          { 'price.amount': { $gte: parseFloat(minPrice) } }
+        ]
+      });
+    }
+    
+    if (maxPrice && !isNaN(parseFloat(maxPrice))) {
+      priceConditions.push({
+        $or: [
+          { price_amount: { $lte: parseFloat(maxPrice) } },
+          { 'price.amount': { $lte: parseFloat(maxPrice) } }
+        ]
+      });
+    }
+    
+    // Combine price conditions using $and
+    if (priceConditions.length > 0) {
+       if (query.$and) {
+         query.$and.push(...priceConditions);
+       } else {
+         query.$and = priceConditions;
+       }
     }
     
     // Filtrage pour événements adaptés aux familles
     if (familyFriendly === 'true') {
       query.$or = query.$or || [];
       query.$or.push(
-        { 'tags': { $regex: 'famille', $options: 'i' } },
-        { 'tags': { $regex: 'enfant', $options: 'i' } },
-        { 'family_friendly': true }
+        // Check tags array
+        { 'tags': { $regex: 'famille|enfant', $options: 'i' } }, 
+        // Check dedicated boolean field
+        { 'family_friendly': true } 
       );
     }
     
     console.log('🧪 Requête MongoDB pour les événements:', JSON.stringify(query));
     
-    // Exécution de la requête avec limite pour éviter de surcharger le frontend
-    const events = await collection.find(query).limit(50).toArray();
+    // Définir le tri
+    let sortOptions = {};
+    switch (sortBy) {
+      case 'popularity':
+        // Trier par une combinaison de vues, intérêts, likes (plus récent en premier)
+        sortOptions = { 
+            views_count: -1, 
+            interest_count: -1, 
+            likes_count: -1,
+            popularity_score: -1, // If available
+            start_date: -1 // Fallback sort
+        };
+        break;
+      case 'rating':
+        // Trier par note moyenne, puis par nombre d'avis
+        sortOptions = { 
+            'rating.average': -1, 
+            note: -1, // Check alternate field
+            note_ai: -1, // Check AI note
+            'rating.count': -1 // Secondary sort by number of ratings
+        };
+        break;
+      case 'date':
+      default:
+        // Trier par date de début (la plus proche en premier)
+        sortOptions = { start_date: 1, date_debut: 1, date: 1 };
+        break;
+    }
+    
+    // Exécution de la requête avec filtre, tri et limite
+    const events = await collection.find(query)
+                                   .sort(sortOptions)
+                                   .limit(parseInt(limit)) // Utiliser la limite
+                                   .toArray();
+                                   
     console.log(`✅ ${events.length} événements trouvés`);
     
-    // Transformer les données pour normaliser le format
+    // Transformer les données pour normaliser le format pour le frontend
     const formattedEvents = events.map(event => ({
       _id: event._id,
-      intitulé: event.intitulé || event.title || 'Sans titre',
-      lieu: event.lieu || event.venue || 'Lieu non spécifié',
-      adresse: event.adresse || event.address || '',
-      catégorie: event.catégorie || event.category || 'Non catégorisé',
-      date_debut: event.date_debut || (event.start_date ? new Date(event.start_date).toLocaleDateString('fr-FR') : 'Date non spécifiée'),
-      date_fin: event.date_fin || (event.end_date ? new Date(event.end_date).toLocaleDateString('fr-FR') : ''),
-      détail: event.détail || event.description || '',
-      prix_reduit: event.prix_reduit || (event.price ? event.price.formatted || event.price.amount : ''),
-      image: event.image || event.photo || '',
-      note: event.note || (event.rating ? event.rating.average : null),
-      lineup: event.lineup || [],
-      emotions: event.emotions || [],
-      location: event.location || null,
-      horaires: event.horaires || null,
-      purchase_url: event.purchase_url || event.ticketing_url || event.site_url || null,
-      source: event.source || 'Loisir&Culture'
+      id: event._id.toString(), // Ensure ID is string for frontend
+      // Title: prioritize specific fields, fallback to others
+      title: event.title || event.intitulé || event.name || 'Sans titre', 
+      // Location: prioritize specific fields, fallback
+      lieu: event.venue || event.lieu || 'Lieu non spécifié', 
+      // Address: prioritize specific fields
+      adresse: event.address || event.adresse || '', 
+      // Category: prioritize specific fields
+      catégorie: event.category || event.catégorie || 'Non catégorisé', 
+      // Start Date: Format consistently if possible, fallback
+      date_debut: event.start_date 
+        ? event.start_date.toISOString() 
+        : (event.date_debut || (event.date ? event.date.toISOString() : 'Date non spécifiée')),
+      // End Date: Format consistently if possible, fallback
+      date_fin: event.end_date 
+        ? event.end_date.toISOString() 
+        : (event.date_fin || ''),
+      // Description: prioritize specific fields
+      détail: event.description || event.détail || event.summary || '', 
+      // Price: format based on available fields
+      prix_reduit: event.price?.formatted || event.prix_reduit || (event.price?.amount ? `${event.price.amount}${event.price.currency || '€'}` : (event.price_amount ? `${event.price_amount}€` : '')),
+      price_amount: event.price_amount ?? event.price?.amount, // Numeric price
+      is_free: event.is_free ?? event.price?.is_free ?? (event.price_amount === 0), // Free status
+      // Image: prioritize specific fields, fallback
+      image: event.image || event.cover_image || event.photo || event.images?.[0]?.url || '', 
+      // Rating: prioritize specific fields
+      note: event.rating?.average ?? event.note ?? event.note_ai ?? null, 
+      rating_count: event.rating?.count ?? 0, // Include rating count
+      // Lineup: ensure it's an array
+      lineup: event.lineup || [], 
+      // Emotions: ensure it's an array
+      emotions: event.emotions || [], 
+      // Location object (GeoJSON preferred)
+      location: event.location || event.localisation || null, 
+      // Coordinates (explicitly for map markers)
+      latitude: event.location?.coordinates?.[1] ?? event.localisation?.coordinates?.[1] ?? null,
+      longitude: event.location?.coordinates?.[0] ?? event.localisation?.coordinates?.[0] ?? null,
+      // Schedule: ensure it's an array or null
+      horaires: event.horaires || event.schedule || null, 
+      // URLs: prioritize specific fields
+      purchase_url: event.ticket_url || event.purchase_url || event.ticketing_url || event.site_url || event.url || null, 
+      site_url: event.site_url || event.url || null,
+      // Source of the data
+      source: event.source || 'Inconnue',
+      // Pass raw data for detailed view if needed
+      rawData: event // Pass the original event data
     }));
     
     // Si nous sommes en mode développement, ajouter des infos de debug
@@ -283,11 +344,14 @@ router.get('/events', async (req, res) => {
         events: formattedEvents,
         debug: {
           query: query,
-          count: events.length
+          sort: sortOptions,
+          count: events.length,
+          limit: parseInt(limit)
         }
       });
     } else {
-      res.json(formattedEvents);
+      // Return only the formatted events in production
+      res.json(formattedEvents); 
     }
   } catch (error) {
     console.error('❌ Erreur sur /events:', error);
@@ -297,7 +361,7 @@ router.get('/events', async (req, res) => {
 
 /**
  * @route GET /api/leisure/venues
- * @desc Récupérer les lieux de loisirs à proximité
+ * @desc Récupérer les lieux de loisirs (regroupés) à proximité
  * @access Public
  */
 router.get('/venues', async (req, res) => {
@@ -313,7 +377,7 @@ router.get('/venues', async (req, res) => {
       maxPrice,
       producerType,
       accessibility,
-      sortBy = 'distance'
+      sortBy = 'distance' // Sorting for venues might differ
     } = req.query;
 
     // Validation des paramètres obligatoires
@@ -325,227 +389,183 @@ router.get('/venues', async (req, res) => {
 
     // Simplification pour déboguer : d'abord vérifier si la collection a des données
     const loisirDb = mongoose.connection.useDb('Loisir&Culture');
-    const collection = loisirDb.collection('Loisir_Paris_Evenements');
+    // It's better to query the events collection and group by venue
+    const collection = loisirDb.collection('Loisir_Paris_Evenements'); 
     
-    const totalCount = await collection.countDocuments({});
-    console.log(`📊 Nombre total d'événements dans la collection: ${totalCount}`);
+    const totalEventsCount = await collection.countDocuments({});
+    console.log(`📊 Nombre total d'événements dans la collection: ${totalEventsCount}`);
     
-    if (totalCount === 0) {
+    if (totalEventsCount === 0) {
       console.log('⚠️ Aucun événement trouvé dans la collection. Vérifier la connexion à la base de données.');
       return res.json([]);
     }
 
     // Requête avec conditions progressives pour trouver des résultats
-    let query = {};
+    let filterQuery = {}; // Renamed from query to avoid conflict
     
-    // Essayer d'abord avec tous les filtres - incluant la contrainte géospatiale
+    // Ajouter la contrainte géospatiale
     if (latitude && longitude && radius) {
-      query.location = {
-        $geoWithin: {
-          $centerSphere: [
-            [parseFloat(longitude), parseFloat(latitude)],
-            parseInt(radius) / 6378137 // Convertir mètres en radians (rayon terrestre ~6378137m)
-          ]
+        const lat = parseFloat(latitude);
+        const lng = parseFloat(longitude);
+        const rad = parseInt(radius);
+        if (!isNaN(lat) && !isNaN(lng) && !isNaN(rad) && rad > 0) {
+            filterQuery.location = {
+              $nearSphere: {
+                 $geometry: { type : "Point", coordinates : [ lng, lat ] },
+                 $maxDistance: rad
+              }
+            };
+            console.log(`🔍 Filtre géospatial activé pour /venues.`);
+        } else {
+             console.warn(`⚠️ Coordonnées/rayon invalides pour /venues: lat=${latitude}, lng=${longitude}, radius=${radius}`);
         }
-      };
+    } else {
+         console.log(`⚠️ Filtre géospatial désactivé pour /venues.`);
     }
     
     // Si la note minimale est spécifiée, l'ajouter au filtre
     if (minRating && parseFloat(minRating) > 0) {
-      query.$or = [
-        { note: { $gte: parseFloat(minRating) } },
-        { rating: { $gte: parseFloat(minRating) } },
-        { 'rating.average': { $gte: parseFloat(minRating) } }
-      ];
+      const rating = parseFloat(minRating);
+      filterQuery.$or = filterQuery.$or || [];
+      filterQuery.$or.push(
+        { note: { $gte: rating } },
+        { 'rating.average': { $gte: rating } },
+        { note_ai: { $gte: rating } }
+      );
     }
     
     // Ajouter le filtre de catégorie si spécifié
     if (categories) {
       const categoryList = categories.split(',');
-      query.$or = query.$or || [];
-      
-      // Ajouter une condition OR pour chaque catégorie
-      categoryList.forEach(category => {
-        query.$or.push(
-          { catégorie: { $regex: category, $options: 'i' } },
-          { category: { $regex: category, $options: 'i' } },
-          { catégorie_principale: { $regex: category, $options: 'i' } }
+      const categoryRegexList = categoryList.map(c => new RegExp(c.trim(), 'i'));
+      filterQuery.$or = filterQuery.$or || [];
+      filterQuery.$or.push(
+          { catégorie: { $in: categoryRegexList } },
+          { category: { $in: categoryRegexList } },
+          { catégorie_principale: { $in: categoryRegexList } }
+      );
+    }
+
+    // Filtrage par mot-clé
+    if (keyword) {
+        const keywordRegex = new RegExp(keyword.trim(), 'i');
+        filterQuery.$or = filterQuery.$or || [];
+        filterQuery.$or.push(
+            { intitulé: keywordRegex }, { title: keywordRegex }, { name: keywordRegex },
+            { détail: keywordRegex }, { description: keywordRegex },
+            { lieu: keywordRegex }, { venue: keywordRegex } // Search venue name
         );
-      });
+    }
+
+    // Filtrage par prix (appliqué aux événements avant regroupement)
+    const priceConditionsVenue = [];
+    if (minPrice && !isNaN(parseFloat(minPrice))) {
+        priceConditionsVenue.push({
+            $or: [ { price_amount: { $gte: parseFloat(minPrice) } }, { 'price.amount': { $gte: parseFloat(minPrice) } } ]
+        });
+    }
+    if (maxPrice && !isNaN(parseFloat(maxPrice))) {
+        priceConditionsVenue.push({
+            $or: [ { price_amount: { $lte: parseFloat(maxPrice) } }, { 'price.amount': { $lte: parseFloat(maxPrice) } } ]
+        });
+    }
+    if (priceConditionsVenue.length > 0) {
+        if (filterQuery.$and) { filterQuery.$and.push(...priceConditionsVenue); } 
+        else { filterQuery.$and = priceConditionsVenue; }
+    }
+
+    // Filtrage par type de producteur (approximatif, basé sur la catégorie)
+    if (producerType && producerType !== 'Tous') {
+        const producerTypeRegex = new RegExp(producerType.trim(), 'i');
+        filterQuery.$or = filterQuery.$or || [];
+        filterQuery.$or.push(
+            { catégorie: producerTypeRegex },
+            { category: producerTypeRegex },
+            { catégorie_principale: producerTypeRegex }
+        );
+    }
+
+    // Filtrage par accessibilité (approximatif, basé sur les tags ou champ dédié)
+    if (accessibility) {
+        const accessibilityList = accessibility.split(',');
+        const accessibilityRegexList = accessibilityList.map(a => new RegExp(a.trim(), 'i'));
+        filterQuery.$or = filterQuery.$or || [];
+        filterQuery.$or.push(
+            { tags: { $in: accessibilityRegexList } },
+            { accessibility: { $in: accessibilityRegexList } } // Check dedicated field if exists
+        );
     }
     
-    console.log('🧪 Première requête de recherche avec contraintes complètes:', JSON.stringify(query));
+    console.log('🧪 Requête de filtrage AVANT agrégation pour /venues:', JSON.stringify(filterQuery));
 
-    // Exécution de la requête sur la collection d'événements
-    let venues = await collection.aggregate([
-      { $match: query },
+    // Pipeline d'agrégation pour regrouper par lieu
+    const aggregationPipeline = [
+      // 1. Filtrer les événements selon les critères
+      { $match: filterQuery },
+      // 2. Regrouper par lieu (venue/lieu)
       { $group: {
-        _id: '$lieu',
-        nom: { $first: '$lieu' },
-        adresse: { $first: '$adresse' },
-        location: { $first: '$location' },
-        note: { $avg: '$note' },
-        image: { $first: '$image' },
-        category: { $first: '$catégorie' },
+        // Utiliser le nom du lieu comme ID de groupe, gérer les valeurs nulles/vides
+        _id: { $ifNull: ["$lieu", { $ifNull: ["$venue", "$_id"] } ] }, 
+        id: { $first: '$_id'}, // Keep one original event ID for reference if needed
+        nom: { $first: { $ifNull: ["$lieu", "$venue"] } },
+        adresse: { $first: { $ifNull: ["$address", "$adresse"] } },
+        // Prendre les coordonnées du premier événement trouvé pour ce lieu
+        location: { $first: { $ifNull: ["$location", "$localisation"] } },
+        // Calculer la note moyenne des événements de ce lieu
+        note: { $avg: { $ifNull: ["$rating.average", "$note"] } },
+        image: { $first: { $ifNull: ["$image", "$cover_image"] } }, // Prioritize fields
+        category: { $first: { $ifNull: ["$category", "$catégorie"] } },
+        // Collecter quelques informations sur les événements associés
         events: { $push: {
           id: '$_id',
-          title: '$title',
-          intitulé: '$intitulé',
-          start_date: '$start_date',
-          date_debut: '$date_debut',
-          image: '$image'
+          title: { $ifNull: ["$title", "$intitulé"] },
+          start_date: { $ifNull: ["$start_date", "$date"] },
+          date_debut: "$date_debut", // Keep original format if needed
+          image: { $ifNull: ["$image", "$cover_image"] }
         }},
+        // Compter le nombre d'événements pour ce lieu
         count: { $sum: 1 }
       }},
-      { $match: { _id: { $ne: null } } },
+      // 3. Filtrer les groupes sans nom de lieu valide
+      { $match: { nom: { $ne: null, $ne: "" } } },
+      // 4. Ajouter les champs latitude/longitude pour le frontend
+      { $addFields: {
+          latitude: { $arrayElemAt: [ "$location.coordinates", 1 ] },
+          longitude: { $arrayElemAt: [ "$location.coordinates", 0 ] }
+      }},
+      // 5. Tri des lieux (par note par défaut, pourrait être 'count' ou autre)
       { $sort: { note: -1 } },
+      // 6. Limiter le nombre de lieux retournés
       { $limit: 50 }
-    ]).toArray();
+    ];
 
-    console.log(`✅ Première tentative: ${venues.length} lieux trouvés`);
+    let venues = await collection.aggregate(aggregationPipeline).toArray();
+
+    console.log(`✅ ${venues.length} lieux trouvés après agrégation`);
     
-    // Si pas de résultats, essayer avec moins de contraintes
-    if (venues.length === 0) {
-      console.log('⚠️ Aucun lieu trouvé avec tous les filtres. Assouplissement des contraintes...');
-      
-      // Éliminer la contrainte géospatiale mais garder les autres filtres
-      delete query.location;
-      
-      console.log('🧪 Deuxième requête sans contrainte géospatiale:', JSON.stringify(query));
-      
-      venues = await collection.aggregate([
-        { $match: query },
-        { $group: {
-          _id: '$lieu',
-          nom: { $first: '$lieu' },
-          adresse: { $first: '$adresse' },
-          location: { $first: '$location' },
-          note: { $avg: '$note' },
-          image: { $first: '$image' },
-          category: { $first: '$catégorie' },
-          events: { $push: {
-            id: '$_id',
-            title: '$title',
-            intitulé: '$intitulé',
-            start_date: '$start_date',
-            date_debut: '$date_debut',
-            image: '$image'
-          }},
-          count: { $sum: 1 }
-        }},
-        { $match: { _id: { $ne: null } } },
-        { $sort: { note: -1 } },
-        { $limit: 50 }
-      ]).toArray();
-      
-      console.log(`✅ Deuxième tentative: ${venues.length} lieux trouvés sans contrainte géospatiale`);
-    }
-    
-    // Si toujours pas de résultats, essayer avec seulement la catégorie
-    if (venues.length === 0 && categories) {
-      console.log('⚠️ Toujours aucun lieu trouvé. Essai avec seulement la catégorie...');
-      
-      const categoryQuery = {
-        $or: []
-      };
-      
-      const categoryList = categories.split(',');
-      categoryList.forEach(category => {
-        categoryQuery.$or.push(
-          { catégorie: { $regex: category, $options: 'i' } },
-          { category: { $regex: category, $options: 'i' } },
-          { catégorie_principale: { $regex: category, $options: 'i' } }
-        );
-      });
-      
-      console.log('🧪 Troisième requête avec seulement catégorie:', JSON.stringify(categoryQuery));
-      
-      venues = await collection.aggregate([
-        { $match: categoryQuery },
-        { $group: {
-          _id: '$lieu',
-          nom: { $first: '$lieu' },
-          adresse: { $first: '$adresse' },
-          location: { $first: '$location' },
-          note: { $avg: '$note' },
-          image: { $first: '$image' },
-          category: { $first: '$catégorie' },
-          events: { $push: {
-            id: '$_id',
-            title: '$title',
-            intitulé: '$intitulé',
-            start_date: '$start_date',
-            date_debut: '$date_debut',
-            image: '$image'
-          }},
-          count: { $sum: 1 }
-        }},
-        { $match: { _id: { $ne: null } } },
-        { $sort: { note: -1 } },
-        { $limit: 50 }
-      ]).toArray();
-      
-      console.log(`✅ Troisième tentative: ${venues.length} lieux trouvés avec seulement la catégorie`);
-    }
-    
-    // Si toujours pas de résultats, retourner simplement 10 lieux quelconques
-    if (venues.length === 0) {
-      console.log('⚠️ Dernière tentative: récupération de lieux quelconques...');
-      
-      venues = await collection.aggregate([
-        { $match: { lieu: { $ne: null, $ne: "" } } },
-        { $group: {
-          _id: '$lieu',
-          nom: { $first: '$lieu' },
-          adresse: { $first: '$adresse' },
-          location: { $first: '$location' },
-          note: { $avg: '$note' },
-          image: { $first: '$image' },
-          category: { $first: '$catégorie' },
-          events: { $push: {
-            id: '$_id',
-            title: '$title',
-            intitulé: '$intitulé',
-            start_date: '$start_date',
-            date_debut: '$date_debut',
-            image: '$image'
-          }},
-          count: { $sum: 1 }
-        }},
-        { $match: { _id: { $ne: null } } },
-        { $sort: { count: -1 } },
-        { $limit: 10 }
-      ]).toArray();
-      
-      console.log(`✅ Dernière tentative: ${venues.length} lieux trouvés sans aucun filtre`);
-    }
-    
-    // Traitement final des résultats
+    // Pas besoin de tentatives multiples si l'agrégation est bien faite
+    // Les tentatives précédentes mélangeaient les logiques de filtre et d'agrégation
+
+    // Traitement final des résultats (assignation image par défaut, coords, etc.)
     const processedVenues = venues.map(venue => {
-      // S'assurer que chaque lieu a la structure correcte des coordonnées pour le frontend
-      if (venue.location && venue.location.coordinates && Array.isArray(venue.location.coordinates)) {
-        const [longitude, latitude] = venue.location.coordinates;
-        venue.latitude = latitude;
-        venue.longitude = longitude;
+      // S'assurer que latitude/longitude sont présents si location existe
+      if (venue.location && venue.location.coordinates && venue.location.coordinates.length === 2 && venue.latitude == null) {
+         venue.latitude = venue.location.coordinates[1];
+         venue.longitude = venue.location.coordinates[0];
       }
       
       // Si pas d'image, ajouter une image par défaut basée sur la catégorie
       if (!venue.image || venue.image === '') {
-        if (venue.category && venue.category.toLowerCase().includes('concert')) {
-          venue.image = 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80';
-        } else if (venue.category && venue.category.toLowerCase().includes('théâtre')) {
-          venue.image = 'https://images.unsplash.com/photo-1507924538820-ede94a04019d?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80';
-        } else if (venue.category && venue.category.toLowerCase().includes('expo')) {
-          venue.image = 'https://images.unsplash.com/photo-1531243269054-5ebdee3d2657?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80';
-        } else {
-          venue.image = 'https://images.unsplash.com/photo-1486591978090-58e619d37fe7?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80';
-        }
+        venue.image = getDefaultVenueImage(venue.category);
       }
       
       // Limiter le nombre d'événements pour réduire la taille des données
-      if (venue.events && venue.events.length > 10) {
-        venue.events = venue.events.slice(0, 10);
+      if (venue.events && venue.events.length > 5) { // Limit to 5 events preview
+        venue.events = venue.events.slice(0, 5);
       }
+      
+      // Assurer que l'ID est une string pour le frontend (utiliser l'ID original si possible)
+      venue.id = venue.id?.toString() ?? venue._id?.toString(); 
       
       return venue;
     });
@@ -557,13 +577,9 @@ router.get('/venues', async (req, res) => {
       res.json({
         venues: processedVenues,
         debug: {
-          total_in_collection: totalCount,
-          filters_applied: {
-            geo: !!query.location,
-            rating: minRating ? parseFloat(minRating) : 0,
-            categories: categories || 'none'
-          },
-          query_performed: JSON.stringify(query)
+          total_events_in_collection: totalEventsCount,
+          filters_applied_to_events: JSON.stringify(filterQuery),
+          aggregation_pipeline: JSON.stringify(aggregationPipeline) // Show pipeline for debugging
         }
       });
     } else {
@@ -575,6 +591,24 @@ router.get('/venues', async (req, res) => {
   }
 });
 
+// Helper function to get default image based on category
+function getDefaultVenueImage(category) {
+    if (!category) return 'https://images.unsplash.com/photo-1486591978090-58e619d37fe7?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80'; // Default generic
+    
+    const catLower = category.toLowerCase();
+    if (catLower.includes('concert') || catLower.includes('musique')) {
+      return 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80';
+    } else if (catLower.includes('théâtre') || catLower.includes('spectacle')) {
+      return 'https://images.unsplash.com/photo-1507924538820-ede94a04019d?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80';
+    } else if (catLower.includes('expo') || catLower.includes('musée') || catLower.includes('galerie')) {
+      return 'https://images.unsplash.com/photo-1531243269054-5ebdee3d2657?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80';
+    } else if (catLower.includes('cinéma') || catLower.includes('film')) {
+        return 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80';
+    } else {
+      return 'https://images.unsplash.com/photo-1486591978090-58e619d37fe7?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80';
+    }
+}
+
 /**
  * @route GET /api/leisure/categories
  * @desc Récupérer les catégories d'événements disponibles
@@ -582,23 +616,28 @@ router.get('/venues', async (req, res) => {
  */
 router.get('/categories', async (req, res) => {
   try {
-    // Agréger pour obtenir toutes les catégories uniques
-    const categories = await Event.aggregate([
-      { $group: {
-        _id: null,
-        categories: { $addToSet: '$category' },
-        catégories: { $addToSet: '$catégorie' }
-      }}
-    ]);
+    // Agréger pour obtenir toutes les catégories uniques depuis la bonne collection
+    const loisirDb = mongoose.connection.useDb('Loisir&Culture');
+    const collection = loisirDb.collection('Loisir_Paris_Evenements');
     
-    // Fusionner et filtrer les catégories
-    let allCategories = [];
+    const categories = await collection.aggregate([
+      { $match: { $or: [{category: {$ne: null}}, {catégorie: {$ne: null}}] } }, // Ensure category exists
+      { $project: { categoryField: { $ifNull: ["$category", "$catégorie"] } } }, // Use coalescing
+      { $group: { _id: "$categoryField" } },
+      { $match: { _id: { $ne: null, $ne: "" } } }, // Filter out null/empty results
+      { $sort: { _id: 1 } } // Sort alphabetically
+    ]).toArray();
     
-    if (categories.length > 0) {
-      allCategories = [...new Set([
-        ...(categories[0].categories || []), 
-        ...(categories[0].catégories || [])
-      ])].filter(cat => cat && cat.trim().length > 0);
+    // Extraire les noms des catégories
+    let allCategories = categories.map(cat => cat._id);
+
+    // Simplification: Utiliser une liste statique si la base de données est vide ou si l'agrégation échoue
+    if (allCategories.length === 0) {
+        console.warn("⚠️ Aucune catégorie trouvée via agrégation, utilisation d'une liste statique.");
+        allCategories = [
+            'Théâtre', 'Concert', 'Exposition', 'Festival', 'Cinéma', 
+            'Spectacle', 'Danse', 'Musée', 'Opéra', 'Cirque', 'Humour', 'Clubbing'
+        ];
     }
     
     res.json(allCategories);
@@ -615,21 +654,23 @@ router.get('/categories', async (req, res) => {
  */
 router.get('/emotions', async (req, res) => {
   try {
-    // Agréger pour obtenir toutes les émotions uniques
-    const emotions = await Event.aggregate([
+    // Agréger pour obtenir toutes les émotions uniques depuis la bonne collection
+    const loisirDb = mongoose.connection.useDb('Loisir&Culture');
+    const collection = loisirDb.collection('Loisir_Paris_Evenements');
+    
+    const emotions = await collection.aggregate([
+      { $match: { emotions: { $exists: true, $ne: [], $ne: null } } }, // Ensure emotions array exists and is not empty
       { $unwind: '$emotions' },
-      { $group: {
-        _id: null,
-        emotions: { $addToSet: '$emotions' }
-      }}
-    ]);
+      { $match: { emotions: { $ne: null, $ne: "" } } }, // Ensure individual emotion is not null/empty
+      { $group: { _id: '$emotions' } },
+      { $sort: { _id: 1 } } // Sort alphabetically
+    ]).toArray();
     
-    let allEmotions = [];
+    let allEmotions = emotions.map(e => e._id);
     
-    if (emotions.length > 0) {
-      allEmotions = emotions[0].emotions.filter(emotion => emotion && emotion.trim().length > 0);
-    } else {
+    if (allEmotions.length === 0) {
       // Fournir une liste par défaut si aucune n'est trouvée dans la base de données
+      console.warn("⚠️ Aucune émotion trouvée via agrégation, utilisation d'une liste statique.");
       allEmotions = [
         'Joie', 'Surprise', 'Nostalgie', 'Fascination', 'Inspiration',
         'Amusement', 'Détente', 'Excitation', 'Émerveillement', 'Réflexion'
@@ -652,46 +693,131 @@ router.get('/event/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const event = await Event.findById(id);
-    
-    if (!event) {
-      return res.status(404).json({ message: 'Événement non trouvé' });
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: 'ID d\'événement invalide' });
     }
     
-    // Incrémenter le compteur de vues
+    // Utiliser le modèle Event pour trouver par ID
+    const event = await Event.findById(id); 
+    
+    if (!event) {
+      // Essayer de chercher directement si le modèle échoue (moins probable avec le modèle corrigé)
+       const loisirDb = mongoose.connection.useDb('Loisir&Culture');
+       const collection = loisirDb.collection('Loisir_Paris_Evenements');
+       const directEvent = await collection.findOne({ _id: new mongoose.Types.ObjectId(id) });
+        
+       if (!directEvent) {
+          return res.status(404).json({ message: 'Événement non trouvé' });
+       }
+       // Si trouvé directement, utiliser ces données (mais le formatage peut différer)
+       console.warn(`⚠️ Événement ${id} trouvé directement, mais pas via le modèle Event.`);
+       // Ici, on pourrait choisir de formater directEvent ou de retourner une erreur différente
+       // Pour l'instant, on continue avec directEvent pour la compatibilité
+       const eventData = directEvent; 
+
+       // Formatage minimal pour la compatibilité
+       const eventDetails = {
+         id: eventData._id,
+         title: eventData.title || eventData.intitulé || eventData.name || 'Titre inconnu',
+         description: eventData.description || eventData.détail || '',
+         category: eventData.category || eventData.catégorie || '',
+         image: eventData.image || eventData.cover_image || '',
+         location: {
+           coordinates: eventData.location?.coordinates || eventData.localisation?.coordinates,
+           venue: eventData.venue || eventData.lieu,
+           address: eventData.address || eventData.adresse
+         },
+         date: {
+           start: eventData.start_date || eventData.date_debut || eventData.date,
+           end: eventData.end_date || eventData.date_fin,
+           schedule: eventData.horaires || eventData.schedule
+         },
+         price: {
+           amount: eventData.price?.amount ?? eventData.price_amount,
+           isFree: eventData.price?.is_free ?? eventData.is_free ?? (eventData.price_amount === 0),
+           discount: eventData.prix_reduit
+         },
+         rating: eventData.rating?.average ?? eventData.note,
+         // Ajouter d'autres champs si nécessaire
+         rawData: eventData // Inclure les données brutes
+       };
+        
+       // Incrémenter le compteur de vues (accès direct à la collection)
+       try {
+          await collection.updateOne({ _id: new mongoose.Types.ObjectId(id) }, { $inc: { views_count: 1 } });
+       } catch (incError) {
+           console.warn('⚠️ Impossible d\'incrémenter le compteur de vues (accès direct):', incError.message);
+       }
+
+       return res.json(eventDetails);
+    }
+    
+    // Incrémenter le compteur de vues via le modèle
+    // Utiliser findByIdAndUpdate pour s'assurer que l'incrémentation est atomique
     await Event.findByIdAndUpdate(id, { $inc: { views_count: 1 } });
     
-    // Formatage complet pour l'API frontend
+    // Formatage complet pour l'API frontend en utilisant toObject pour obtenir une copie simple
+    const eventData = event.toObject();
     const eventDetails = {
-      id: event._id,
-      title: event.title || event.intitulé || event.name,
-      description: event.description || event.détail,
-      category: event.category || event.catégorie,
-      subcategory: event.subcategory,
-      image: event.image || event.cover_image,
-      images: event.images || [],
+      id: eventData._id,
+      title: eventData.title || eventData.intitulé || eventData.name || 'Titre inconnu',
+      description: eventData.description || eventData.détail || eventData.summary || '',
+      category: eventData.category || eventData.catégorie || '',
+      subcategory: eventData.subcategory,
+      image: eventData.image || eventData.cover_image || eventData.photo || eventData.images?.[0]?.url || '',
+      images: eventData.images || [], // Keep images array
       location: {
-        coordinates: event.location?.coordinates || event.localisation?.coordinates,
-        venue: event.venue || event.lieu,
-        address: event.address || event.adresse
+        coordinates: eventData.location?.coordinates || eventData.localisation?.coordinates,
+        venue: eventData.venue || eventData.lieu,
+        address: eventData.address || eventData.adresse,
+        city: eventData.city,
+        postcode: eventData.postal_code
       },
       date: {
-        start: event.start_date || event.date_debut || event.date,
-        end: event.end_date || event.date_fin,
-        schedule: event.horaires || event.schedule
+        start: eventData.start_date || eventData.startDate || eventData.date, // Prioritize Date objects
+        end: eventData.end_date || eventData.endDate,
+        start_str: eventData.date_debut, // Keep original string if needed
+        end_str: eventData.date_fin, // Keep original string if needed
+        schedule: eventData.horaires || eventData.schedule, // Combined schedule/horaires
+        is_all_day: eventData.isAllDay ?? eventData.allDay ?? false
       },
       price: {
-        amount: event.price?.amount,
-        isFree: event.price?.is_free || event.is_free,
-        discount: event.prix_reduit
+        amount: eventData.price?.amount ?? eventData.price_amount,
+        currency: eventData.price?.currency || 'EUR',
+        is_free: eventData.price?.is_free ?? eventData.is_free ?? (eventData.price_amount === 0),
+        formatted: eventData.price?.formatted || eventData.prix_reduit, // Formatted price string
+        options: eventData.catégories_prix // Price categories
       },
-      rating: event.rating?.average || event.note,
-      lineup: event.lineup,
-      emotions: event.emotions,
+      rating: { // Nested rating object
+          average: eventData.rating?.average ?? eventData.note ?? eventData.note_ai,
+          count: eventData.rating?.count ?? 0
+      },
+      lineup: eventData.lineup || [],
+      emotions: eventData.emotions || [],
       links: {
-        ticket: event.ticket_url || event.purchase_url,
-        site: event.site_url || event.url
-      }
+        ticket: eventData.ticket_url || eventData.purchase_url || eventData.ticketing_url,
+        site: eventData.site_url || eventData.url
+      },
+      organizer: eventData.organizer || { // Organizer details
+          name: eventData.organizerName,
+          id: eventData.organizerId || eventData.producerId || eventData.producer_id,
+          contact: eventData.organizer_contact,
+          website: eventData.organizer_website
+      },
+      engagement: { // Engagement metrics
+          views: eventData.views_count || 0,
+          interested: eventData.interest_count || 0,
+          likes: eventData.likes_count || 0,
+          shares: eventData.shares_count || 0,
+          attendees: eventData.attendees?.length || 0,
+          interestedUsers: eventData.interestedUsers || []
+      },
+      tags: eventData.tags || [],
+      accessibility: eventData.accessibility || [],
+      ageRestriction: eventData.age_restriction,
+      familyFriendly: eventData.family_friendly || false,
+      commentaires: eventData.commentaires || [], // Include comments if available
+      rawData: eventData // Include raw data for potential future use by frontend
     };
     
     res.json(eventDetails);
@@ -709,26 +835,36 @@ router.get('/event/:id', async (req, res) => {
 router.post('/event/:id/interest', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.id; // Assumes authenticateJWT adds user object with id
     
-    // Vérifier si l'événement existe
-    const event = await Event.findById(id);
-    if (!event) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: 'ID d\'événement invalide' });
+    }
+
+    // Mettre à jour l'événement en utilisant findByIdAndUpdate pour atomicité
+    const updatedEvent = await Event.findByIdAndUpdate(
+        id, 
+        {
+          // Ajoute l'utilisateur à l'array s'il n'y est pas déjà
+          $addToSet: { interestedUsers: userId }, 
+          // Incrémente le compteur seulement si l'utilisateur a été ajouté
+          // (Note: $inc s'exécutera toujours, mais $addToSet empêche les doublons)
+          $inc: { interest_count: 1 } 
+        },
+        { new: true } // Retourne le document mis à jour
+    );
+    
+    if (!updatedEvent) {
       return res.status(404).json({ message: 'Événement non trouvé' });
     }
     
-    // Vérifier si l'utilisateur a déjà marqué un intérêt
-    if (event.interestedUsers && event.interestedUsers.includes(userId)) {
-      return res.status(400).json({ message: 'Vous avez déjà marqué un intérêt pour cet événement' });
-    }
+    // On peut vérifier si l'utilisateur était déjà intéressé avant la mise à jour
+    // Pour retourner un message différent si nécessaire, mais addToSet gère la logique
     
-    // Mettre à jour l'événement
-    await Event.findByIdAndUpdate(id, {
-      $addToSet: { interestedUsers: userId },
-      $inc: { interest_count: 1 }
+    res.json({ 
+        message: 'Intérêt marqué avec succès', 
+        interest_count: updatedEvent.interest_count 
     });
-    
-    res.json({ message: 'Intérêt marqué avec succès' });
   } catch (error) {
     console.error('❌ Erreur lors du marquage d\'intérêt:', error);
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
@@ -744,7 +880,10 @@ router.get('/rating-criteria', async (req, res) => {
   try {
     const { category } = req.query;
     
+    console.log(`ℹ️ Demande de critères d'évaluation pour la catégorie: ${category || 'Default'}`);
+
     // Définition des critères par défaut et spécifiques à chaque catégorie
+    // (Keep this structure as it defines the business logic for criteria)
     const defaultCriteria = {
       ambiance: "Ambiance",
       qualite_service: "Qualité du service",
@@ -846,8 +985,15 @@ router.get('/rating-criteria', async (req, res) => {
 function standardizeCategory(category) {
   if (!category) return "default";
   
-  const categoryLower = category.toLowerCase();
+  const categoryLower = category.toLowerCase().trim(); // Trim whitespace
   
+  // Handle hierarchical categories (e.g., "Théâtre » Comédie")
+  if (categoryLower.includes('»')) {
+      const mainCategory = categoryLower.split('»')[0].trim();
+      // Use mappings on the main category part
+      return standardizeCategory(mainCategory); // Recursive call for mapping
+  }
+
   // Mappings de normalisation basés sur le script Python
   const mappings = {
     "théâtre": "theatre",
@@ -896,53 +1042,6 @@ function standardizeCategory(category) {
   }
   
   return "default";
-}
-
-// Extraire les critères d'évaluation spécifiques d'une requête
-function extractRatingCriteria(req) {
-  const criteria = {};
-  const criteriaPrefixes = ['criteria_', 'critere_', 'note_'];
-  
-  // Parcourir tous les paramètres de requête
-  Object.keys(req.query).forEach(key => {
-    for (const prefix of criteriaPrefixes) {
-      if (key.startsWith(prefix)) {
-        const criteriaKey = key.replace(prefix, '');
-        criteria[criteriaKey] = parseFloat(req.query[key]);
-      }
-    }
-  });
-  
-  return criteria;
-}
-
-// Calculer un score pour un lieu basé sur les critères d'évaluation
-function calculateRatingScore(place, ratingCriteria) {
-  if (!place || !ratingCriteria || Object.keys(ratingCriteria).length === 0) {
-    return place.rating || place.note || 0;
-  }
-  
-  let totalScore = 0;
-  let matchedCriteria = 0;
-  
-  // Vérifier si le lieu a des notes détaillées
-  const detailedRatings = place.detailed_ratings || place.notes_detaillees || {};
-  
-  // Parcourir les critères demandés
-  for (const [key, minValue] of Object.entries(ratingCriteria)) {
-    if (detailedRatings[key] !== undefined && detailedRatings[key] >= minValue) {
-      totalScore += detailedRatings[key];
-      matchedCriteria++;
-    }
-  }
-  
-  if (matchedCriteria > 0) {
-    // Retourner la moyenne des critères qui correspondent
-    return totalScore / matchedCriteria;
-  }
-  
-  // Si aucun critère ne correspond, utiliser la note globale
-  return place.rating || place.note || 0;
 }
 
 /**
@@ -1935,14 +2034,18 @@ router.get('/advanced-search', async (req, res) => {
     console.log(`🔍 Recherche avancée - catégorie: ${category}, émotions: ${emotions}`);
     
     const loisirDb = mongoose.connection.useDb('Loisir&Culture');
+    const collection = loisirDb.collection('Loisir_Paris_Evenements'); // Collection principale
     const filters = {};
     
     // Ajouter la catégorie au filtre si fournie
     if (category) {
-      filters.$or = [
-        { category: { $regex: category, $options: 'i' } },
-        { catégorie: { $regex: category, $options: 'i' } }
-      ];
+      const categoryRegex = new RegExp(category.trim(), 'i');
+      filters.$or = filters.$or || [];
+      filters.$or.push(
+        { category: categoryRegex },
+        { catégorie: categoryRegex },
+        { catégorie_principale: categoryRegex }
+      );
     }
     
     // Ajouter les émotions au filtre si fournies
@@ -1953,64 +2056,33 @@ router.get('/advanced-search', async (req, res) => {
       }
     }
     
-    // Collections à vérifier
-    const collections = [
-      'Loisir_Paris_Evenements',
-      'Evenements_loisirs',
-      'Events'
-    ];
-    
-    const allResults = [];
-    
-    // Effectuer la recherche dans toutes les collections
-    for (const collName of collections) {
-      try {
-        const collection = loisirDb.collection(collName);
-        let query = {};
-        
-        // Si des filtres sont définis, les appliquer
-        if (Object.keys(filters).length > 0) {
-          query = filters;
-        }
-        
-        const events = await collection.find(query)
-          .sort({ date_debut: -1, start_date: -1 })
+    // Définir le tri (par défaut: date la plus proche)
+    let sortOptions = { start_date: 1, date_debut: 1, date: 1 };
+    if (emotions) {
+        // Si les émotions sont un critère clé, on peut prioriser les événements qui en ont
+        sortOptions = { emotions: -1, ...sortOptions }; // Met en premier ceux qui ont des émotions
+    }
+
+    // Effectuer la recherche sur la collection principale
+    const results = await collection.find(filters)
+          .sort(sortOptions)
           .limit(parseInt(limit))
           .toArray();
           
-        allResults.push(...events);
-      } catch (e) {
-        console.log(`Erreur lors de la recherche dans ${collName}: ${e.message}`);
-      }
-    }
+    console.log(`✅ ${results.length} événements trouvés par recherche avancée`);
     
-    // Dédupliquer les résultats par ID
-    const uniqueResults = [];
-    const seen = new Set();
+    // Formatter les résultats pour le frontend si nécessaire
+    const formattedResults = results.map(event => ({
+       id: event._id,
+       title: event.title || event.intitulé,
+       category: event.category || event.catégorie,
+       date_debut: event.start_date ? event.start_date.toISOString() : event.date_debut,
+       image: event.image || event.cover_image,
+       lieu: event.venue || event.lieu,
+       emotions: event.emotions || []
+    }));
     
-    allResults.forEach(event => {
-      const id = event._id.toString();
-      if (!seen.has(id)) {
-        seen.add(id);
-        uniqueResults.push(event);
-      }
-    });
-    
-    // Trier les résultats par pertinence si des émotions sont spécifiées
-    if (emotions) {
-      uniqueResults.sort((a, b) => {
-        const aHasEmotions = Array.isArray(a.emotions) && a.emotions.length > 0;
-        const bHasEmotions = Array.isArray(b.emotions) && b.emotions.length > 0;
-        
-        if (aHasEmotions && !bHasEmotions) return -1;
-        if (!aHasEmotions && bHasEmotions) return 1;
-        return 0;
-      });
-    }
-    
-    console.log(`✅ ${uniqueResults.length} événements trouvés par recherche avancée`);
-    
-    res.json(uniqueResults);
+    res.json(formattedResults); // Retourner les résultats formatés
   } catch (error) {
     console.error('❌ Erreur lors de la recherche avancée:', error);
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
@@ -3066,171 +3138,209 @@ router.get('/search-events', async (req, res) => {
       dateEnd,
       minPrice,
       maxPrice,
-      lineup,
+      // lineup, // Temporarily disable lineup filter unless backend logic is added
       latitude,
       longitude,
       radius,
-      sortBy = 'date',
+      familyFriendly, // Keep family friendly filter
+      sortBy = 'date', // Default sort
       page = 1,
       limit = 20
     } = req.query;
     
-    console.log(`🔍 Recherche avancée d'événements: ${keyword || 'Tous'}`);
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    console.log(`🔍 Recherche avancée d'événements (paginée): Page ${page}, Limite ${limit}, Tri ${sortBy}`);
     
     const loisirDb = mongoose.connection.useDb('Loisir&Culture');
-    const collection = loisirDb.collection('Loisir_Paris_Evenements');
+    const collection = loisirDb.collection('Loisir_Paris_Evenements'); // Main collection
     
-    // Construire la requête de recherche
+    // Construire la requête de recherche (similaire à GET /events mais avec pagination)
     const query = {};
+    const andConditions = []; // Use $and for combining root-level conditions
+
+    // Location Filter ($nearSphere needs to be top-level or in $geoNear stage)
+    if (latitude && longitude && radius) {
+       const lat = parseFloat(latitude);
+       const lng = parseFloat(longitude);
+       const rad = parseInt(radius);
+       if (!isNaN(lat) && !isNaN(lng) && !isNaN(rad) && rad > 0) {
+           query.location = {
+               $nearSphere: {
+                   $geometry: { type: "Point", coordinates: [lng, lat] },
+                   $maxDistance: rad
+               }
+           };
+       }
+    }
     
-    // Ajouter le filtre de texte
+    // Keyword Filter
     if (keyword) {
-      query.$or = [
-        { intitulé: { $regex: keyword, $options: 'i' } },
-        { title: { $regex: keyword, $options: 'i' } },
-        { détail: { $regex: keyword, $options: 'i' } },
-        { description: { $regex: keyword, $options: 'i' } },
-        { lieu: { $regex: keyword, $options: 'i' } },
-        { venue: { $regex: keyword, $options: 'i' } }
-      ];
+      const keywordRegex = new RegExp(keyword.trim(), 'i');
+      andConditions.push({
+         $or: [
+           { intitulé: keywordRegex }, { title: keywordRegex }, { name: keywordRegex },
+           { détail: keywordRegex }, { description: keywordRegex },
+           { lieu: keywordRegex }, { venue: keywordRegex }, { tags: keywordRegex }
+         ]
+      });
     }
     
-    // Filtrer par catégorie
+    // Category Filter
     if (category) {
-      query.$or = query.$or || [];
-      query.$or.push(
-        { catégorie: { $regex: category, $options: 'i' } },
-        { category: { $regex: category, $options: 'i' } }
-      );
+      const categoryList = category.split(',');
+      const categoryRegexList = categoryList.map(c => new RegExp(c.trim(), 'i'));
+      andConditions.push({ 
+          $or: [
+            { catégorie: { $in: categoryRegexList } },
+            { category: { $in: categoryRegexList } },
+            { catégorie_principale: { $in: categoryRegexList } }
+          ]
+      });
     }
     
-    // Filtrer par émotions
+    // Emotions Filter
     if (emotions) {
       const emotionsList = emotions.split(',');
       if (emotionsList.length > 0) {
-        query.emotions = { $in: emotionsList.map(e => new RegExp(e, 'i')) };
+        andConditions.push({ emotions: { $in: emotionsList.map(e => new RegExp(e.trim(), 'i')) } });
       }
     }
     
-    // Filtrer par dates
-    if (dateStart || dateEnd) {
-      query.$or = query.$or || [];
-      
-      if (dateStart) {
-        // Convertir en Date si c'est au format ISO
-        let startDate;
-        if (dateStart.includes('-')) {
-          startDate = new Date(dateStart);
-        } else if (dateStart.includes('/')) {
-          const [day, month, year] = dateStart.split('/');
-          startDate = new Date(`${year}-${month}-${day}`);
+    // Date Filter
+    const dateFilterConditions = [];
+    if (dateStart) {
+      try {
+        const startDate = new Date(dateStart);
+        if (!isNaN(startDate.getTime())) {
+           // Event must end after the start date
+           dateFilterConditions.push({ 
+              $or: [
+                  { end_date: { $gte: startDate } }, 
+                  { endDate: { $gte: startDate } },
+                  // If no end date, check start date
+                  { $and: [ { end_date: {$exists: false} }, { start_date: {$gte: startDate}} ] },
+                  { $and: [ { endDate: {$exists: false} }, { startDate: {$gte: startDate}} ] } 
+              ]
+           });
         }
-        
-        if (startDate && !isNaN(startDate.getTime())) {
-          query.$or.push(
-            { start_date: { $gte: startDate } },
-            { date: { $gte: startDate } },
-            { date_debut: { $regex: dateStart } },
-            { startDate: { $gte: startDate } }
-          );
-        }
-      }
-      
-      if (dateEnd) {
-        // Convertir en Date si c'est au format ISO
-        let endDate;
-        if (dateEnd.includes('-')) {
-          endDate = new Date(dateEnd);
-        } else if (dateEnd.includes('/')) {
-          const [day, month, year] = dateEnd.split('/');
-          endDate = new Date(`${year}-${month}-${day}`);
-        }
-        
-        if (endDate && !isNaN(endDate.getTime())) {
-          query.$or.push(
-            { end_date: { $lte: endDate } },
-            { date: { $lte: endDate } },
-            { date_fin: { $regex: dateEnd } },
-            { endDate: { $lte: endDate } }
-          );
-        }
-      }
+      } catch (e) { console.warn("Invalid dateStart format"); }
     }
-    
-    // Filtrer par prix
-    if (minPrice || maxPrice) {
-      query.$or = query.$or || [];
-      
-      const priceCondition = {};
-      if (minPrice) priceCondition.$gte = parseFloat(minPrice);
-      if (maxPrice) priceCondition.$lte = parseFloat(maxPrice);
-      
-      query.$or.push(
-        { price_amount: priceCondition },
-        { 'price.amount': priceCondition }
-      );
-    }
-    
-    // Filtrer par lineup
-    if (lineup) {
-      query.$or = query.$or || [];
-      const artistRegex = new RegExp(lineup, 'i');
-      
-      query.$or.push(
-        { 'lineup.nom': artistRegex },
-        { artists: artistRegex },
-        { 'performers.name': artistRegex }
-      );
-    }
-    
-    // Filtrer par localisation si les coordonnées sont fournies
-    if (latitude && longitude && radius) {
-      query.location = {
-        $geoWithin: {
-          $centerSphere: [
-            [parseFloat(longitude), parseFloat(latitude)],
-            parseFloat(radius) / 6378137
-          ]
+    if (dateEnd) {
+      try {
+        const endDate = new Date(dateEnd);
+        if (!isNaN(endDate.getTime())) {
+          endDate.setHours(23, 59, 59, 999); // End of day
+          // Event must start before the end date
+          dateFilterConditions.push({ 
+              $or: [
+                  { start_date: { $lte: endDate } },
+                  { date: { $lte: endDate } },
+                  { startDate: { $lte: endDate } }
+              ]
+           });
         }
-      };
+      } catch (e) { console.warn("Invalid dateEnd format"); }
     }
-    
-    // Calculer le nombre total de résultats
+     if (dateFilterConditions.length > 0) {
+        andConditions.push({ $and: dateFilterConditions });
+     }
+
+    // Price Filter
+    const priceFilterConditions = [];
+    if (minPrice && !isNaN(parseFloat(minPrice))) {
+      priceFilterConditions.push({ $or: [ { price_amount: { $gte: parseFloat(minPrice) } }, { 'price.amount': { $gte: parseFloat(minPrice) } } ]});
+    }
+    if (maxPrice && !isNaN(parseFloat(maxPrice))) {
+      priceFilterConditions.push({ $or: [ { price_amount: { $lte: parseFloat(maxPrice) } }, { 'price.amount': { $lte: parseFloat(maxPrice) } } ]});
+    }
+    if (priceFilterConditions.length > 0) {
+        andConditions.push({ $and: priceFilterConditions });
+    }
+
+    // Family Friendly Filter
+    if (familyFriendly === 'true') {
+       andConditions.push({ 
+           $or: [
+              { 'tags': { $regex: 'famille|enfant', $options: 'i' } }, 
+              { 'family_friendly': true } 
+           ]
+       });
+    }
+
+    // Combine all non-location filters using $and
+    if (andConditions.length > 0) {
+        if (query.$and) {
+             query.$and.push(...andConditions);
+        } else if (Object.keys(query).length > 0 && query.location) {
+             // If only location filter exists, add $and for others
+             query.$and = andConditions;
+        } else {
+             // If no location filter, combine all in $and
+             Object.assign(query, { $and: andConditions });
+        }
+    }
+
+    console.log('🧪 Requête finale pour /search-events:', JSON.stringify(query));
+
+    // Calculer le nombre total de résultats (AVANT skip/limit)
     const total = await collection.countDocuments(query);
     
-    // Définir le tri
+    // Définir le tri (même logique que /events)
     let sort = {};
     switch (sortBy) {
-      case 'date':
-        sort = { date_debut: 1, start_date: 1, date: 1 };
-        break;
       case 'popularity':
-        sort = { popularity_score: -1, interest_count: -1, views_count: -1 };
+        sort = { views_count: -1, interest_count: -1, likes_count: -1, popularity_score: -1, start_date: -1 };
         break;
       case 'rating':
-        sort = { note: -1, 'rating.average': -1 };
+        sort = { 'rating.average': -1, note: -1, note_ai: -1, 'rating.count': -1 };
         break;
-      case 'price':
-        sort = { price_amount: 1, 'price.amount': 1 };
-        break;
+      case 'date':
       default:
-        sort = { date_debut: 1 };
+        sort = { start_date: 1, date_debut: 1, date: 1 };
+        break;
     }
     
-    // Calculer le skip pour la pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    // Exécuter la requête
+    // Exécuter la requête avec tri, skip et limit
     const events = await collection.find(query)
       .sort(sort)
       .skip(skip)
       .limit(parseInt(limit))
       .toArray();
+      
+    console.log(`✅ ${events.length} événements trouvés pour la page ${page} (total: ${total})`);
     
-    console.log(`✅ ${events.length} événements trouvés (total: ${total})`);
-    
+    // Formatter les résultats (similaire à /events)
+    const formattedEvents = events.map(event => ({
+      _id: event._id,
+      id: event._id.toString(),
+      title: event.title || event.intitulé || event.name || 'Sans titre',
+      lieu: event.venue || event.lieu || 'Lieu non spécifié',
+      adresse: event.address || event.adresse || '',
+      catégorie: event.category || event.catégorie || 'Non catégorisé',
+      date_debut: event.start_date ? event.start_date.toISOString() : (event.date_debut || (event.date ? event.date.toISOString() : 'Date non spécifiée')),
+      date_fin: event.end_date ? event.end_date.toISOString() : (event.date_fin || ''),
+      détail: event.description || event.détail || event.summary || '',
+      prix_reduit: event.price?.formatted || event.prix_reduit || (event.price?.amount ? `${event.price.amount}${event.price.currency || '€'}` : (event.price_amount ? `${event.price_amount}€` : '')),
+      price_amount: event.price_amount ?? event.price?.amount,
+      is_free: event.is_free ?? event.price?.is_free ?? (event.price_amount === 0),
+      image: event.image || event.cover_image || event.photo || event.images?.[0]?.url || '',
+      note: event.rating?.average ?? event.note ?? event.note_ai ?? null,
+      rating_count: event.rating?.count ?? 0,
+      lineup: event.lineup || [],
+      emotions: event.emotions || [],
+      location: event.location || event.localisation || null,
+      latitude: event.location?.coordinates?.[1] ?? event.localisation?.coordinates?.[1] ?? null,
+      longitude: event.location?.coordinates?.[0] ?? event.localisation?.coordinates?.[0] ?? null,
+      horaires: event.horaires || event.schedule || null,
+      purchase_url: event.ticket_url || event.purchase_url || event.ticketing_url || event.site_url || event.url || null,
+      site_url: event.site_url || event.url || null,
+      source: event.source || 'Inconnue',
+      rawData: event // Pass raw data
+    }));
+
     res.status(200).json({
-      events,
+      events: formattedEvents,
       pagination: {
         total,
         page: parseInt(page),
@@ -3239,7 +3349,7 @@ router.get('/search-events', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Erreur lors de la recherche avancée d\'événements:', error);
+    console.error('❌ Erreur lors de la recherche avancée d\'événements (/search-events):', error);
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 });

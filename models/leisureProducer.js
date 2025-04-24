@@ -1,13 +1,43 @@
 const mongoose = require('mongoose');
 
 module.exports = (connection) => {
+  if (!connection) {
+    throw new Error("LeisureProducer model requires a valid DB connection! (connection is undefined)");
+  }
   const LeisureProducerSchema = new mongoose.Schema({
-    place_id: { type: String, unique: true },
+    lieu: { type: String, required: true },
+    adresse: { type: String, required: true },
+    description: { type: String, required: true },
+    nombre_evenements: Number,
+    evenements: [{
+      intitulé: String,
+      catégorie: String,
+      lien_evenement: String
+    }],
+    lien_lieu: { type: String, required: true },
+    location: {
+      type: { 
+        type: String, 
+        enum: ['Point'], 
+        default: 'Point', 
+        required: true 
+      },
+      coordinates: { 
+        type: [Number], 
+        required: true 
+      }
+    },
+    source: { type: String, required: true },
+    image: { type: String, required: true },
+    telephone: String,
+    site_web: String,
+    note_google: mongoose.Schema.Types.Mixed,
+    lien_google_maps: String,
+    place_id: { type: String, unique: true, sparse: true },
     name: String,
     verified: { type: Boolean, default: false },
     featured: { type: Boolean, default: false },
     photo: String,
-    description: String,
     address: String,
     formatted_address: String,
     gps_coordinates: {
@@ -35,6 +65,7 @@ module.exports = (connection) => {
     conversations: [String],
     posts: [String],
     followers: [String],
+    followings: [String],
     business_status: String,
     formatted_phone_number: String,
     international_phone_number: String,
@@ -91,11 +122,12 @@ module.exports = (connection) => {
     strict: false
   });
 
-  // Ensure the 2dsphere index exists on gps_coordinates
+  // Ensure the 2dsphere index exists on gps_coordinates and the new location field
   LeisureProducerSchema.index({ gps_coordinates: '2dsphere' });
+  LeisureProducerSchema.index({ location: '2dsphere' });
 
   // Use the connection parameter
-  const LeisureProducer = connection.model('LeisureProducer', LeisureProducerSchema, 'Paris_Loisirs');
+  const LeisureProducer = connection.model('LeisureProducer', LeisureProducerSchema, 'Loisir_Paris_Producers');
 
   // Verify and create index if needed
   console.log('🔍 Vérification des index pour le modèle LeisureProducer...');
@@ -103,13 +135,21 @@ module.exports = (connection) => {
     .then(indexes => {
       console.log('✅ Index disponibles pour LeisureProducer:', Object.keys(indexes));
       const hasGpsIndex = indexes['gps_coordinates_2dsphere'] !== undefined;
+      const hasLocationIndex = indexes['location_2dsphere'] !== undefined;
       console.log(`📊 Index gps_coordinates_2dsphere: ${hasGpsIndex ? 'Présent ✓' : 'Absent ✗'}`);
+      console.log(`📊 Index location_2dsphere: ${hasLocationIndex ? 'Présent ✓' : 'Absent ✗'}`);
       
       // If the index doesn't exist, create it explicitly
+      const indexPromises = [];
       if (!hasGpsIndex) {
         console.log('⚠️ Création de l\'index manquant: gps_coordinates_2dsphere pour LeisureProducer');
-        return LeisureProducer.collection.createIndex({ gps_coordinates: '2dsphere' });
+        indexPromises.push(LeisureProducer.collection.createIndex({ gps_coordinates: '2dsphere' }));
       }
+      if (!hasLocationIndex) {
+        console.log('⚠️ Création de l\'index manquant: location_2dsphere pour LeisureProducer');
+        indexPromises.push(LeisureProducer.collection.createIndex({ location: '2dsphere' }));
+      }
+      return Promise.all(indexPromises);
     })
     .catch(err => {
       console.error('❌ Erreur lors de la vérification/création des index pour LeisureProducer:', err);

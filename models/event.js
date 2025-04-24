@@ -14,10 +14,11 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
   const EventSchema = new Schema({
     // === Champs d'identification ===
     title: { type: String, required: true, trim: true },
-    intitulé: { type: String, trim: true }, // Alias français pour title
+    intitulé: { type: String, required: true, trim: true },
     name: { type: String, trim: true },
     description: { type: String, trim: true },
-    détail: { type: String, trim: true }, // Alias français pour description
+    détail: { type: String, trim: true },
+    soustitre: { type: String, trim: true },
     short_description: { type: String, trim: true },
     summary: { type: String, trim: true },
     content: { type: String, trim: true },
@@ -25,19 +26,13 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
     // === Champs de catégorisation ===
     category: { 
       type: String,
+      required: true,
       trim: true,
-      required: function() {
-        // Ne rendre required que s'il n'y a pas de catégorie
-        return !this.catégorie;
-      }
     },
     catégorie: { 
       type: String, 
+      required: true,
       trim: true,
-      required: function() {
-        // Ne rendre required que s'il n'y a pas de category
-        return !this.category;
-      }
     },
     // Champ pour la hiérarchie de catégories (ex: "Théâtre » Comédie » Théâtre de l'absurde")
     categoryPath: {
@@ -52,7 +47,7 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
       }
     },
     subcategory: { type: String, trim: true },
-    catégorie_principale: String,
+    catégorie_principale: { type: String, required: true },
     catégorie_originale: String,
     tags: [{ type: String, trim: true }],
     type: { type: String },
@@ -61,10 +56,6 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
     date: { type: Date },
     start_date: { 
       type: Date, 
-      required: function() {
-        // Ne rendre required que s'il n'y a pas de date_debut
-        return !this.date_debut && !this.date && !this.startDate;
-      }
     },
     date_debut: { type: String, trim: true },
     end_date: { type: Date },
@@ -73,13 +64,13 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
     endDate: { type: Date },
     publish_date: { type: Date, default: Date.now },
     unpublish_date: { type: Date },
-    prochaines_dates: String,
+    prochaines_dates: { type: String, required: true },
     time: { type: String },
     duration: { type: Number }, // en minutes
     
     // === Champs de localisation ===
     venue: { type: String, trim: true },
-    lieu: { type: String, trim: true },
+    lieu: { type: String, required: true, trim: true },
     address: { type: String, trim: true },
     adresse: { type: String, trim: true },
     city: { type: String, trim: true },
@@ -106,7 +97,7 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
       coordinates: [Number]
     },
     virtual: { type: Boolean, default: false },
-    lien_lieu: String,
+    lien_lieu: { type: String, required: true },
     
     // === Horaires et programmation ===
     schedule: [{
@@ -131,12 +122,12 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
     prix: { type: Schema.Types.Mixed },
     is_free: { type: Boolean, default: false },
     ticket_url: { type: String },
-    purchase_url: { type: String },
-    site_url: { type: String },
+    purchase_url: { type: String, required: true },
+    site_url: { type: String, required: true },
     ticketing_url: { type: String },
     registration_url: { type: String },
     discount_code: { type: String },
-    prix_reduit: String,
+    prix_reduit: { type: String, required: true },
     ancien_prix: String,
     // Stocke montant numérique extrait du prix formaté
     price_amount: {
@@ -164,7 +155,7 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
       is_primary: { type: Boolean, default: false }
     }],
     cover_image: { type: String },
-    image: { type: String },
+    image: { type: String, required: true },
     photo: { type: String },
     thumbnail: { type: String },
     video_url: { type: String },
@@ -192,13 +183,21 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
     organizer_contact: { type: String },
     organizer_website: { type: String },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    lineup: [{
+      nom: String,
+      image: String
+    }],
     
     // === Engagement utilisateur ===
     interestedUsers: [{ type: String }],
     interest_count: { type: Number, default: 0 },
     choice_count: { type: Number, default: 0 },
     comments_count: { type: Number, default: 0 },
-    commentaires: [{ type: Object }],
+    commentaires: [{
+      titre: String,
+      note: String,
+      contenu: String 
+    }],
     registrations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     attendees: [{ type: String }],
     
@@ -249,7 +248,7 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
     },
     
     // === Métadonnées ===
-    source: String,
+    source: { type: String, required: true },
     source_id: String,
     externalId: String,
     externalSource: String,

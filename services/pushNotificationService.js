@@ -127,9 +127,154 @@ async function sendPushNotification(userId, title, body, data = {}, returnFullRe
   }
 }
 
+/**
+ * Sends a push notification to all users within a specific geographical area.
+ * IMPORTANT: Requires a 2dsphere index on the User model's location field (e.g., 'currentLocation').
+ * @param {number} latitude - The center latitude of the area.
+ * @param {number} longitude - The center longitude of the area.
+ * @param {number} radiusMeters - The radius of the area in meters.
+ * @param {string} title - The notification title.
+ * @param {string} body - The notification body.
+ * @param {object} [data] - Optional data payload.
+ * @param {boolean} [returnFullResponse=false] - If true, returns detailed response object.
+ * @returns {Promise<boolean | {success: boolean, successCount?: number, failureCount?: number, errorInfo?: object}>} - Success status or detailed response object.
+ */
+async function sendNotificationToArea(latitude, longitude, radiusMeters, title, body, data = {}, returnFullResponse = false) {
+  if (!firebaseInitialized) {
+    console.warn('⚠️ Firebase Admin not initialized. Cannot send area notification.');
+    return returnFullResponse ? { success: false, errorInfo: { message: 'Firebase not initialized' } } : false;
+  }
+
+  try {
+    // 1. Validate coordinates and radius
+    if (typeof latitude !== 'number' || typeof longitude !== 'number' || typeof radiusMeters !== 'number' || radiusMeters <= 0) {
+      console.error('sendNotificationToArea: Invalid coordinates or radius.');
+      return returnFullResponse ? { success: false, errorInfo: { message: 'Invalid coordinates or radius' } } : false;
+    }
+
+    // 2. Find users within the area
+    // Assumes User model has a GeoJSON Point field named 'currentLocation'
+    // Requires a 2dsphere index: db.Users.createIndex({ currentLocation: "2dsphere" })
+    console.log(`🔍 Finding users within ${radiusMeters}m of [${longitude}, ${latitude}]...`);
+    const usersInArea = await User.find({
+      currentLocation: {
+        $geoWithin: {
+          $centerSphere: [[longitude, latitude], radiusMeters / 6378100] // Convert radius to radians
+        }
+      },
+      fcmToken: { $exists: true, $ne: null, $ne: '' } // Ensure they have a valid token
+    }).select('fcmToken').lean(); // Only select the token
+
+    if (!usersInArea || usersInArea.length === 0) {
+      console.log('🤷 No users with FCM tokens found in the specified area.');
+      return returnFullResponse ? { success: true, successCount: 0, failureCount: 0, message: 'No users found in area' } : true;
+    }
+
+    const tokens = usersInArea.map(user => user.fcmToken).filter(token => token); // Get valid tokens
+
+    if (tokens.length === 0) {
+      console.log('🤷 No valid FCM tokens found for users in the area.');
+      return returnFullResponse ? { success: true, successCount: 0, failureCount: 0, message: 'No valid tokens found' } : true;
+    }
+
+    console.log(`🎯 Found ${tokens.length} tokens in the area. Preparing to send multicast message.`);
+
+    // 3. Construct the multicast message payload
+    const message = {
+      notification: {
+        title: title,
+        body: body,
+      },
+      data: {
+        ...data,
+        click_action: 'FLUTTER_NOTIFICATION_CLICK',
+      },
+      // Optional platform-specific configurations (can be added like in sendPushNotification)
+      android: { priority: 'high' },
+      apns: { payload: { aps: { /* sound: 'default', badge: 1 */ } } },
+    };
+
+    // 4. Send the multicast message
+    const response = await admin.messaging().sendMulticast({ tokens, ...message });
+
+    console.log(`✅ Multicast notification sent to area. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+
+    // Optional: Handle failures (e.g., remove invalid tokens)
+    if (response.failureCount > 0) {
+      const failedTokens = [];
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          failedTokens.push(tokens[idx]);
+          console.warn(`   Failed token [${idx}]: ${tokens[idx]}, Error: ${resp.error?.code}`);
+          // Consider removing invalid tokens here
+        }
+      });
+      // Example: await User.updateMany({ fcmToken: { $in: failedTokens } }, { $unset: { fcmToken: "" } });
+    }
+
+    return returnFullResponse ? {
+      success: true,
+      successCount: response.successCount,
+      failureCount: response.failureCount
+    } : true;
+
+  } catch (error) {
+    console.error(`❌ Error sending notification to area [${longitude}, ${latitude}], radius ${radiusMeters}:`, error);
+     // Specific check for missing geo index
+    if (error.code === 51024 || (error.message && error.message.includes('$geoWithin requires a 2dsphere index'))) {
+      console.error('   Hint: Missing 2dsphere index on users.currentLocation field!');
+      return returnFullResponse ? { success: false, errorInfo: { message: 'Database geo index missing', code: 'DB_GEO_INDEX_MISSING' } } : false;
+    }
+    return returnFullResponse ? { success: false, errorInfo: error } : false;
+  }
+}
+
+/**
+ * Sends a push notification alert to a specific producer about a nearby search.
+ * @param {string} producerId - The MongoDB ObjectId of the target producer (assuming they are a User).
+ * @param {object} searchDetails - Details about the nearby search.
+ * @param {string} searchDetails.query - The user's search query.
+ * @param {string} searchDetails.userName - The name of the user searching (or "Someone").
+ * @param {number} [searchDetails.distance] - Optional distance in meters.
+ * @param {boolean} [returnFullResponse=false] - If true, returns detailed response object.
+ * @returns {Promise<boolean | {success: boolean, messageId?: string, errorInfo?: object}>} - Success status or detailed response object.
+ */
+async function sendNearbySearchAlertToProducer(producerId, searchDetails, returnFullResponse = false) {
+  if (!firebaseInitialized) {
+    console.warn('⚠️ Firebase Admin not initialized. Cannot send producer alert.');
+    return returnFullResponse ? { success: false, errorInfo: { message: 'Firebase not initialized' } } : false;
+  }
+
+  const { query, userName = 'Someone', distance } = searchDetails;
+
+  // Construct notification content
+  const title = 'Nearby Search Alert!';
+  let body = `${userName} is searching for "${query}" nearby`;
+  if (distance) {
+    body += ` (~${Math.round(distance)}m away)`;
+  }
+  body += `. Send an offer?`;
+
+  // Construct data payload for the producer app
+  const pushData = {
+    type: 'nearby_search_alert', // Custom type for producer app handling
+    searchQuery: query,
+    searchUserName: userName,
+    // Include userId if the producer needs it to send a targeted offer later
+    // searchUserId: searchDetails.userId, 
+    searchTimestamp: new Date().toISOString(), // Or pass the original search timestamp
+  };
+
+  // Send notification using the existing single-user function
+  console.log(`🔔 Sending Nearby Search Alert to Producer ${producerId} about query "${query}"`);
+  return sendPushNotification(producerId, title, body, pushData, returnFullResponse);
+}
+
 // --- Export ---
 
 module.exports = {
   initializeFirebase,
   sendPushNotification,
+  sendNotificationToArea,
+  sendNearbySearchAlertToProducer,
 }; 

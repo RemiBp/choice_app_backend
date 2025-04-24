@@ -440,7 +440,7 @@ const initialize = (db) => {
    * @desc Suivre un utilisateur
    * @access Private
    */
-  router.post('/follow', async (req, res) => {
+  router.post('/follow', auth, async (req, res) => {
     try {
       if (!mongoose.connection.readyState) {
         return res.status(500).json({ message: 'La connexion à la base de données n\'est pas établie' });
@@ -502,7 +502,7 @@ const initialize = (db) => {
    * @desc Ne plus suivre un utilisateur
    * @access Private
    */
-  router.post('/unfollow', async (req, res) => {
+  router.post('/unfollow', auth, async (req, res) => {
     try {
       if (!mongoose.connection.readyState) {
         return res.status(500).json({ message: 'La connexion à la base de données n\'est pas établie' });

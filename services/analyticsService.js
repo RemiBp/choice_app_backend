@@ -274,7 +274,7 @@ exports.fetchTrendsForProducer = async (producerId, producerType, period, connec
  * @returns {Promise<Array<object>>} - A promise resolving to an array of competitor profile objects.
  */
 exports.fetchCompetitorsForProducer = async (producerId, producerType, connections) => {
-    console.log(`Fetching competitors for ${producerType} ID: ${producerId}`);
+    console.log(`[analyticsService] Fetching competitors for ${producerType} ID: ${producerId}`);
     const ProducerModel = getModelForProducerType(producerType, connections);
 
     if (!ProducerModel) {
@@ -285,6 +285,9 @@ exports.fetchCompetitorsForProducer = async (producerId, producerType, connectio
     try {
         // 1. Fetch the current producer's data (need location and category/types)
         const producer = await ProducerModel.findById(producerId).select('gps_coordinates category types').lean();
+        // Log producer data used for search
+        console.log(`[analyticsService] Producer data for search: ${JSON.stringify(producer)}`);
+
         // Use gps_coordinates as the primary location field based on models
         if (!producer || !producer.gps_coordinates?.coordinates) {
             console.warn(`Producer or gps_coordinates not found for competitor analysis: ${producerId}`);
@@ -306,32 +309,48 @@ exports.fetchCompetitorsForProducer = async (producerId, producerType, connectio
         // Optional: Filter by category/types
         const relevantTags = [...(producer.category || []), ...(producer.types || [])]; // Combine category and types
         if (relevantTags.length > 0) {
+             console.log(`[analyticsService] Filtering competitors by tags: ${relevantTags.join(', ')}`);
              competitorQuery.$or = [
                 { category: { $in: relevantTags } },
                 { types: { $in: relevantTags } } // Also check against 'types' field
              ];
         }
 
+        // Log the final query
+        console.log(`[analyticsService] Competitor query: ${JSON.stringify(competitorQuery)}`);
+
         const nearByCompetitors = await ProducerModel.find(competitorQuery)
             // Select fields based on Producer.js and LeisureProducer.js
-            .select('name photo photos address rating priceLevel category types gps_coordinates.address') 
+            .select('name photo photos address rating priceLevel category types gps_coordinates.address')
             .limit(10)
             .lean();
 
-        // 3. Format the data
-        const formattedCompetitors = nearByCompetitors.map(comp => ({
-            id: comp._id.toString(),
-            type: producerType,
-            name: comp.name || 'Nom Inconnu', // Use 'name' field
-            image: comp.photos?.[0] || comp.photo, // Prefer first photo in array, fallback to single photo
-            // Use address field directly, fallback to potential address within gps_coordinates
-            address: comp.address || comp.gps_coordinates?.address || 'Adresse inconnue',
-            rating: comp.rating,
-            priceLevel: comp.priceLevel,
-            category: [...new Set([...(comp.category || []), ...(comp.types || [])])], // Combine category and types
-        }));
+        // Log raw competitor data
+        console.log(`[analyticsService] Found ${nearByCompetitors.length} raw competitors nearby.`);
+        if (nearByCompetitors.length > 0) {
+            console.log(`[analyticsService] Raw data for first competitor: ${JSON.stringify(nearByCompetitors[0])}`);
+        }
 
-        console.log(`Found ${formattedCompetitors.length} potential competitors within ${maxDistanceMeters}m for ${producerId}`);
+        // 3. Format the data
+        const formattedCompetitors = nearByCompetitors.map(comp => {
+            const imageUrl = comp.photos?.[0] || comp.photo; // Get the potential image URL
+            // Log the image URL selected for each competitor
+            console.log(`[analyticsService] Competitor ${comp.name || comp._id}: selected image URL = ${imageUrl}`);
+            return {
+                id: comp._id.toString(),
+                type: producerType,
+                name: comp.name || 'Nom Inconnu', // Use 'name' field
+                image: imageUrl, // Assign the determined image URL
+                // Use address field directly, fallback to potential address within gps_coordinates
+                address: comp.address || comp.gps_coordinates?.address || 'Adresse inconnue',
+                rating: comp.rating,
+                priceLevel: comp.priceLevel,
+                category: [...new Set([...(comp.category || []), ...(comp.types || [])])], // Combine category and types
+            };
+        });
+
+        // Log count of formatted competitors
+        console.log(`[analyticsService] Returning ${formattedCompetitors.length} formatted competitors (limited to 5).`);
         return formattedCompetitors.slice(0, 5);
 
     } catch (error) {

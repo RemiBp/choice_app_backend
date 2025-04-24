@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const notificationController = require('../controllers/notificationController'); // Import the controller
 
 // Utiliser l'accès global aux bases de données
 let admin;
@@ -409,6 +410,98 @@ router.post('/send-push', auth, async (req, res) => {
   }
 });
 
+// GET /api/notifications/send-push - Endpoint alternatif pour envoyer des notifications (compatible frontend)
+router.get('/send-push', auth, async (req, res) => {
+  try {
+    if (!admin.messaging) {
+      return res.status(503).json({ error: 'Service de notification push non disponible' });
+    }
+    
+    // Récupérer les paramètres depuis query params
+    const { userId, title, body } = req.query;
+    // Récupérer data comme JSON si présent
+    let data = {};
+    if (req.query.data) {
+      try {
+        data = JSON.parse(req.query.data);
+      } catch (e) {
+        console.warn('Impossible de parser le paramètre data:', e);
+      }
+    }
+    
+    // Paramètres par défaut
+    const badge = parseInt(req.query.badge) || 1;
+    const sound = req.query.sound || 'default';
+    
+    if (!userId || !title || !body) {
+      return res.status(400).json({ error: 'UserId, titre et corps du message sont requis' });
+    }
+    
+    // Récupérer le token FCM de l'utilisateur
+    const user = await User.findById(userId).select('fcm_token device_info');
+    
+    if (!user || !user.fcm_token) {
+      return res.status(404).json({ error: 'Utilisateur introuvable ou sans token FCM enregistré' });
+    }
+    
+    // Déterminer la plateforme de l'appareil si disponible
+    const isIOS = user.device_info?.platform === 'ios';
+    
+    // Préparer le message avec des options spécifiques à iOS/Android
+    const message = {
+      notification: {
+        title,
+        body
+      },
+      data: {
+        ...data,
+        click_action: 'FLUTTER_NOTIFICATION_CLICK', // Nécessaire pour Flutter
+        sound: sound
+      },
+      token: user.fcm_token,
+      apns: isIOS ? {
+        payload: {
+          aps: {
+            badge,
+            sound
+          }
+        }
+      } : undefined,
+      android: {
+        priority: 'high',
+        notification: {
+          sound,
+          channelId: 'high_importance_channel'
+        }
+      }
+    };
+    
+    console.log(`📱 Envoi d'une notification à l'utilisateur ${userId} (GET)`);
+    // Envoyer la notification
+    const response = await admin.messaging().send(message);
+    
+    // Stocker la notification dans la base de données
+    await Notification.create({
+      userId,
+      type: data.type || 'system',
+      message: body,
+      relatedId: data.relatedId,
+      sender: data.senderId,
+      imageUrl: data.imageUrl,
+      actionUrl: data.actionUrl,
+      isRead: false
+    });
+    
+    res.status(200).json({ 
+      message: 'Notification push envoyée avec succès', 
+      messageId: response 
+    });
+  } catch (error) {
+    console.error('❌ Erreur d\'envoi de notification push (GET):', error);
+    res.status(500).json({ error: 'Erreur lors de l\'envoi de la notification push' });
+  }
+});
+
 // POST /api/notifications/send-batch - Envoyer des notifications push à plusieurs utilisateurs
 router.post('/send-batch', auth, async (req, res) => {
   try {
@@ -684,6 +777,22 @@ router.delete('/:notificationId', auth, async (req, res) => {
     res.status(500).json({ error: 'Erreur lors de la suppression de la notification' });
   }
 });
+
+// Add the new routes for sending notifications
+
+/**
+ * @route POST /api/notifications/send/user
+ * @desc Send a push notification to a specific user
+ * @access Private (or restricted to admin/system)
+ */
+router.post('/send/user', notificationController.sendToUser);
+
+/**
+ * @route POST /api/notifications/send/area
+ * @desc Send a push notification to users in a geographical area
+ * @access Private (or restricted to admin/system)
+ */
+router.post('/send/area', notificationController.sendToArea);
 
 // Exporter la fonction d'initialisation pour pouvoir l'appeler depuis index.js
 module.exports = router;

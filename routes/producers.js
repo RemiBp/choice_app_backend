@@ -3,11 +3,12 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Conversation = require('../models/conversation'); // Import du modèle
 const producerController = require('../controllers/producerController');
-const { restaurationDb, choiceAppDb } = require('../index');
+const { restaurationDb } = require('../index');
 const Producer = require('../models/Producer');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const getInteractionModel = require('../models/Interaction');
+const { choiceAppDb } = require('./index');
 const Interaction = getInteractionModel(choiceAppDb);
 
 /**
@@ -770,35 +771,22 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// Endpoint : Détail d'un producteur par ID
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user?.id; // Get userId if available from auth middleware
-    
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: `ID invalide: ${id}` });
-    }
-    
-    const producer = await ProducerModel.findById(id);
-    
-    if (!producer) {
-      return res.status(404).json({ error: 'Restaurant non trouvé' });
-    }
+// --- ADDED: Route for getting only producer location ---
+/**
+ * @route   GET /api/producers/:id/location
+ * @desc    Obtenir uniquement la localisation géographique d'un producteur
+ * @access  Public (ou ajuster selon les besoins)
+ */
+router.get('/:id/location', producerController.getProducerLocationById);
+// --- END ADDED ---
 
-    // Log the 'view' interaction (fire and forget)
-    // Assuming producerType is 'restaurant' for this route.
-    // Note: auth middleware might be needed on this route to get req.user.id
-    if (userId) { 
-        logInteractionHelper(null, userId, id, 'restaurant', 'view');
-    }
-    
-    res.status(200).json(producer);
-  } catch (error) {
-    console.error('Erreur de récupération du restaurant:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération du restaurant' });
-  }
-});
+// GET /api/producers/:id - Obtenir un producteur par ID
+/**
+ * @route   GET /api/producers/:id
+ * @desc    Obtenir un producteur par son ID MongoDB
+ * @access  Public
+ */
+router.get('/:id', producerController.getProducerById);
 
 // POST /api/producers/:id/follow - Suivre un restaurant (nécessite authentification)
 router.post('/:id/follow', auth, async (req, res) => {
@@ -991,4 +979,311 @@ router.get('/:producerId/interactions', async (req, res) => {
     console.error('Erreur interactions users:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur', error: error.message });
   }
+});
+
+/**
+ * @route   POST /api/producers/:id/menu_items
+ * @desc    Ajouter un nouvel élément de menu (plat) pour un producteur
+ * @access  Private
+ */
+router.post('/:id/menu_items', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      name, 
+      description, 
+      price, 
+      category, 
+      photo_url, 
+      nutri_score, 
+      calories, 
+      carbon_footprint 
+    } = req.body;
+
+    if (!name || !price || !category) {
+      return res.status(400).json({ message: 'Name, price and category are required' });
+    }
+
+    const producer = await ProducerModel.findById(id);
+    if (!producer) {
+      return res.status(404).json({ message: 'Producer not found' });
+    }
+
+    // Initialize structured_data if it doesn't exist
+    if (!producer.structured_data) {
+      producer.structured_data = {};
+    }
+
+    // Initialize Items Indépendants if it doesn't exist
+    if (!producer.structured_data['Items Indépendants']) {
+      producer.structured_data['Items Indépendants'] = [];
+    }
+
+    // Create new item
+    const newItem = {
+      _id: new mongoose.Types.ObjectId(),
+      name,
+      description: description || '',
+      price,
+      category,
+      photo_url: photo_url || '',
+      nutritional_info: {
+        nutri_score: nutri_score || 'E',
+        calories: calories || 0,
+        carbon_footprint: carbon_footprint || 0
+      },
+      ratings: [],
+      avg_rating: 0,
+      created_at: new Date(),
+      updated_at: new Date()
+    };
+
+    // Add item to the collection
+    producer.structured_data['Items Indépendants'].push(newItem);
+    await producer.save();
+
+    res.status(201).json({ 
+      message: 'Item added successfully', 
+      item: newItem 
+    });
+  } catch (error) {
+    console.error('Error adding menu item:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/producers/:id/menu
+ * @desc    Créer un nouveau menu (ensemble de plats) pour un producteur
+ * @access  Private
+ */
+router.post('/:id/menu', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      title, 
+      description, 
+      items,  // array of item IDs or complete items
+      price,
+      photo_url
+    } = req.body;
+
+    if (!title || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'Title and at least one item are required' });
+    }
+
+    const producer = await ProducerModel.findById(id);
+    if (!producer) {
+      return res.status(404).json({ message: 'Producer not found' });
+    }
+
+    // Initialize structured_data if it doesn't exist
+    if (!producer.structured_data) {
+      producer.structured_data = {};
+    }
+
+    // Initialize Menus Globaux if it doesn't exist
+    if (!producer.structured_data['Menus Globaux']) {
+      producer.structured_data['Menus Globaux'] = [];
+    }
+
+    // Process items - they could be IDs or complete item objects
+    const processedItems = items.map(item => {
+      if (typeof item === 'string' || item instanceof mongoose.Types.ObjectId) {
+        // This is an ID reference
+        return { _id: item };
+      } else {
+        // This is a complete item object
+        return {
+          _id: item._id || new mongoose.Types.ObjectId(),
+          name: item.name,
+          description: item.description || '',
+          price: item.price,
+          photo_url: item.photo_url || '',
+          nutritional_info: item.nutritional_info || {}
+        };
+      }
+    });
+
+    // Create new menu
+    const newMenu = {
+      _id: new mongoose.Types.ObjectId(),
+      title,
+      description: description || '',
+      items: processedItems,
+      price: price || processedItems.reduce((sum, item) => sum + (item.price || 0), 0),
+      photo_url: photo_url || '',
+      created_at: new Date(),
+      updated_at: new Date()
+    };
+
+    // Add menu to the collection
+    producer.structured_data['Menus Globaux'].push(newMenu);
+    await producer.save();
+
+    res.status(201).json({ 
+      message: 'Menu created successfully', 
+      menu: newMenu 
+    });
+  } catch (error) {
+    console.error('Error creating menu:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/producers/:id/photos
+ * @desc    Ajouter une photo au producteur
+ * @access  Private
+ */
+router.post('/:id/photos', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { photo_url, caption, is_profile_photo } = req.body;
+
+    if (!photo_url) {
+      return res.status(400).json({ message: 'Photo URL is required' });
+    }
+
+    const producer = await ProducerModel.findById(id);
+    if (!producer) {
+      return res.status(404).json({ message: 'Producer not found' });
+    }
+
+    // Initialize photos array if it doesn't exist
+    if (!producer.photos) {
+      producer.photos = [];
+    }
+
+    // Add new photo
+    producer.photos.push(photo_url);
+
+    // If it's a profile photo, update the main photo field
+    if (is_profile_photo) {
+      producer.photo = photo_url;
+    }
+
+    await producer.save();
+
+    res.status(201).json({ 
+      message: 'Photo added successfully', 
+      photo_url,
+      photos: producer.photos 
+    });
+  } catch (error) {
+    console.error('Error adding photo:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/producers/:id/posts
+ * @desc    Créer un nouveau post pour un producteur
+ * @access  Private
+ */
+router.post('/:id/posts', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      content, 
+      media_urls, 
+      mentioned_users,
+      tagged_items,
+      event_details
+    } = req.body;
+
+    if (!content && (!media_urls || media_urls.length === 0)) {
+      return res.status(400).json({ 
+        message: 'Post must include content or at least one media item' 
+      });
+    }
+
+    const producer = await ProducerModel.findById(id);
+    if (!producer) {
+      return res.status(404).json({ message: 'Producer not found' });
+    }
+
+    // Create a new post in the Posts collection
+    // Assuming we have a Post model in the ChoiceApp database
+    const Post = choiceAppDb.model('Post', new mongoose.Schema({}, { strict: false }), 'posts');
+    
+    const newPost = new Post({
+      producer_id: id,
+      producer_type: 'restaurant', // Default, can be changed based on producer type
+      producer_name: producer.name,
+      producer_photo: producer.photo,
+      content: content || '',
+      media_urls: media_urls || [],
+      mentioned_users: mentioned_users || [],
+      tagged_items: tagged_items || [],
+      event_details: event_details || null,
+      likes: 0,
+      comments: [],
+      created_at: new Date(),
+      updated_at: new Date()
+    });
+
+    await newPost.save();
+
+    res.status(201).json({ 
+      message: 'Post created successfully', 
+      post: newPost 
+    });
+  } catch (error) {
+    console.error('Error creating post:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/upload/media
+ * @desc    Uploader un média (image ou vidéo)
+ * @access  Private
+ */
+router.post('/upload/media', async (req, res) => {
+  try {
+    // Note: This is a placeholder. In a real implementation, you would:
+    // 1. Use a middleware like multer to handle file uploads
+    // 2. Process the file (resize, compress, etc.)
+    // 3. Upload to cloud storage (AWS S3, Google Cloud Storage, etc.)
+    // 4. Return the public URL
+
+    // Mock implementation:
+    const mockUrl = `https://storage.example.com/uploads/${Date.now()}-${req.body.filename || 'unnamed'}`;
+    
+    res.status(200).json({
+      message: 'File uploaded successfully',
+      url: mockUrl
+    });
+  } catch (error) {
+    console.error('Error uploading media:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+});
+
+// === NOUVELLES ROUTES POUR LA GESTION DU PROFIL PRODUCTEUR ===
+
+// Ajouter un plat au menu d'un producteur
+router.post('/api/producers/:id/menu_items', async (req, res) => {
+  await producerController.addMenuItem(req, res);
+});
+
+// Créer un nouveau menu (ensemble de plats)
+router.post('/api/producers/:id/menu', async (req, res) => {
+  await producerController.createMenu(req, res);
+});
+
+// Ajouter une photo au profil d'un producteur
+router.post('/api/producers/:id/photos', async (req, res) => {
+  await producerController.addPhoto(req, res);
+});
+
+// Créer un post pour un producteur
+router.post('/api/producers/:id/posts', async (req, res) => {
+  await producerController.createPost(req, res);
+});
+
+// Uploader un média (image ou vidéo)
+router.post('/api/upload/media', async (req, res) => {
+  await producerController.uploadMedia(req, res);
 });

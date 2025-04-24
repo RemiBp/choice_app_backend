@@ -151,7 +151,23 @@ const initialize = (connections) => {
   return { db, models };
 };
 
+// Fonction pour obtenir un modèle particulier par nom
+const getModel = (modelName) => {
+  if (!models[modelName]) {
+    console.error(`❌ Modèle non trouvé: ${modelName}`);
+    return null;
+  }
+  return models[modelName];
+};
+
+// Fonction pour obtenir le modèle User
+const getUserModel = () => {
+  return models.User;
+};
+
 module.exports = {
   initialize,
-  Event: require('./event')
+  Event: require('./event'),
+  getModel,
+  getUserModel
 }; 

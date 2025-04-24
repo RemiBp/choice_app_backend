@@ -522,7 +522,90 @@ const wellnessController = {
       console.error('❌ Erreur dans updateWellnessProducerNotes:', error);
       res.status(500).json({ message: 'Erreur lors de la mise à jour des notes', error: error.message });
     }
-  }
+  },
+
+  /**
+   * Mettre à jour les informations générales d'un producteur de bien-être
+   */
+  updateWellnessProducer: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+
+      // Valider que l'ID est un ObjectId valide
+      if (!mongoose.isValidObjectId(id)) {
+        return res.status(400).json({ message: 'ID invalide' });
+      }
+
+      // Retirer les champs non modifiables ou potentiellement dangereux
+      delete updateData._id; 
+      delete updateData.created_at; 
+      delete updateData.type; // Le type ne devrait pas changer
+      delete updateData.rating; // La note est généralement calculée
+      delete updateData.reviews; // Les avis sont gérés par d'autres routes
+      delete updateData.choice_count; // Compteurs gérés par le système
+      delete updateData.interest_count;
+      delete updateData.favorite_count;
+      delete updateData.choiceUsers;
+      delete updateData.interestedUsers;
+      delete updateData.favorites;
+      // On ne met pas à jour les photos ici, elles ont leurs propres routes
+      delete updateData.photos; 
+      delete updateData.images;
+      delete updateData.profilePhoto;
+
+      // Gérer les mises à jour imbriquées (contact, location)
+      // On utilise $set pour éviter de remplacer tout l'objet si seulement un sous-champ est envoyé
+      const updatePayload = {};
+      for (const key in updateData) {
+        if (key === 'contact' && typeof updateData.contact === 'object') {
+          for (const contactKey in updateData.contact) {
+            updatePayload[`contact.${contactKey}`] = updateData.contact[contactKey];
+          }
+        } else if (key === 'location' && typeof updateData.location === 'object') {
+          for (const locationKey in updateData.location) {
+            // Ne pas permettre la modification directe des coordonnées ou du type Point ici
+            if (locationKey !== 'coordinates' && locationKey !== 'type') {
+              updatePayload[`location.${locationKey}`] = updateData.location[locationKey];
+            }
+          }
+        } else if (key === 'services' && Array.isArray(updateData.services)) {
+          // Valider la structure des services si nécessaire avant de mettre à jour
+          updatePayload[key] = updateData.services; 
+        } else if (key === 'business_hours' && typeof updateData.business_hours === 'object') {
+           updatePayload[key] = updateData.business_hours; // Remplacer les horaires
+        } else if (key !== 'services' && key !== 'business_hours') {
+          // Mettre à jour les champs simples directement
+          updatePayload[key] = updateData[key];
+        }
+      }
+
+      // Ajouter la date de mise à jour
+      updatePayload.updated_at = new Date();
+
+      // Essayer de trouver et mettre à jour dans BeautyPlaces (via WellnessPlace model)
+      const updatedProducer = await WellnessPlace.findByIdAndUpdate(
+        id,
+        { $set: updatePayload },
+        { new: true, runValidators: true } // new: retourne le doc mis à jour, runValidators: active les validations du schéma
+      );
+
+      if (!updatedProducer) {
+        return res.status(404).json({ message: 'Producteur wellness non trouvé' });
+      }
+
+      console.log(`✅ Producteur wellness ${id} mis à jour.`);
+      res.status(200).json(updatedProducer);
+
+    } catch (error) {
+      console.error('❌ Erreur dans updateWellnessProducer:', error);
+       // Gérer les erreurs de validation Mongoose
+       if (error.name === 'ValidationError') {
+         return res.status(400).json({ message: 'Erreur de validation', errors: error.errors });
+       }
+      res.status(500).json({ message: 'Erreur lors de la mise à jour du producteur wellness', error: error.message });
+    }
+  },
 };
 
 module.exports = wellnessController; 

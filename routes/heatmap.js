@@ -22,7 +22,4 @@ router.get('/nearby-searches/:producerId', auth, heatmapController.getNearbySear
 // GET /api/heatmap/action-opportunities/:producerId - Récupérer les opportunités d'action pour un producteur
 router.get('/action-opportunities/:producerId', auth, heatmapController.getActionOpportunities);
 
-// GET /api/producers/:producerId/location - Récupérer l'emplacement d'un producteur
-router.get('/producers/:producerId/location', heatmapController.getProducerLocation);
-
 module.exports = router; 

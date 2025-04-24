@@ -5,6 +5,7 @@ const { createModel, databases } = require('../utils/modelCreator');
 const { LeisureProducer } = require('../models/leisureProducer');
 const WellnessPlace = require('../models/WellnessPlace');
 const Producer = require('../models/Producer');
+const User = require('../models/User'); // Assuming User model is correctly defined and exported
 
 // Middleware to specifically intercept known paths that clash with /:id
 // This must come BEFORE any route definitions in this file.
@@ -227,9 +228,66 @@ async function enrichPostWithUserSpecificInfo(post, userId) {
   return postWithAuthor;
 }
 
-// GET /api/posts - Obtenir tous les posts avec pagination
-router.get('/', async (req, res) => {
+// Helper function for fetching posts by type
+async function getPostsByType(producerType, req, res) {
   try {
+    const userId = req.query.userId; // Get userId for personalization
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Base query for the specific producer type
+    const query = { producer_type: producerType };
+
+    console.log(`🔍 REQUÊTE ${producerType.toUpperCase()}: userId=${userId}, page=${page}, limit=${limit}, filter=${req.query.filter}`);
+
+    const posts = await Post.find(query)
+      .sort({ posted_at: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Enrich posts with author and user-specific info (like, interest)
+    const enrichedPostsPromises = posts.map(post => enrichPostWithUserSpecificInfo(post, userId));
+    const enrichedPosts = await Promise.all(enrichedPostsPromises);
+
+    const total = await Post.countDocuments(query);
+    const hasMore = (page * limit) < total;
+
+    res.status(200).json({
+      posts: enrichedPosts,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalPosts: total,
+      hasMore: hasMore
+    });
+  } catch (error) {
+    console.error(`❌ Erreur lors de la récupération des posts (${producerType}):`, error);
+    res.status(500).json({ message: `Erreur serveur lors de la récupération des posts ${producerType}.`, error: error.message });
+  }
+}
+
+// GET /api/posts/restaurants - Feed des restaurants
+router.get('/restaurants', auth, async (req, res) => {
+  console.log("Handling /restaurants route");
+  await getPostsByType('restaurant', req, res);
+});
+
+// GET /api/posts/leisure - Feed des loisirs
+router.get('/leisure', auth, async (req, res) => {
+  console.log("Handling /leisure route");
+  await getPostsByType('leisure', req, res);
+});
+
+// GET /api/posts/wellness - Feed bien-être
+router.get('/wellness', auth, async (req, res) => {
+  console.log("Handling /wellness route");
+  await getPostsByType('wellness', req, res);
+});
+
+// GET /api/posts - Obtenir tous les posts avec pagination (Generic Feed - maybe used for 'For You'?)
+router.get('/', auth, async (req, res) => {
+  try {
+    const userId = req.query.userId;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
@@ -239,56 +297,59 @@ router.get('/', async (req, res) => {
       .skip(skip)
       .limit(limit);
     
-    // Normaliser les posts et ajouter les informations d'auteur
-    const normalizedPostsPromises = posts.map(post => enrichPostWithAuthorInfo(post));
-    const normalizedPosts = await Promise.all(normalizedPostsPromises);
+    // --- CHANGE: Use enrichPostWithUserSpecificInfo ---
+    const enrichedPostsPromises = posts.map(post => enrichPostWithUserSpecificInfo(post, userId));
+    const enrichedPosts = await Promise.all(enrichedPostsPromises);
+    // --- END CHANGE ---
     
     const total = await Post.countDocuments();
     
     res.status(200).json({
-      posts: normalizedPosts,
+      posts: enrichedPosts, // Use enriched posts
       totalPages: Math.ceil(total / limit),
       currentPage: page,
-      total
+      totalPosts: total
     });
   } catch (error) {
-    console.error('Erreur de récupération des posts:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des posts' });
+    console.error("Erreur lors de la récupération de tous les posts:", error);
+    res.status(500).json({ message: "Erreur serveur lors de la récupération des posts.", error: error.message });
   }
 });
 
-// GET /api/posts/:id - Obtenir un post par son ID
-router.get('/:id', async (req, res) => {
-  const postId = req.params.id;
-
-  // 1. PRIMARY CHECK: Validate ObjectId format FIRST
-  if (!mongoose.Types.ObjectId.isValid(postId)) {
-    // Log if it matches known specific paths
-    if (['feed', 'restaurants', 'leisure', 'wellness', 'producers', 'save'].includes(postId)) {
-      console.warn(`⚠️ Route /:id captured specific path "${postId}" due to likely route order issue or invalid request.`);
-    } else {
-      console.log(`ℹ️ Invalid ObjectId format received in GET /:id route: ${postId}`);
-    }
-    // Return 404 immediately if not a valid ObjectId format
-    return res.status(404).json({ error: 'Resource non trouvé ou format d\'ID invalide' });
-  }
-
-  // 2. If it IS a valid ObjectId format, proceed with the database query
+// GET /api/posts/:postId - Obtenir un post spécifique par ID
+// IMPORTANT: This MUST come AFTER specific routes like /restaurants, /leisure, etc.
+router.get('/:postId', auth, async (req, res) => {
   try {
+    const postId = req.params.postId;
+    const userId = req.query.userId; // Get userId for personalization
+
+    console.log(`🔍 Recherche du post ID: ${postId}`);
+
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      console.warn(`⚠️ Tentative d'accès avec un ID non valide: ${postId}`);
+      // Check if postId matches known specific paths to give a better warning
+      const specificPaths = ['restaurants', 'leisure', 'wellness', 'feed', 'producers', 'save'];
+      if (specificPaths.includes(postId)) {
+         console.error(`🚫 Route /:id captured specific path "${postId}" due to likely route order issue or invalid request.`);
+         return res.status(404).json({ message: `Ressource non trouvée. Le chemin '${postId}' est une catégorie, pas un ID.` });
+      }
+      return res.status(400).json({ message: 'Format d\'ID de post invalide.' });
+    }
+
     const post = await Post.findById(postId);
 
     if (!post) {
-      return res.status(404).json({ error: 'Post non trouvé' });
+      console.log(`🚫 Post non trouvé pour ID: ${postId}`);
+      return res.status(404).json({ message: 'Post non trouvé.' });
     }
 
-    // Normaliser le post et ajouter les informations d'auteur
-    const normalizedPost = await enrichPostWithAuthorInfo(post);
+    // Enrichir le post avec les informations spécifiques à l'utilisateur
+    const enrichedPost = await enrichPostWithUserSpecificInfo(post, userId);
 
-    res.status(200).json(normalizedPost);
+    res.status(200).json(enrichedPost);
   } catch (error) {
-    // Catch potential errors during findById, though CastError should be caught above
-    console.error('Erreur de récupération du post:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération du post' });
+    console.error(`❌ Erreur lors de la récupération du post ${req.params.postId}:`, error);
+    res.status(500).json({ message: 'Erreur serveur lors de la récupération du post.', error: error.message });
   }
 });
 
@@ -296,6 +357,11 @@ router.get('/:id', async (req, res) => {
 router.post('/', auth, async (req, res) => {
   try {
     const { title, content, text, media, location, tags, producer_id, producerId, producer_type, producerType, event_id, eventId, isChoice, rating } = req.body;
+    
+    // Ensure user ID is correctly sourced from the authenticated user
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Authentification requise pour créer un post' });
+    }
     
     // Créer un objet post avec les champs normalisés pour assurer la cohérence
     const postData = {
@@ -446,12 +512,81 @@ router.post('/:id/like', auth, async (req, res) => {
   }
 });
 
+// GET /api/posts/:id/comments - Obtenir les commentaires d'un post
+router.get('/:id/comments', auth, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.user?.id; // Get current user's ID for like status
+
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      return res.status(400).json({ message: 'Format d\'ID de post invalide.' });
+    }
+
+    const post = await Post.findById(postId).select('comments'); // Select only comments initially
+
+    if (!post || !post.comments) {
+      // Return empty array if post not found or no comments field
+      return res.status(200).json([]); 
+    }
+
+    // Enrich comments with author info and user's like status
+    const enrichedCommentsPromises = post.comments.map(async (comment) => {
+      let authorName = 'Utilisateur';
+      let authorAvatar = '';
+      let authorId = comment.user_id?.toString() || null; // Get author ID
+
+      try {
+          // Use the User model directly (ensure it's imported/required)
+          const db = mongoose.connection.useDb(databases.CHOICE_APP);
+          const Users = db.model('User'); // Or require('../models/User') if exported
+          
+          let userObjectId;
+          try {
+            userObjectId = new mongoose.Types.ObjectId(comment.user_id);
+          } catch(e) { userObjectId = comment.user_id } // Use as string if not ObjectId
+
+          const author = await Users.findById(userObjectId).select('name avatar profile_pic displayName photo').lean();
+          if (author) {
+            authorName = author.name || author.displayName || 'Utilisateur';
+            authorAvatar = author.avatar || author.photo || author.profile_pic || '';
+          }
+      } catch (e) {
+          console.error(`Erreur lors de la récupération de l'auteur du commentaire ${comment._id}:`, e);
+      }
+      
+      // Determine if the current user liked this comment
+      const isLiked = comment.likes && comment.likes.some(likeUserId => likeUserId && likeUserId.toString() === userId?.toString());
+
+      // Return enriched comment structure matching frontend model
+      return {
+        _id: comment._id, // Include comment ID for liking
+        id: comment._id.toString(), // Frontend expects 'id'
+        content: comment.text || '',
+        authorName: authorName,
+        authorAvatar: authorAvatar,
+        authorId: authorId,
+        createdAt: comment.createdAt,
+        likes: comment.likes?.length || 0,
+        isLiked: isLiked || false // Ensure boolean
+      };
+    });
+
+    const enrichedComments = await Promise.all(enrichedCommentsPromises);
+
+    res.status(200).json(enrichedComments);
+  } catch (error) {
+    console.error(`❌ Erreur lors de la récupération des commentaires pour le post ${req.params.id}:`, error);
+    res.status(500).json({ message: 'Erreur serveur lors de la récupération des commentaires.', error: error.message });
+  }
+});
+
 // POST /api/posts/:id/comment - Commenter un post
 router.post('/:id/comment', auth, async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, content } = req.body; // Accept 'content' as well for frontend consistency
+    const commentText = text || content; // Use whichever is provided
     
-    if (!text) {
+    if (!commentText) {
       return res.status(400).json({ error: 'Le texte du commentaire est requis' });
     }
     
@@ -466,19 +601,109 @@ router.post('/:id/comment', auth, async (req, res) => {
       post.comments = [];
     }
     
-    // Ajouter le commentaire
-    post.comments.push({
+    const newComment = {
+      _id: new mongoose.Types.ObjectId(), // Generate new ID for the subdocument
       user_id: req.user.id,
-      text,
-      createdAt: new Date()
-    });
+      text: commentText, // Use the combined variable
+      createdAt: new Date(),
+      likes: [] // Initialize likes array
+    };
+    
+    // Ajouter le commentaire
+    post.comments.push(newComment);
     
     await post.save();
     
-    res.status(201).json({ message: 'Commentaire ajouté', comment: post.comments[post.comments.length - 1] });
+    // Enrich the new comment before sending back (similar to GET /comments)
+    let authorName = 'Utilisateur';
+    let authorAvatar = '';
+    let authorId = newComment.user_id?.toString();
+    try {
+        const db = mongoose.connection.useDb(databases.CHOICE_APP);
+        const Users = db.model('User'); 
+        const author = await Users.findById(newComment.user_id).select('name avatar profile_pic displayName photo').lean();
+        if (author) {
+            authorName = author.name || author.displayName || 'Utilisateur';
+            authorAvatar = author.avatar || author.photo || author.profile_pic || '';
+        }
+    } catch (e) {
+        console.error(`Erreur lors de la récupération de l'auteur du nouveau commentaire:`, e);
+    }
+    
+    // Prepare response matching frontend Comment model
+    const responseComment = {
+        id: newComment._id.toString(),
+        content: newComment.text,
+        authorName: authorName,
+        authorAvatar: authorAvatar,
+        authorId: authorId,
+        createdAt: newComment.createdAt,
+        likes: 0,
+        isLiked: false // Newly created comment is not liked by the user yet
+    };
+
+    res.status(201).json(responseComment); // Send back the enriched comment
   } catch (error) {
     console.error('Erreur lors de l\'ajout du commentaire:', error);
     res.status(500).json({ error: 'Erreur lors de l\'ajout du commentaire' });
+  }
+});
+
+// --- NEW ROUTE: Like/Unlike a Comment ---
+// POST /api/posts/:postId/comments/:commentId/like
+router.post('/:postId/comments/:commentId/like', auth, async (req, res) => {
+  try {
+    const { postId, commentId } = req.params;
+    const userId = req.user.id;
+
+    if (!mongoose.Types.ObjectId.isValid(postId) || !mongoose.Types.ObjectId.isValid(commentId)) {
+      return res.status(400).json({ message: 'Format d\'ID invalide.' });
+    }
+    
+    // Find the post containing the comment
+    const post = await Post.findById(postId);
+    if (!post || !post.comments) {
+      return res.status(404).json({ error: 'Post ou commentaires non trouvés.' });
+    }
+
+    // Find the specific comment within the post's comments array
+    const comment = post.comments.id(commentId); // Mongoose subdocument .id() method
+    if (!comment) {
+      return res.status(404).json({ error: 'Commentaire non trouvé.' });
+    }
+
+    // Ensure the likes array exists
+    if (!comment.likes) {
+      comment.likes = [];
+    }
+
+    // Check if the user already liked the comment
+    const userObjectId = new mongoose.Types.ObjectId(userId); // Ensure user ID is ObjectId for comparison
+    const likeIndex = comment.likes.findIndex(id => id && id.equals(userObjectId));
+
+    let isLiked;
+    if (likeIndex > -1) {
+      // User already liked, so unlike
+      comment.likes.splice(likeIndex, 1);
+      isLiked = false;
+    } else {
+      // User hasn't liked, so like
+      comment.likes.push(userObjectId);
+      isLiked = true;
+    }
+
+    // Save the parent post document to persist the change in the subdocument
+    await post.save();
+
+    res.status(200).json({ 
+      message: isLiked ? 'Commentaire aimé' : 'Like retiré du commentaire', 
+      isLiked: isLiked,
+      likesCount: comment.likes.length 
+    });
+
+  } catch (error) {
+    console.error(`❌ Erreur lors du like/unlike du commentaire ${req.params.commentId}:`, error);
+    res.status(500).json({ message: 'Erreur serveur lors de l\'action sur le commentaire.', error: error.message });
   }
 });
 
@@ -623,9 +848,10 @@ router.get('/feed', async (req, res) => {
     const { userId, limit = 10, page = 1 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    if (!userId) {
-      return res.status(400).json({ message: 'UserId requis' });
-    }
+    // Removed userId requirement check as auth is placeholder - RE-ADD LATER
+    // if (!userId) {
+    //   return res.status(400).json({ message: 'UserId requis' });
+    // }
     
     // Récupérer les posts pour le feed
     const posts = await Post.find()
@@ -633,15 +859,16 @@ router.get('/feed', async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
     
-    // Normaliser les posts et ajouter les informations d'auteur
-    const normalizedPostsPromises = posts.map(post => enrichPostWithAuthorInfo(post));
-    const normalizedPosts = await Promise.all(normalizedPostsPromises);
+    // --- CHANGE: Use enrichPostWithUserSpecificInfo ---
+    const enrichedPostsPromises = posts.map(post => enrichPostWithUserSpecificInfo(post, userId)); // Pass userId
+    const enrichedPosts = await Promise.all(enrichedPostsPromises);
+    // --- END CHANGE ---
     
     // Compter le nombre total de posts
     const total = await Post.countDocuments();
     
     res.status(200).json({
-      posts: normalizedPosts,
+      posts: enrichedPosts, // Use enriched posts
       totalPages: Math.ceil(total / parseInt(limit)),
       currentPage: parseInt(page),
       total
@@ -649,132 +876,6 @@ router.get('/feed', async (req, res) => {
   } catch (error) {
     console.error('❌ Erreur de récupération du feed:', error);
     res.status(500).json({ message: 'Erreur lors de la récupération du feed', error: error.message });
-  }
-});
-
-// GET /restaurants - Obtenir les posts des restaurants
-router.get('/restaurants', auth, async (req, res) => {
-  try {
-    const { page = 1, limit = 10, userId } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    console.log(`🍔 Récupération des posts de restaurants (page ${page}, limit ${limit})`);
-    
-    const query = {
-      producer_type: 'restaurant',
-      // Ajouter d'autres conditions si nécessaire
-    };
-    
-    const posts = await Post.find(query)
-      .sort({ posted_at: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-    
-    const total = await Post.countDocuments(query);
-    
-    // Enrichir les posts avec les infos d'auteur et les statuts user-specific
-    const enrichedPosts = await Promise.all(
-      posts.map(post => enrichPostWithUserSpecificInfo(post, userId))
-    );
-    
-    console.log(`✅ ${enrichedPosts.length} posts de restaurants récupérés`);
-    
-    res.status(200).json({
-      posts: enrichedPosts,
-      total,
-      totalPages: Math.ceil(total / parseInt(limit)),
-      currentPage: parseInt(page)
-    });
-  } catch (error) {
-    console.error('❌ Erreur lors de la récupération des posts de restaurants:', error);
-    res.status(500).json({ 
-      message: 'Erreur lors de la récupération des posts de restaurants', 
-      error: error.message 
-    });
-  }
-});
-
-// GET /leisure - Obtenir les posts des établissements de loisirs
-router.get('/leisure', auth, async (req, res) => {
-  try {
-    const { page = 1, limit = 10, userId } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    console.log(`🎮 Récupération des posts de loisirs (page ${page}, limit ${limit})`);
-    
-    const query = {
-      producer_type: 'leisure',
-      // Ajouter d'autres conditions si nécessaire
-    };
-    
-    const posts = await Post.find(query)
-      .sort({ posted_at: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-    
-    const total = await Post.countDocuments(query);
-    
-    // Enrichir les posts avec les infos d'auteur et les statuts user-specific
-    const enrichedPosts = await Promise.all(
-      posts.map(post => enrichPostWithUserSpecificInfo(post, userId))
-    );
-    
-    console.log(`✅ ${enrichedPosts.length} posts de loisirs récupérés`);
-    
-    res.status(200).json({
-      posts: enrichedPosts,
-      total,
-      totalPages: Math.ceil(total / parseInt(limit)),
-      currentPage: parseInt(page)
-    });
-  } catch (error) {
-    console.error('❌ Erreur lors de la récupération des posts de loisirs:', error);
-    res.status(500).json({ 
-      message: 'Erreur lors de la récupération des posts de loisirs', 
-      error: error.message 
-    });
-  }
-});
-
-// GET /wellness - Obtenir les posts des établissements de bien-être
-router.get('/wellness', auth, async (req, res) => {
-  try {
-    const { page = 1, limit = 10, userId } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    console.log(`💆 Récupération des posts de bien-être (page ${page}, limit ${limit})`);
-    
-    const query = {
-      producer_type: 'wellness',
-      // Ajouter d'autres conditions si nécessaire
-    };
-    
-    const posts = await Post.find(query)
-      .sort({ posted_at: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-    
-    const total = await Post.countDocuments(query);
-    
-    // Enrichir les posts avec les infos d'auteur et les statuts user-specific
-    const enrichedPosts = await Promise.all(
-      posts.map(post => enrichPostWithUserSpecificInfo(post, userId))
-    );
-    
-    console.log(`✅ ${enrichedPosts.length} posts de bien-être récupérés`);
-    
-    res.status(200).json({
-      posts: enrichedPosts,
-      total,
-      totalPages: Math.ceil(total / parseInt(limit)),
-      currentPage: parseInt(page)
-    });
-  } catch (error) {
-    console.error('❌ Erreur lors de la récupération des posts de bien-être:', error);
-    res.status(500).json({ 
-      message: 'Erreur lors de la récupération des posts de bien-être', 
-      error: error.message 
-    });
   }
 });
 

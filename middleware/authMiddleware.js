@@ -122,8 +122,38 @@ const optionalAuth = (req, res, next) => {
   }
 };
 
+/**
+ * Middleware to check if the authenticated user has access to the specified producer
+ */
+const checkProducerAccess = async (req, res, next) => {
+  try {
+    const { producerId } = req.params || req.body;
+    
+    if (!producerId) {
+      return res.status(400).json({ message: 'Producer ID is required' });
+    }
+    
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    // Allow access if the user is the producer
+    if (req.user._id.toString() === producerId.toString()) {
+      return next();
+    }
+    
+    // This could be expanded to check for admin roles, team members, etc.
+    
+    return res.status(403).json({ message: 'Access denied: You do not have permission to access this producer' });
+  } catch (error) {
+    console.error('❌ Error in checkProducerAccess middleware:', error);
+    return res.status(500).json({ message: 'Server error during access check' });
+  }
+};
+
 module.exports = {
   requireAuth,
   authorizeRoles,
-  optionalAuth
+  optionalAuth,
+  checkProducerAccess
 }; 

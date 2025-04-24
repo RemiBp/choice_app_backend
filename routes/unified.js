@@ -17,7 +17,7 @@ const beautyWellnessDb = mongoose.createConnection(process.env.MONGO_URI, {
 const Restaurant = restaurationDb.model(
   'Restaurant',
   new mongoose.Schema({}, { strict: false }),
-  'producers' // Collection réelle où se trouvent les restaurants
+  'producers'
 );
 const LeisureProducer = loisirDb.model(
   'LeisureProducer',
@@ -33,11 +33,6 @@ const BeautyPlace = beautyWellnessDb.model(
   'BeautyPlace', 
   new mongoose.Schema({}, { strict: false }),
   'BeautyPlaces'
-);
-const WellnessPlace = beautyWellnessDb.model(
-  'WellnessPlace',
-  new mongoose.Schema({}, { strict: false }),
-  'WellnessPlaces'
 );
 
 // Helper function to normalize leisure producer data
@@ -98,7 +93,7 @@ router.get('/search', async (req, res) => {
     const restaurantCount = await Restaurant.countDocuments();
     console.log(`📊 Nombre total de restaurants dans la collection: ${restaurantCount}`);
     
-    const [restaurants, leisureProducers, events, beautyPlaces, wellnessPlaces] = await Promise.all([
+    const [restaurants, leisureProducers, events, beautyPlaces] = await Promise.all([
       restaurantsPromise,
       LeisureProducer.find({
         $or: [
@@ -121,29 +116,15 @@ router.get('/search', async (req, res) => {
           { description: filter },
         ]
       }).limit(15),
-      WellnessPlace.find({
-        $or: [
-          { name: filter },
-          { address: filter },
-          { description: filter },
-          { category: filter },
-          { 'services.name': filter },
-        ]
-      }).limit(15),
     ]);
     
     console.log(`📊 Restaurants trouvés: ${restaurants.length}`);
     console.log(`📊 Lieux de loisir trouvés: ${leisureProducers.length}`);
     console.log(`📊 Événements trouvés: ${events.length}`);
     console.log(`📊 Lieux de beauté trouvés: ${beautyPlaces.length}`);
-    console.log(`📊 Lieux de bien-être trouvés: ${wellnessPlaces.length}`);
     
     if (restaurants.length > 0) {
       console.log(`📊 Premier restaurant trouvé: ${restaurants[0].name || 'Nom non défini'}`);
-    }
-    
-    if (wellnessPlaces.length > 0) {
-      console.log(`📊 Premier lieu de bien-être trouvé: ${wellnessPlaces[0].name || 'Nom non défini'}`);
     }
 
     // Filtrer par type si spécifié
@@ -201,20 +182,6 @@ router.get('/search', async (req, res) => {
           place_id: obj.place_id || ''
         };
       }),
-      ...wellnessPlaces.map((w) => {
-        const obj = w.toObject();
-        return { 
-          type: 'wellnessProducer', 
-          id: obj._id.toString(),
-          _id: obj._id.toString(),
-          name: obj.name || obj.lieu || 'Bien-être',
-          avatar: obj.photo || obj.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(obj.name || 'W')}&background=random`,
-          address: obj.address || obj.adresse,
-          place_id: obj.place_id || '',
-          category: obj.category || 'spa',
-          rating: obj.rating?.average || 4.5 // Ajout d'une valeur par défaut pour le rating
-        };
-      }),
     ];
     
     // Filtrer par type si demandé
@@ -226,37 +193,6 @@ router.get('/search', async (req, res) => {
 
     if (filteredResults.length === 0) {
       console.log(`❌ Aucun résultat trouvé pour la recherche : ${query}`);
-      
-      // Si aucun résultat, ajouter quelques exemples pour tester (uniquement en développement)
-      if (process.env.NODE_ENV !== 'production' && type === 'wellnessProducer') {
-        console.log('💡 Mode développement: ajout d\'exemples fictifs');
-        
-        // Ajouter des exemples fictifs de bien-être pour faciliter les tests
-        filteredResults = [
-          {
-            type: 'wellnessProducer',
-            id: '60f1e1e1e1e1e1e1e1e1e1e1',
-            _id: '60f1e1e1e1e1e1e1e1e1e1e1',
-            name: 'Olivia Wellness Center',
-            avatar: 'https://ui-avatars.com/api/?name=Olivia&background=purple',
-            address: '15 Rue de la Paix, 75002 Paris',
-            place_id: 'sample_olivia_1',
-            category: 'spa',
-            rating: 4.8
-          },
-          {
-            type: 'wellnessProducer',
-            id: '60f1e1e1e1e1e1e1e1e1e1e2',
-            _id: '60f1e1e1e1e1e1e1e1e1e1e2',
-            name: 'Olivia Yoga Studio',
-            avatar: 'https://ui-avatars.com/api/?name=Olivia&background=green',
-            address: '25 Avenue des Champs-Élysées, 75008 Paris',
-            place_id: 'sample_olivia_2',
-            category: 'yoga',
-            rating: 4.7
-          }
-        ];
-      }
       
       if (filteredResults.length === 0) {
         return res.status(404).json({ message: 'Aucun résultat trouvé.' });
@@ -306,7 +242,7 @@ router.get('/search-public', async (req, res) => {
         ],
     }).limit(20);
     
-    const [restaurants, leisureProducers, events, beautyPlaces, wellnessPlaces] = await Promise.all([
+    const [restaurants, leisureProducers, events, beautyPlaces] = await Promise.all([
       restaurantsPromise,
       LeisureProducer.find({
         $or: [
@@ -329,16 +265,9 @@ router.get('/search-public', async (req, res) => {
           { description: filter },
         ]
       }).limit(15),
-      WellnessPlace.find({
-        $or: [
-          { name: filter },
-          { address: filter },
-          { description: filter },
-        ]
-      }).limit(15),
     ]);
     
-    console.log(`📊 Recherche publique - Résultats trouvés: Restaurants: ${restaurants.length}, Loisirs: ${leisureProducers.length}, Événements: ${events.length}, Beauté: ${beautyPlaces.length}, Bien-être: ${wellnessPlaces.length}`);
+    console.log(`📊 Recherche publique - Résultats trouvés: Restaurants: ${restaurants.length}, Loisirs: ${leisureProducers.length}, Événements: ${events.length}, Beauté: ${beautyPlaces.length}`);
     
     // Transformer les résultats
     const allResults = [
@@ -388,18 +317,6 @@ router.get('/search-public', async (req, res) => {
           _id: obj._id.toString(),
           name: obj.name || obj.lieu || 'Beauté',
           avatar: obj.photo || obj.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(obj.name || 'B')}&background=random`,
-          address: obj.address || obj.adresse,
-          place_id: obj.place_id || ''
-        };
-      }),
-      ...wellnessPlaces.map((w) => {
-        const obj = w.toObject();
-        return { 
-          type: 'wellnessProducer', 
-          id: obj._id.toString(),
-          _id: obj._id.toString(),
-          name: obj.name || obj.lieu || 'Bien-être',
-          avatar: obj.photo || obj.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(obj.name || 'W')}&background=random`,
           address: obj.address || obj.adresse,
           place_id: obj.place_id || ''
         };
@@ -718,16 +635,14 @@ router.get('/:id', async (req, res) => {
     const leisureCount = await LeisureProducer.countDocuments();
     const eventCount = await Event.countDocuments();
     const beautyCount = await BeautyPlace.countDocuments();
-    const wellnessCount = await WellnessPlace.countDocuments();
     
     console.log(`📊 Statistiques de la base de données:`);
     console.log(`📊 Nombre de restaurants: ${restoCount}`);
     console.log(`📊 Nombre de producteurs de loisir: ${leisureCount}`);
     console.log(`📊 Nombre d'événements: ${eventCount}`);
     console.log(`📊 Nombre de lieux de beauté: ${beautyCount}`);
-    console.log(`📊 Nombre de lieux de bien-être: ${wellnessCount}`);
 
-    const [restaurant, leisureProducer, event, beautyPlace, wellnessPlace] = await Promise.all([
+    const [restaurant, leisureProducer, event, beautyPlace] = await Promise.all([
       Restaurant.findById(id).catch(err => {
         console.log(`❌ Erreur lors de la recherche dans Restaurant: ${err.message}`);
         return null;
@@ -742,10 +657,6 @@ router.get('/:id', async (req, res) => {
       }),
       BeautyPlace.findById(id).catch(err => {
         console.log(`❌ Erreur lors de la recherche dans BeautyPlace: ${err.message}`);
-        return null;
-      }),
-      WellnessPlace.findById(id).catch(err => {
-        console.log(`❌ Erreur lors de la recherche dans WellnessPlace: ${err.message}`);
         return null;
       }),
     ]);
@@ -796,22 +707,101 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    if (wellnessPlace) {
-      console.log(`✅ Trouvé dans Wellness Places : ${id}`);
-      const result = wellnessPlace.toObject();
-      return res.status(200).json({ 
-        type: 'wellnessProducer', 
-        ...result,
-        _id: result._id.toString(),
-        id: result._id.toString()
-      });
-    }
-
     console.log(`❌ Aucun résultat trouvé pour l'ID : ${id}`);
     res.status(404).json({ message: 'Aucun détail trouvé pour cet ID.' });
   } catch (err) {
     console.error(`❌ Erreur lors de la récupération des détails :`, err.message);
     res.status(500).json({ message: 'Erreur interne du serveur.', error: err.message });
+  }
+});
+
+/**
+ * @route GET /api/unified/batch
+ * @description Récupérer les détails de plusieurs entités par leurs IDs.
+ * @access Public
+ * @queryparam ids - Liste d'IDs séparés par des virgules (ex: id1,id2,id3)
+ */
+router.get('/batch', async (req, res) => {
+  const { ids } = req.query;
+
+  if (!ids) {
+    return res.status(400).json({ message: 'Le paramètre "ids" est requis.' });
+  }
+
+  const idList = ids.split(',').map(id => id.trim()).filter(id => id);
+
+  if (idList.length === 0) {
+    return res.status(400).json({ message: 'Aucun ID valide fourni dans le paramètre "ids".' });
+  }
+
+  console.log(`🔄 Batch fetch request for ${idList.length} IDs: [${idList.join(', ')}]`);
+
+  // Convertir en ObjectIds valides
+  const objectIds = [];
+  const invalidIds = [];
+  idList.forEach(id => {
+    if (mongoose.isValidObjectId(id)) {
+      objectIds.push(new mongoose.Types.ObjectId(id));
+    } else {
+      invalidIds.push(id);
+    }
+  });
+
+  if (invalidIds.length > 0) {
+      console.warn(`⚠️ Invalid ObjectIds provided in batch request: [${invalidIds.join(', ')}]`);
+      // Optionnel: retourner une erreur ou juste ignorer les IDs invalides
+      // return res.status(400).json({ message: `IDs invalides fournis: ${invalidIds.join(', ')}` });
+  }
+
+  if (objectIds.length === 0) {
+      return res.status(400).json({ message: 'Aucun ObjectId valide fourni.' });
+  }
+
+  try {
+    console.log('📊 Querying collections for batch IDs...');
+
+    const [restaurants, leisureProducers, events, beautyPlaces] = await Promise.all([
+      Restaurant.find({ _id: { $in: objectIds } }).lean(),
+      LeisureProducer.find({ _id: { $in: objectIds } }).lean(),
+      Event.find({ _id: { $in: objectIds } }).lean(),
+      BeautyPlace.find({ _id: { $in: objectIds } }).lean(),
+    ]);
+
+    console.log(`📊 Found: ${restaurants.length} restaurants, ${leisureProducers.length} leisure, ${events.length} events, ${beautyPlaces.length} beauty.`);
+
+    const resultsMap = {};
+
+    // Helper function to add result to map
+    const addToMap = (item, type) => {
+        if (!item || !item._id) return;
+        const idStr = item._id.toString();
+        // Simple normalization example (adapt as needed)
+        resultsMap[idStr] = {
+            ...item,
+            _id: idStr, // Ensure _id is string
+            _fetched_as: type, // Add type for frontend clarity
+            // Add other common fields like name, photo if possible
+            name: item.name || item.lieu || item.intitulé || 'Nom inconnu',
+            photos: item.photos || (item.image ? [item.image] : []) || (item.photo ? [item.photo] : []) || [],
+            address: item.address || item.adresse || item.lieu || ''
+        };
+    };
+
+    restaurants.forEach(item => addToMap(item, 'restaurant'));
+    leisureProducers.forEach(item => addToMap(normalizeLeisureProducerData(item), 'leisureProducer')); // Use existing normalizer
+    events.forEach(item => addToMap(item, 'event'));
+    beautyPlaces.forEach(item => addToMap(item, 'beautyPlace'));
+
+    console.log(`✅ Batch fetch completed. Returning ${Object.keys(resultsMap).length} results.`);
+    res.status(200).json(resultsMap);
+
+  } catch (err) {
+    console.error('❌ Erreur dans /api/unified/batch :', err.message);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur interne du serveur lors du batch fetch.',
+      error: err.message
+    });
   }
 });
 

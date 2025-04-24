@@ -42,4 +42,7 @@ router.put('/:id/services', wellnessController.updateWellnessProducerServices);
 // PUT /api/wellness/:id/notes - Mettre à jour les notes d'un producteur
 router.put('/:id/notes', wellnessController.updateWellnessProducerNotes);
 
+// PUT /api/wellness/:id - Mettre à jour les informations générales du producteur
+router.put('/:id', wellnessController.updateWellnessProducer);
+
 module.exports = router; 

@@ -4,11 +4,18 @@ const mongoose = require('mongoose');
 const { beautyWellnessDb } = require('../index');
 
 // Modèle pour les établissements wellness
-const WellnessPlace = beautyWellnessDb.model(
-  'WellnessPlace',
+const BeautyPlace = beautyWellnessDb.model(
+  'BeautyPlace',
   new mongoose.Schema({}, { strict: false }),
-  'WellnessPlaces'
+  'BeautyPlaces'
 );
+
+// Fonction helper pour déterminer si un lieu est de type wellness
+const isWellnessPlace = (place) => {
+  if (!place || !place.category) return false;
+  const wellnessCategories = ['spa', 'yoga', 'massage', 'bien-être', 'wellness', 'méditation', 'relaxation'];
+  return wellnessCategories.some(cat => place.category.toLowerCase().includes(cat));
+};
 
 /**
  * @route GET /api/wellness/places
@@ -20,12 +27,23 @@ router.get('/places', async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
     
-    const places = await WellnessPlace.find()
+    // Filtrer les lieux de type wellness parmi les BeautyPlaces
+    const places = await BeautyPlace.find({
+      $or: [
+        { category: { $regex: 'spa|yoga|massage|bien-être|wellness|méditation|relaxation', $options: 'i' } },
+        { type: 'wellness' }
+      ]
+    })
       .sort({ rating: -1 })
       .skip(skip)
       .limit(limit);
     
-    const total = await WellnessPlace.countDocuments();
+    const total = await BeautyPlace.countDocuments({
+      $or: [
+        { category: { $regex: 'spa|yoga|massage|bien-être|wellness|méditation|relaxation', $options: 'i' } },
+        { type: 'wellness' }
+      ]
+    });
     
     res.status(200).json({
       places,
@@ -51,12 +69,20 @@ router.get('/places', async (req, res) => {
  */
 router.get('/places/:id', async (req, res) => {
   try {
-    const place = await WellnessPlace.findById(req.params.id);
+    const place = await BeautyPlace.findById(req.params.id);
     
     if (!place) {
       return res.status(404).json({ 
         success: false,
         message: 'Établissement wellness non trouvé' 
+      });
+    }
+    
+    // Vérifier si c'est bien un lieu de wellness avant de le retourner
+    if (!isWellnessPlace(place)) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Établissement non catégorisé comme wellness'
       });
     }
     
@@ -77,7 +103,13 @@ router.get('/places/:id', async (req, res) => {
  */
 router.post('/places', async (req, res) => {
   try {
-    const newPlace = new WellnessPlace(req.body);
+    // S'assurer que c'est bien un lieu de type wellness
+    if (!req.body.category || !isWellnessPlace({category: req.body.category})) {
+      req.body.category = req.body.category || 'spa'; // Valeur par défaut
+      req.body.type = 'wellness'; // Marquer explicitement comme wellness
+    }
+    
+    const newPlace = new BeautyPlace(req.body);
     await newPlace.save();
     
     res.status(201).json({
@@ -101,7 +133,12 @@ router.post('/places', async (req, res) => {
  */
 router.put('/places/:id', async (req, res) => {
   try {
-    const updatedPlace = await WellnessPlace.findByIdAndUpdate(
+    // S'assurer que c'est bien un lieu de type wellness
+    if (req.body.category && !isWellnessPlace({category: req.body.category})) {
+      req.body.type = 'wellness'; // Marquer explicitement comme wellness
+    }
+    
+    const updatedPlace = await BeautyPlace.findByIdAndUpdate(
       req.params.id,
       { $set: req.body },
       { new: true }
@@ -135,7 +172,24 @@ router.put('/places/:id', async (req, res) => {
  */
 router.delete('/places/:id', async (req, res) => {
   try {
-    const deletedPlace = await WellnessPlace.findByIdAndDelete(req.params.id);
+    // D'abord vérifier que c'est bien un lieu de type wellness
+    const place = await BeautyPlace.findById(req.params.id);
+    
+    if (!place) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Établissement wellness non trouvé' 
+      });
+    }
+    
+    if (!isWellnessPlace(place)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Cet établissement n\'est pas catégorisé comme wellness' 
+      });
+    }
+    
+    const deletedPlace = await BeautyPlace.findByIdAndDelete(req.params.id);
     
     if (!deletedPlace) {
       return res.status(404).json({ 
@@ -173,7 +227,11 @@ router.get('/places/nearby', async (req, res) => {
       });
     }
     
-    const places = await WellnessPlace.find({
+    const places = await BeautyPlace.find({
+      $or: [
+        { category: { $regex: 'spa|yoga|massage|bien-être|wellness|méditation|relaxation', $options: 'i' } },
+        { type: 'wellness' }
+      ],
       'location.coordinates': {
         $near: {
           $geometry: {
@@ -202,11 +260,18 @@ router.get('/places/nearby', async (req, res) => {
  */
 router.get('/categories', async (req, res) => {
   try {
-    const categories = await WellnessPlace.distinct('category');
+    // Filtrer uniquement les catégories de type wellness
+    const allCategories = await BeautyPlace.distinct('category');
+    const categories = allCategories.filter(cat => 
+      cat && typeof cat === 'string' && 
+      ['spa', 'yoga', 'massage', 'bien-être', 'wellness', 'méditation', 'relaxation']
+        .some(wellnessCat => cat.toLowerCase().includes(wellnessCat))
+    );
+    
     const subCategories = {};
     
     for (const category of categories) {
-      subCategories[category] = await WellnessPlace.distinct('sous_categorie', { category });
+      subCategories[category] = await BeautyPlace.distinct('sous_categorie', { category });
     }
     
     res.status(200).json({
@@ -231,14 +296,19 @@ router.get('/search', async (req, res) => {
   try {
     const { query, category, subCategory } = req.query;
     
-    const searchQuery = {};
+    const searchQuery = {
+      $or: [
+        { category: { $regex: 'spa|yoga|massage|bien-être|wellness|méditation|relaxation', $options: 'i' } },
+        { type: 'wellness' }
+      ]
+    };
     
     if (query) {
-      searchQuery.$or = [
+      searchQuery.$and = [{$or: [
         { name: { $regex: query, $options: 'i' } },
         { description: { $regex: query, $options: 'i' } },
         { address: { $regex: query, $options: 'i' } }
-      ];
+      ]}];
     }
     
     if (category) {
@@ -249,7 +319,7 @@ router.get('/search', async (req, res) => {
       searchQuery.sous_categorie = subCategory;
     }
     
-    const places = await WellnessPlace.find(searchQuery)
+    const places = await BeautyPlace.find(searchQuery)
       .sort({ rating: -1 })
       .limit(20);
     

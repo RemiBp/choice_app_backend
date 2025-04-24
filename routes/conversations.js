@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const { sendNotificationEmail } = require('../services/emailService');
 const auth = require('../middleware/auth');
+const { sendNotificationEmail } = require('../services/emailService');
 const { createModel, databases } = require('../utils/modelCreator');
 const Message = require('../models/message');
 const { v4: uuidv4 } = require('uuid');
 const { io } = require('../index'); // Import Socket.IO server instance
+const bcrypt = require('bcryptjs');
 
 // Import le schéma et la fonction de création pour Conversation
 const { ConversationSchema, createConversationModel } = require('../models/conversation');
@@ -14,27 +15,11 @@ const { ConversationSchema, createConversationModel } = require('../models/conve
 // Créer les modèles avec la bonne connexion à la base de données
 const Conversation = createModel(databases.CHOICE_APP, 'Conversation', 'conversations');
 
-// Attacher les méthodes personnalisées au modèle Conversation
-Conversation.schema.methods.resetUnreadCount = ConversationSchema.methods.resetUnreadCount;
-Conversation.schema.methods.incrementUnreadCount = ConversationSchema.methods.incrementUnreadCount;
-Conversation.schema.methods.getUnreadCount = ConversationSchema.methods.getUnreadCount;
-Conversation.schema.methods.ensureUnreadCountIsObject = ConversationSchema.methods.ensureUnreadCountIsObject;
-
-// Models required for producer info, keep using createModel if needed for multi-DB
+// Modèles nécessaires
 const User = createModel(databases.CHOICE_APP, 'User', 'Users');
 const Producer = createModel(databases.RESTAURATION, 'Producer', 'producers');
 const LeisureProducer = createModel(databases.LOISIR, 'LeisureProducer', 'leisureProducers');
 const BeautyProducer = createModel(databases.BEAUTY_WELLNESS, 'BeautyProducer', 'beautyProducers');
-
-// Routes pour les conversations
-// Pas besoin de vérifier si les modèles sont initialisés puisqu'ils sont créés directement
-// Remplacer le middleware précédent pour afficher un avertissement s'il y a des erreurs d'initialisation
-router.use((req, res, next) => {
-  if (!mongoose.connection.readyState) {
-    return res.status(500).json({ message: 'La connexion à la base de données n\'est pas établie' });
-  }
-  next();
-});
 
 /**
  * @route GET /api/conversations
@@ -49,83 +34,151 @@ router.get('/', auth, async (req, res) => {
     const conversations = await Conversation.find({
       participants: userId
     })
-    .sort({ lastMessageDate: -1 });
+    .sort({ lastMessageDate: -1 })
+    .lean();
     
-    // Obtenir les informations des autres participants pour chaque conversation
-    const populatedConversations = await Promise.all(conversations.map(async conv => {
-      const convObj = conv.toObject();
+    // Récupérer les informations des participants pour chaque conversation
+    const populatedConversations = await Promise.all(conversations.map(async (conv) => {
+      // Récupérer les autres participants
+      const otherParticipants = await User.find({
+        _id: { $in: conv.participants.filter(p => p.toString() !== userId) }
+      })
+      .select('_id name username profilePicture')
+      .lean();
       
-      // Récupérer les infos des participants (hors l'utilisateur actuel)
-      const otherParticipantIds = convObj.participants.filter(id => id.toString() !== userId);
-      
-      // Si c'est une conversation avec un producteur
-      if (conv.isProducerConversation && conv.producerId) {
-        try {
-          let producer;
-          
-          if (conv.producerType === 'restaurant') {
-            producer = await Producer.findById(conv.producerId);
-          } else if (conv.producerType === 'leisure') {
-            producer = await LeisureProducer.findById(conv.producerId);
-          } else if (conv.producerType === 'wellness') {
-            producer = await BeautyProducer.findById(conv.producerId);
-          }
-          
-          if (producer) {
-            convObj.producerInfo = {
-              _id: producer._id,
-              name: producer.name || producer.lieu,
-              photo: producer.photo || producer.image,
-              address: producer.address || producer.adresse
-            };
-          }
-        } catch (err) {
-          console.error('Erreur lors de la récupération des infos du producteur:', err);
-        }
-      }
-      
-      // Récupérer les infos des participants
-      const participants = await User.find({
-        _id: { $in: otherParticipantIds }
-      }).select('_id name username profilePicture');
-      
-      convObj.participantsInfo = participants;
-      
-      // Calculer le nombre de messages non lus de manière sécurisée
-      let unreadCount = 0;
-      try {
-        if (convObj.unreadCount) {
-          // Privilégier la méthode .get() si c'est une Map Mongoose
-          if (typeof convObj.unreadCount.get === 'function') {
-            unreadCount = convObj.unreadCount.get(userId) || 0;
-          } else if (typeof convObj.unreadCount === 'object') {
-            // Accéder comme un objet standard
-            unreadCount = convObj.unreadCount[userId] || 0;
-          } else if (typeof convObj.unreadCount === 'number') {
-            // Cas où c'est déjà un nombre (ancienne structure?)
-            unreadCount = convObj.unreadCount;
-          }
-        }
-        // Assurer que c'est bien un nombre entier
-        if (typeof unreadCount !== 'number' || !Number.isInteger(unreadCount)) {
-            console.warn(`⚠️ Invalid unreadCount type for conv ${convObj._id}, user ${userId}: ${typeof unreadCount}, value: ${unreadCount}. Defaulting to 0.`);
-            unreadCount = 0;
-        }
-      } catch (e) {
-          console.error(`❌ Error processing unreadCount for conv ${convObj._id}, user ${userId}: ${e}. Defaulting to 0.`);
-          unreadCount = 0;
-      }
-
-      // Assurer que unreadCount est au moins 0
-      unreadCount = Math.max(0, unreadCount);
-      
-      return convObj;
+      // Ajouter les informations des participants à la conversation
+      return {
+        ...conv,
+        participantsInfo: otherParticipants
+      };
     }));
     
-    res.status(200).json(populatedConversations);
+    res.status(200).json({
+      success: true,
+      conversations: populatedConversations
+    });
   } catch (error) {
-    console.error('Erreur de récupération des conversations:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des conversations' });
+    console.error('❌ Erreur lors de la récupération des conversations:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur serveur', 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * @route GET /api/conversations/:conversationId/messages
+ * @desc Récupérer les messages d'une conversation
+ * @access Private
+ */
+router.get('/:conversationId/messages', auth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user.id;
+    const { limit = 50, before } = req.query; // Récupérer les paramètres de pagination
+
+    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+      return res.status(400).json({ success: false, message: 'Invalid conversationId format.' });
+    }
+    
+    // Trouver la conversation spécifique par son ID
+    const conversation = await Conversation.findById(conversationId);
+
+    if (!conversation) {
+      console.log(`Conversation non trouvée avec ID: ${conversationId}`);
+      return res.status(404).json({ success: false, message: 'Conversation non trouvée.' });
+    }
+
+    // Vérifier si l'utilisateur est un participant
+    if (!conversation.participants.map(p => p.toString()).includes(userId)) {
+        return res.status(403).json({ success: false, message: 'Non autorisé à accéder à cette conversation.' });
+    }
+
+    console.log(`Récupération des messages pour la conversation ${conversationId}`);
+
+    // Construire la requête pour les messages
+    let query = { conversationId: new mongoose.Types.ObjectId(conversationId) };
+    if (before) {
+        try {
+        query.timestamp = { $lt: new Date(before) };
+      } catch (e) {
+        console.error('Date invalide pour \'before\':', before, e);
+      }
+    }
+
+    // Récupérer les messages
+    const messageResults = await Message.find(query)
+      .sort({ timestamp: -1 })
+      .limit(Number(limit))
+      .populate('senderId', '_id name username profilePicture photo_url') // Populer les informations de l'expéditeur
+      .lean();
+
+    // Formater les messages
+    const messages = messageResults.map(msg => ({
+      _id: msg._id,
+      id: msg._id.toString(),
+      senderId: msg.senderId?._id?.toString() || '',
+      sender: msg.senderId ? { // Inclure les infos de l'expéditeur
+          _id: msg.senderId._id,
+          name: msg.senderId.name || msg.senderId.username || 'Utilisateur',
+          profilePicture: msg.senderId.profilePicture || msg.senderId.photo_url
+      } : { _id: '', name: 'Inconnu', profilePicture: null },
+      content: msg.content || '',
+      timestamp: msg.timestamp ? msg.timestamp.toISOString() : new Date().toISOString(),
+      media: msg.mediaInfo ? [msg.mediaInfo] : (msg.attachments || msg.media || []), // S'assurer que media est un tableau
+      contentType: msg.contentType || 'text',
+      mentions: msg.mentions || [],
+      isRead: msg.readBy?.some(r => r.userId?.toString() === userId) || false // Vérifier si lu par l'utilisateur actuel
+      // Ajouter d'autres champs si nécessaire (reactions, replyTo, etc.)
+    }));
+
+    // Marquer les messages comme lus (logique similaire à la deuxième définition de la route)
+    try {
+       await Message.updateMany(
+         {
+           conversationId: new mongoose.Types.ObjectId(conversationId),
+           senderId: { $ne: new mongoose.Types.ObjectId(userId) },
+           'readBy.userId': { $ne: new mongoose.Types.ObjectId(userId) } // Marquer uniquement si pas déjà lu par cet user
+         },
+         { $addToSet: { readBy: { userId: new mongoose.Types.ObjectId(userId), readAt: new Date() } } } // Utiliser addToSet pour éviter les doublons
+       );
+
+       // Réinitialiser le compteur de non lus pour l'utilisateur
+       if (conversation && typeof conversation.resetUnreadCount === 'function') {
+         await conversation.resetUnreadCount(userId); // Assurez-vous que cette méthode sauvegarde la conversation
+       } else if (conversation) {
+          conversation.ensureUnreadCountIsObject(); // Assurez-vous que cette méthode existe ou implémentez la logique ici
+          if (conversation.unreadCount[userId.toString()]) {
+            conversation.unreadCount[userId.toString()] = 0;
+            conversation.markModified('unreadCount');
+            await conversation.save();
+          }
+       }
+
+       // Émettre un événement WebSocket si nécessaire
+       if (io) {
+         io.to(conversationId).emit('message_read', { conversationId, userId });
+        }
+
+    } catch (updateError) {
+      console.error('Erreur lors de la mise à jour des statuts de lecture (route 1):', updateError);
+      }
+
+    res.status(200).json({
+        success: true,
+        messages: messages, // Les messages sont déjà triés du plus récent au plus ancien
+        participants: conversation.participants // Inclure les participants
+    });
+
+  } catch (error) {
+    // Correction de l'apostrophe dans le message d'erreur
+    console.error('❌ Erreur lors de la récupération des messages (route 1):', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la récupération des messages',
+      error: error.message
+    });
   }
 });
 
@@ -308,133 +361,6 @@ router.get('/:userId/conversations', async (req, res) => {
 });
 
 /**
- * @route GET /api/conversations/:conversationId/messages
- * @desc Récupérer les messages d'une conversation (Refactored to ONLY use Message collection)
- * @access Private (ou Public selon votre logique d'accès)
- */
-router.get('/:conversationId/messages', async (req, res) => {
-  try {
-    const { conversationId } = req.params;
-    const { userId, limit = 50, before } = req.query; // userId needed for marking as read
-
-    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
-       return res.status(400).json({ success: false, message: 'Invalid conversationId format.' });
-    }
-
-    // Check if conversation exists (optional, but good practice)
-    const conversation = await Conversation.findById(conversationId).select('_id participants unreadCount'); // Select only needed fields
-    if (!conversation) {
-      console.log(`Conversation non trouvée avec ID: ${conversationId}`);
-      return res.status(404).json({ success: false, message: 'Conversation non trouvée.' });
-    }
-
-    console.log(`Récupération des messages depuis la collection Message pour conversationId: ${conversationId}`);
-
-    // --- Start: Logic ONLY using the Message collection --- 
-    let query = { conversationId: new mongoose.Types.ObjectId(conversationId) }; // Ensure ID is ObjectId
-    if (before) {
-      try {
-        query.timestamp = { $lt: new Date(before) };
-      } catch (e) {
-        console.error('Date invalide fournie pour \'before\':', before, e); // Corrected quoting
-        // Optionally return error or ignore the 'before' filter
-      }
-    }
-
-    // Fetch messages from the Message collection
-    const messageResults = await Message.find(query)
-      .sort({ timestamp: -1 })
-      .limit(Number(limit))
-      .lean(); // Use lean for performance
-
-    // Fetch sender details efficiently
-    const senderIds = [...new Set(messageResults.map(m => m.senderId).filter(Boolean))];
-    let senders = {};
-    if (senderIds.length > 0) {
-      try {
-        const senderList = await User.find({ _id: { $in: senderIds } })
-                                     .select('_id name username profilePicture photo_url')
-                                     .lean();
-        senderList.forEach(sender => {
-          senders[sender._id.toString()] = {
-            _id: sender._id,
-            name: sender.name || sender.username || 'Utilisateur',
-            profilePicture: sender.profilePicture || sender.photo_url
-          };
-        });
-      } catch (userError) {
-           console.error("Error fetching sender details:", userError);
-           // Continue without full sender details
-      }
-    }
-
-    // Format messages
-    const messages = messageResults.map(msg => {
-      const senderIdStr = msg.senderId ? msg.senderId.toString() : '';
-      const sender = senders[senderIdStr] || { _id: senderIdStr, name: 'Utilisateur inconnu', profilePicture: null }; // Default sender info
-      
-      // Check if message is read by the current user
-      const isReadByCurrentUser = msg.isRead && typeof msg.isRead === 'object' && msg.isRead[userId] === true;
-
-      return {
-        _id: msg._id,
-        id: msg._id.toString(),
-        senderId: senderIdStr,
-        sender: sender,
-        content: msg.content || '',
-        timestamp: msg.timestamp ? msg.timestamp.toISOString() : new Date().toISOString(), // Ensure ISO string
-        media: msg.attachments || msg.media || [], // Use attachments field from message.js model
-        contentType: msg.contentType || 'text',
-        mentions: msg.mentions || [],
-        isRead: isReadByCurrentUser // Indicate if read by the requesting user
-      };
-    });
-    // --- End: Logic ONLY using the Message collection --- 
-
-    // Mark messages as read for the requesting user (if userId is provided)
-    if (userId) {
-      try {
-         // Mark messages in DB as read
-         await Message.updateMany(
-           { 
-             conversationId: new mongoose.Types.ObjectId(conversationId),
-             senderId: { $ne: new mongoose.Types.ObjectId(userId) }, // Don't mark own messages as read
-             [`isRead.${userId}`]: { $ne: true } // Only update if not already true
-           },
-           { $set: { [`isRead.${userId}`]: true } }
-         );
-
-         // Reset unread count for the user in the conversation document
-         if (conversation) { // Check if conversation was found
-             conversation.resetUnreadCount(userId);
-             await conversation.save();
-             console.log(`✅ Unread count reset for user ${userId} in conversation ${conversationId}`);
-         }
-
-      } catch (updateError) {
-        console.error('Erreur lors de la mise à jour des statuts de lecture:', updateError);
-        // Continue despite the error, messages are still fetched
-      }
-    }
-
-    // Renvoyer les messages (les plus récents en premier, le client inversera si besoin)
-    res.status(200).json({
-      success: true,
-      messages: messages, // Messages are already sorted newest first by the query
-      participants: conversation ? conversation.participants : [] // Include participants if conversation was found
-    });
-
-  } catch (error) {
-    console.error('Erreur lors de la récupération des messages:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Erreur lors de la récupération des messages',
-      error: error.message
-    });
-  }
-});
-
-/**
  * @route POST /api/conversations/:conversationId/send
  * @desc Route alternative pour envoyer un message sans authentification (pour Flutter)
  * @access Public
@@ -442,7 +368,7 @@ router.get('/:conversationId/messages', async (req, res) => {
 router.post('/:conversationId/send', async (req, res) => {
   try {
     const { conversationId } = req.params;
-    const { senderId, content, media } = req.body;
+    const { senderId, content, media, contentType = 'text', gifUrl } = req.body;
     
     if (!senderId || !content) {
       return res.status(400).json({ 
@@ -476,15 +402,21 @@ router.post('/:conversationId/send', async (req, res) => {
     
     // Créer et sauvegarder le message
     const timestamp = new Date();
-    const message = new Message({
+    const messageData = {
       conversationId,
       senderId: senderId,
       content,
       timestamp,
+      contentType: contentType || 'text',
       attachments: media || []
-      // Mentions are not handled in this specific route, add if necessary
-      // mentions: req.body.mentions || [] 
-    });
+    };
+    
+    // Si c'est un GIF, ajouter l'URL du GIF
+    if (contentType === 'gif' && gifUrl) {
+      messageData.gifUrl = gifUrl;
+    }
+    
+    const message = new Message(messageData);
     
     // Initialiser isRead pour tous les participants
     message.isRead = {};
@@ -558,6 +490,9 @@ router.post('/:conversationId/send', async (req, res) => {
         content: content,
         timestamp: timestamp.toISOString(), // Use ISO string for consistency
         media: media || [],
+        contentType: message.contentType || 'text',
+        // Include GIF URL if this is a GIF message
+        ...(message.contentType === 'gif' && message.gifUrl ? { gifUrl: message.gifUrl } : {})
         // Include mentions if they were part of the message saving logic (add above if needed)
         // mentions: message.mentions || [] 
     };
@@ -999,7 +934,7 @@ router.get('/unified/search', async (req, res) => {
  */
 router.post('/create-or-get-conversation', async (req, res) => {
   try {
-    const { userId, targetUserId, producerType } = req.body;
+    const { userId, targetUserId, producerType } = req.body; // producerType est optionnel
     
     if (!userId || !targetUserId) {
       return res.status(400).json({ 
@@ -1008,142 +943,115 @@ router.post('/create-or-get-conversation', async (req, res) => {
       });
     }
     
-    // Vérifier d'abord que l'utilisateur existe
+    // Vérifier que l'utilisateur existe
     const currentUser = await User.findById(userId);
     if (!currentUser) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Utilisateur courant non trouvé.' 
-      });
+      return res.status(404).json({ success: false, message: 'Utilisateur courant non trouvé.' });
     }
     
     let targetEntity = null;
-    let isProducerConversation = false;
-    let producerId = null;
-    let actualProducerType = null;
+    let targetEntityType = 'user'; // Type par défaut
+    let finalTargetId = targetUserId;
+    let isProducerConv = false;
     
-    // Vérifier si targetUserId est un producteur selon le producerType
-    if (producerType) {
-      console.log(`🔍 Recherche du producteur de type ${producerType} avec ID ${targetUserId}`);
-      isProducerConversation = true;
-      
-      switch(producerType) {
-        case 'restaurant':
-          targetEntity = await Producer.findById(targetUserId);
-          producerId = targetUserId;
-          actualProducerType = 'restaurant';
-          break;
-        case 'leisure':
-          targetEntity = await LeisureProducer.findById(targetUserId);
-          producerId = targetUserId;
-          actualProducerType = 'leisure';
-          break;
-        case 'beauty':
+    // 1. Essayer de trouver la cible comme utilisateur
+    targetEntity = await User.findById(targetUserId);
+
+    // 2. Si pas trouvé comme utilisateur OU si producerType est explicitement fourni
+    if (!targetEntity || producerType) {
+        console.log(`Cible ${targetUserId} non trouvée comme utilisateur ou producerType (${producerType}) fourni. Recherche comme producteur.`);
+        let foundProducer = null;
+        let detectedProducerType = producerType; // Utiliser le type fourni s'il existe
+
+        // Fonction pour chercher dans les collections de producteurs
+        const findProducer = async (id, type) => {
+             switch(type) {
+                case 'restaurant': return await Producer.findById(id).lean();
+                case 'leisure': return await LeisureProducer.findById(id).lean();
         case 'wellness':
-          targetEntity = await BeautyProducer.findById(targetUserId);
-          producerId = targetUserId;
-          actualProducerType = producerType;
-          break;
-        default:
-          // Tenter de trouver dans toutes les collections
-          targetEntity = await Producer.findById(targetUserId) || 
-                         await LeisureProducer.findById(targetUserId) ||
-                         await BeautyProducer.findById(targetUserId);
-                         
-          if (targetEntity) {
-            producerId = targetUserId;
-            // Déterminer le type en fonction de la collection où il a été trouvé
-            if (targetEntity.constructor.modelName === 'Producer') {
-              actualProducerType = 'restaurant';
-            } else if (targetEntity.constructor.modelName === 'LeisureProducer') {
-              actualProducerType = 'leisure';
-            } else {
-              actualProducerType = 'wellness';
+                case 'beauty': return await BeautyProducer.findById(id).lean();
+                default: return null;
             }
-          }
-          break;
-      }
-      
-      if (!targetEntity) {
-        return res.status(404).json({ 
-          success: false, 
-          message: `Producteur de type ${producerType} avec ID ${targetUserId} non trouvé.` 
-        });
-      }
-    } else {
-      // Si ce n'est pas un producteur, vérifier s'il s'agit d'un utilisateur
-      targetEntity = await User.findById(targetUserId);
-      
-      if (!targetEntity) {
-        // Si l'utilisateur n'est pas trouvé, essayer de le trouver en tant que producteur
-        console.log(`⚠️ Utilisateur avec ID ${targetUserId} non trouvé, recherche comme producteur...`);
-        
-        const producer = await Producer.findById(targetUserId);
-        if (producer) {
-          targetEntity = producer;
-          isProducerConversation = true;
-          producerId = targetUserId;
-          actualProducerType = 'restaurant';
-        } else {
-          const leisureProducer = await LeisureProducer.findById(targetUserId);
-          if (leisureProducer) {
-            targetEntity = leisureProducer;
-            isProducerConversation = true;
-            producerId = targetUserId;
-            actualProducerType = 'leisure';
-          } else {
-            const beautyProducer = await BeautyProducer.findById(targetUserId);
-            if (beautyProducer) {
-              targetEntity = beautyProducer;
-              isProducerConversation = true;
-              producerId = targetUserId;
-              actualProducerType = 'wellness';
-            }
-          }
+        };
+
+        // Si un type est fourni, chercher dans cette collection d'abord
+        if (detectedProducerType) {
+            foundProducer = await findProducer(targetUserId, detectedProducerType);
         }
-        
+
+        // Si non trouvé avec le type fourni, ou si aucun type n'était fourni, chercher dans toutes
+        if (!foundProducer) {
+            console.log(`Recherche du producteur ${targetUserId} dans toutes les collections...`);
+            foundProducer = await findProducer(targetUserId, 'restaurant') ||
+                            await findProducer(targetUserId, 'leisure') ||
+                            await findProducer(targetUserId, 'wellness'); // beauty inclus dans wellness
+            if (foundProducer) {
+                // Déduire le type si non fourni initialement
+                 if (!detectedProducerType) {
+                    if (foundProducer.constructor.modelName === 'Producer') detectedProducerType = 'restaurant';
+                    else if (foundProducer.constructor.modelName === 'LeisureProducer') detectedProducerType = 'leisure';
+                    else detectedProducerType = 'wellness'; // ou beauty
+                    console.log(`Producteur trouvé, type détecté: ${detectedProducerType}`);
+      }
+            }
+        }
+
+        // Si on a trouvé un producteur
+        if (foundProducer) {
+            targetEntity = foundProducer;
+            targetEntityType = detectedProducerType;
+            isProducerConv = true;
+            finalTargetId = targetEntity._id.toString(); // Utiliser l'ID trouvé
+            console.log(`Cible identifiée comme producteur de type: ${targetEntityType}`);
+        } else if (producerType) {
+             // Si un type était fourni mais le producteur non trouvé
+             console.log(`❌ Producteur de type ${producerType} avec ID ${targetUserId} non trouvé.`);
+             return res.status(404).json({ success: false, message: `Producteur spécifié (${producerType}) non trouvé.` });
+        }
+    }
+
+    // 3. Si après toutes les recherches, on n'a pas trouvé la cible (ni user, ni producer)
         if (!targetEntity) {
-      return res.status(404).json({ 
-        success: false, 
-            message: 'Destinataire non trouvé ni comme utilisateur ni comme producteur.' 
-          });
-        }
-        
-        console.log(`✅ Destinataire trouvé comme producteur de type ${actualProducerType}`);
-      }
+        console.log(`❌ Destinataire ${targetUserId} non trouvé (ni utilisateur, ni producteur).`);
+        return res.status(404).json({ success: false, message: 'Destinataire non trouvé.' });
     }
     
-    // Vérifier si une conversation existe déjà
-    let existingConversationQuery = {
-      participants: { $all: [userId] },
-      isGroup: false
-    };
-    
-    if (isProducerConversation) {
-      // Pour une conversation avec un producteur
+    // 4. Préparer la requête pour trouver la conversation existante
+    let existingConversationQuery = {};
+    if (isProducerConv) {
+      // Recherche conversation User <-> Producer
       existingConversationQuery = {
-        ...existingConversationQuery,
+        participants: { $in: [userId] }, // L'utilisateur doit être dedans
         isProducerConversation: true,
-        producerId: producerId
+        producerId: finalTargetId, // L'ID du producteur
+        producerType: targetEntityType, // Le type de producteur
+        isGroup: false
       };
+      console.log("Recherche conversation existante User-Producer:", existingConversationQuery);
     } else {
-      // Pour une conversation entre utilisateurs
+      // Recherche conversation User <-> User
       existingConversationQuery = {
-        ...existingConversationQuery,
-        participants: { $all: [userId, targetUserId], $size: 2 },
-        isProducerConversation: { $ne: true }
+        participants: { $all: [userId, finalTargetId], $size: 2 }, // Les deux utilisateurs et seulement eux
+        isGroup: false, // Pas un groupe
+        isProducerConversation: { $ne: true } // Pas une conversation producteur
       };
+       console.log("Recherche conversation existante User-User:", existingConversationQuery);
     }
-    
-    const existingConversation = await Conversation.findOne(existingConversationQuery);
+
+    // 5. Chercher la conversation existante
+    const existingConversation = await Conversation.findOne(existingConversationQuery).lean(); // Utiliser lean()
     
     if (existingConversation) {
-      console.log('Conversation existante trouvée, id:', existingConversation._id);
+      console.log(`✅ Conversation existante trouvée, id: ${existingConversation._id}`);
+      // Retourner les détails formatés de la conversation existante
       return res.status(200).json({
         success: true,
         message: 'Conversation existante trouvée',
+        // Ajouter conversationId pour compatibilité directe avec certains appels frontend
+        conversationId: existingConversation._id.toString(), 
+        _id: existingConversation._id.toString(), // Garder _id aussi
         conversation: {
-          _id: existingConversation._id,
+          _id: existingConversation._id.toString(),
           id: existingConversation._id.toString(),
           participants: existingConversation.participants,
           isGroup: existingConversation.isGroup,
@@ -1155,32 +1063,41 @@ router.post('/create-or-get-conversation', async (req, res) => {
       });
     }
     
-    // Créer une nouvelle conversation
-    const participantIds = isProducerConversation ? [userId] : [userId, targetUserId];
-    const conversation = new Conversation({
+    // 6. Si aucune conversation n'existe, la créer
+    console.log(`👋 Aucune conversation existante. Création d'une nouvelle conversation...`);
+    const participantIds = isProducerConv ? [userId] : [userId, finalTargetId];
+    
+    // Initialiser unreadCount comme un objet simple pour compatibilité frontend/mongoose
+    const initialUnreadCount = {};
+    participantIds.forEach(pId => {
+      initialUnreadCount[pId.toString()] = 0;
+    });
+    
+    const newConversationData = {
       participants: participantIds,
       isGroup: false,
       isGroupChat: false,
       lastUpdated: new Date(),
       lastMessageDate: new Date(),
       createdAt: new Date(),
-      unreadCount: new Map(participantIds.map(p => [p.toString(), 0])),
-      // Ajouter les champs pour les conversations avec producteurs
-      isProducerConversation: isProducerConversation,
-      producerId: producerId,
-      producerType: actualProducerType
-    });
-    
+      unreadCount: initialUnreadCount, 
+      isProducerConversation: isProducerConv,
+      producerId: isProducerConv ? finalTargetId : null,
+      producerType: isProducerConv ? targetEntityType : null
+    };
+
+    const conversation = new Conversation(newConversationData);
     await conversation.save();
-    console.log('Nouvelle conversation créée, id:', conversation._id, 
-                isProducerConversation ? `avec producteur de type ${actualProducerType}` : 'entre utilisateurs');
+    console.log(`✅ Nouvelle conversation créée, id: ${conversation._id}`);
     
-    // Renvoyer la nouvelle conversation
+    // Renvoyer les détails formatés de la nouvelle conversation
     res.status(201).json({
       success: true,
       message: 'Nouvelle conversation créée avec succès',
+      conversationId: conversation._id.toString(), // Ajouter conversationId
+      _id: conversation._id.toString(), // Garder _id
       conversation: {
-        _id: conversation._id,
+        _id: conversation._id.toString(),
         id: conversation._id.toString(),
         participants: conversation.participants,
         isGroup: conversation.isGroup,
@@ -1294,31 +1211,17 @@ router.post('/check-or-create', auth, async (req, res) => {
 
 /**
  * @route PUT /api/conversations/:conversationId/read
- * @desc Marquer une conversation comme lue pour un utilisateur
- * @access Public
+ * @desc Marquer tous les messages d'une conversation comme lus (double coche bleue)
+ * @access Private
  */
-router.put('/:conversationId/read', async (req, res) => {
+router.put('/:conversationId/read', auth, async (req, res) => {
   try {
     const { conversationId } = req.params;
-    const { userId } = req.body;
+    const userId = req.user.id;
+    const { messageId } = req.body; // ID du dernier message lu (optionnel)
     
-    if (!conversationId) {
-      return res.status(400).json({
-        success: false,
-        message: 'ID de conversation requis'
-      });
-    }
-    
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'ID d\'utilisateur requis'
-      });
-    }
-    
-    // Vérifier que la conversation existe
+    // Vérifier si la conversation existe
     const conversation = await Conversation.findById(conversationId);
-    
     if (!conversation) {
       return res.status(404).json({
         success: false,
@@ -1327,39 +1230,74 @@ router.put('/:conversationId/read', async (req, res) => {
     }
     
     // Vérifier que l'utilisateur est un participant de la conversation
-    if (!conversation.participants.some(p => p.toString() === userId.toString())) {
+    const participantIndex = conversation.participants.findIndex(p => 
+      p.userId.toString() === userId
+    );
+    
+    if (participantIndex === -1) {
       return res.status(403).json({
         success: false,
-        message: 'Utilisateur non autorisé à accéder à cette conversation'
+        message: 'Vous n\'êtes pas autorisé à accéder à cette conversation'
       });
     }
     
-    // Réinitialiser le compteur de messages non lus pour cet utilisateur
-    conversation.resetUnreadCount(userId);
-    await conversation.save();
+    // Trouver le dernier message de la conversation si non spécifié
+    let lastMessageId = messageId;
+    if (!lastMessageId) {
+      const lastMessage = await Message.findOne({ conversationId })
+        .sort({ createdAt: -1 })
+        .select('_id');
+      
+      if (lastMessage) {
+        lastMessageId = lastMessage._id;
+      }
+    }
     
-    // Marquer tous les messages comme lus pour cet utilisateur
-    if (conversation.messages && conversation.messages.length > 0) {
-      conversation.messages.forEach(message => {
-        if (message.isRead && typeof message.isRead === 'object') {
-          message.isRead[userId.toString()] = true;
+    if (lastMessageId) {
+      // Marquer la conversation comme lue jusqu'à ce message
+      await conversation.markAsReadForUser(userId, lastMessageId);
+      
+      // Marquer tous les messages comme lus pour cet utilisateur
+      await Message.updateMany(
+        { 
+          conversationId,
+          _id: { $lte: lastMessageId },
+          senderId: { $ne: userId },
+          'readBy.userId': { $ne: userId }
+        },
+        { 
+          $push: { 
+            readBy: { 
+              userId, 
+              readAt: new Date() 
+            } 
+          } 
+        }
+      );
+      
+      // Notifier les autres participants de la lecture via WebSocket
+      conversation.participants.forEach(participant => {
+        if (participant.userId.toString() !== userId) {
+          io.to(`user_${participant.userId}`).emit('messages_read', {
+            conversationId,
+            userId,
+            lastReadMessageId: lastMessageId,
+            timestamp: new Date().toISOString()
+          });
         }
       });
-      
-      // Marquer le document comme modifié
-      conversation.markModified('messages');
-      await conversation.save();
     }
     
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-      message: 'Conversation marquée comme lue'
+      message: 'Messages marqués comme lus',
+      lastReadMessageId: lastMessageId
     });
   } catch (error) {
-    console.error('Erreur lors du marquage de la conversation comme lue:', error);
-    return res.status(500).json({
+    console.error('❌ Erreur lors de la mise à jour des messages lus:', error);
+    res.status(500).json({
       success: false,
-      message: 'Erreur lors du marquage de la conversation comme lue',
+      message: 'Erreur serveur',
       error: error.message
     });
   }
@@ -1792,13 +1730,11 @@ router.post('/:conversationId/participants', auth, async (req, res) => {
     res.status(200).json({ 
       success: true, 
       message: 'Participants added successfully.', 
-      addedIds: finalParticipantIdsToAdd.map(id => id.toString()),
-      participants: conversation.participants // Return updated list
+      addedIds: finalParticipantIdsToAdd.map(id => id.toString())
     });
-
   } catch (error) {
     console.error('❌ Error adding participants:', error);
-    res.status(500).json({ success: false, message: 'Server error adding participants.', error: error.message });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
 
@@ -2038,6 +1974,879 @@ router.post('/create-producer-conversation', async (req, res) => {
       success: false,
       message: 'Erreur interne du serveur.',
       error: error.message 
+    });
+  }
+});
+
+router.patch('/:conversationId', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { groupName, groupAvatar, isPinned, isMuted } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+      return res.status(400).json({ success: false, message: 'Invalid conversationId' });
+    }
+
+    if (!groupName && !groupAvatar && typeof isPinned === 'undefined' && typeof isMuted === 'undefined') {
+      return res.status(400).json({ success: false, message: 'Nothing to update' });
+    }
+
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: 'Conversation not found' });
+    }
+
+    // Apply group-specific updates only if it's a group
+    if (conversation.isGroup || conversation.isGroupChat) {
+      if (groupName) conversation.groupName = groupName;
+      if (groupAvatar) {
+        conversation.groupImage = groupAvatar;
+        conversation.groupAvatar = groupAvatar;
+      }
+    } else {
+      // For non‑group conversations, ignore groupName/groupAvatar
+      if (groupName || groupAvatar) {
+        console.warn('Attempt to update group fields on non‑group conversation');
+      }
+    }
+
+    // Apply pin / mute for any conversation type
+    if (typeof isPinned !== 'undefined') {
+      conversation.isPinned = Boolean(isPinned);
+    }
+    if (typeof isMuted !== 'undefined') {
+      conversation.isMuted = Boolean(isMuted);
+    }
+
+    conversation.lastUpdated = new Date();
+    await conversation.save();
+
+    if (io) {
+      const payload = {
+        conversationId,
+        groupName: conversation.groupName,
+        groupAvatar: conversation.groupImage,
+        isPinned: conversation.isPinned,
+        isMuted: conversation.isMuted
+      };
+      if (conversation.isGroup || conversation.isGroupChat) {
+        io.to(conversationId).emit('group_updated', payload);
+      }
+      io.to(conversationId).emit('conversation_updated', payload);
+    }
+
+    res.status(200).json({ success: true, message: 'Conversation updated', groupName: conversation.groupName, groupAvatar: conversation.groupImage, isPinned: conversation.isPinned, isMuted: conversation.isMuted });
+
+  } catch (err) {
+    console.error('Error updating conversation:', err);
+    res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  }
+});
+
+// --- AJOUT : Marquer tous les messages comme lus pour un utilisateur dans une conversation ---
+router.post('/:id/read', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+    if (!id || !userId) {
+      return res.status(400).json({ success: false, message: 'id et userId requis.' });
+    }
+    const conversation = await Conversation.findById(id);
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: 'Conversation non trouvée.' });
+    }
+    // Marquer tous les messages comme lus pour cet utilisateur
+    await Message.updateMany(
+      { conversationId: id, [`isRead.${userId}`]: { $ne: true } },
+      { $set: { [`isRead.${userId}`]: true } }
+    );
+    // Réinitialiser le compteur de non lus
+    if (typeof conversation.resetUnreadCount === 'function') {
+      conversation.resetUnreadCount(userId);
+      await conversation.save();
+    }
+    // Émettre l'event WebSocket
+    if (io) {
+      io.to(id).emit('message_read', { conversationId: id, userId });
+    }
+    res.status(200).json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Erreur lors du marquage comme lu', error: error.message });
+  }
+});
+
+// --- AJOUT : Route GET pour marquer une conversation comme lue (compatible avec frontend) ---
+router.get('/:id/read', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'id conversation requis.' });
+    }
+    
+    const conversation = await Conversation.findById(id);
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: 'Conversation non trouvée.' });
+    }
+    
+    // Marquer tous les messages comme lus pour cet utilisateur
+    await Message.updateMany(
+      { conversationId: id, [`isRead.${userId}`]: { $ne: true } },
+      { $set: { [`isRead.${userId}`]: true } }
+    );
+    
+    // Réinitialiser le compteur de non lus
+    if (typeof conversation.resetUnreadCount === 'function') {
+      conversation.resetUnreadCount(userId);
+      await conversation.save();
+    } else {
+      // Fallback si la méthode n'existe pas
+      if (!conversation.unreadCount || typeof conversation.unreadCount !== 'object') {
+        conversation.unreadCount = {};
+      }
+      conversation.unreadCount[userId.toString()] = 0;
+      conversation.markModified('unreadCount');
+      await conversation.save();
+    }
+    
+    // Émettre l'event WebSocket
+    if (io) {
+      io.to(id).emit('message_read', { conversationId: id, userId });
+    }
+    
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Erreur lors du marquage de la conversation comme lue:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur', error: error.message });
+  }
+});
+
+// --- AJOUT : Ajouter un participant à un groupe ---
+router.post('/:id/participants', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+    if (!id || !userId) {
+      return res.status(400).json({ success: false, message: 'id et userId requis.' });
+    }
+    const conversation = await Conversation.findById(id);
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: 'Conversation non trouvée.' });
+    }
+    // Vérifier si déjà présent
+    if (conversation.participants.some(p => p.toString() === userId)) {
+      return res.status(409).json({ success: false, message: 'Utilisateur déjà dans le groupe.' });
+    }
+    
+    // Récupérer les informations de l'utilisateur avant de l'ajouter
+    const user = await User.findById(userId).select('_id name username profilePicture photo_url email');
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Utilisateur à ajouter non trouvé.' });
+    }
+    
+    // Ajouter l'utilisateur aux participants
+    conversation.participants.push(userId);
+    
+    // Initialiser les compteurs de lecture pour le nouvel utilisateur
+    if (!conversation.unreadCount) {
+      conversation.unreadCount = {};
+    }
+    conversation.unreadCount[userId.toString()] = 0;
+    
+    conversation.markModified('participants');
+    conversation.markModified('unreadCount');
+    await conversation.save();
+    
+    // Formater les informations de l'utilisateur pour la réponse
+    const userInfo = {
+      _id: user._id,
+      name: user.name || user.username || 'Utilisateur',
+      username: user.username,
+      profilePicture: user.profilePicture || user.photo_url,
+      email: user.email
+    };
+    
+    // Émettre l'event WebSocket avec les infos complètes
+    if (io) {
+      io.to(id).emit('participant_added', { 
+        conversationId: id,
+        userId,
+        userInfo 
+      });
+    }
+    
+    res.status(200).json({ 
+      success: true,
+      participant: userInfo
+    });
+  } catch (error) {
+    console.error('Erreur lors de l\'ajout du participant:', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de l\'ajout du participant', error: error.message });
+  }
+});
+
+// Amélioration de la route de suppression de participant
+router.delete('/:conversationId/participants/:participantId', auth, async (req, res) => {
+  try {
+    const { conversationId, participantId } = req.params;
+    const userId = req.user.id; // Utilisateur actuel
+    
+    // Vérifier l'existence de la conversation
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: 'Conversation non trouvée.' });
+    }
+    
+    // Vérifier que l'utilisateur actuel est bien dans la conversation
+    if (!conversation.participants.some(p => p.toString() === userId)) {
+      return res.status(403).json({ success: false, message: 'Vous n\'êtes pas autorisé à modifier ce groupe.' });
+    }
+    
+    // Vérifier que le participant à supprimer est dans la conversation
+    if (!conversation.participants.some(p => p.toString() === participantId)) {
+      return res.status(404).json({ success: false, message: 'Participant non trouvé dans ce groupe.' });
+    }
+    
+    // Supprimer le participant
+    conversation.participants = conversation.participants.filter(
+      p => p.toString() !== participantId
+    );
+    
+    // Nettoyer les compteurs unreadCount pour ce participant
+    if (conversation.unreadCount && conversation.unreadCount[participantId]) {
+      delete conversation.unreadCount[participantId];
+      conversation.markModified('unreadCount');
+    }
+    
+    conversation.markModified('participants');
+    await conversation.save();
+    
+    // Emmettre l'événement via WebSocket
+    if (io) {
+      io.to(conversationId).emit('participant_removed', {
+        conversationId,
+        participantId,
+        removedBy: userId
+      });
+    }
+    
+    res.status(200).json({ success: true, message: 'Participant supprimé avec succès.' });
+  } catch (error) {
+    console.error('Erreur lors de la suppression du participant:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur', error: error.message });
+  }
+});
+
+// Ajouter une route pour récupérer les participants d'une conversation avec leurs infos complètes
+router.get('/:conversationId/participants', auth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user.id;
+    
+    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+        return res.status(400).json({ success: false, message: 'Invalid conversationId format.' });
+    }
+    
+    // Vérifier l'existence de la conversation
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: 'Conversation non trouvée.' });
+    }
+    
+    // Optionnel: Vérifier si c'est bien un groupe, bien que techniquement on puisse lister les participants d'un chat 1-1
+    // if (!conversation.isGroup) {
+    //   return res.status(400).json({ success: false, message: 'This is not a group conversation.' });
+    // }
+    
+    // Vérifier que l'utilisateur actuel est bien dans la conversation
+    // Utilisation de toString() pour la comparaison après récupération depuis la DB
+    if (!conversation.participants.map(p => p.toString()).includes(userId)) {
+      return res.status(403).json({ success: false, message: 'Vous n\'êtes pas autorisé à voir les participants de cette conversation.' });
+    }
+    
+    // Récupérer les informations complètes des participants
+    const participants = await User.find({
+      _id: { $in: conversation.participants }
+    }).select('_id name username email profilePicture photo_url lastSeen').lean(); // Utiliser lean() pour de meilleures performances
+    
+    // Formater les résultats
+    const formattedParticipants = participants.map(p => ({
+      id: p._id.toString(), // Ajouter un champ id standard
+      _id: p._id.toString(),
+      name: p.name || p.username || 'Utilisateur', // Fallback pour le nom
+      username: p.username,
+      email: p.email,
+      avatar: p.profilePicture || p.photo_url, // Champ unifié pour l'avatar
+      profilePicture: p.profilePicture || p.photo_url,
+      lastSeen: p.lastSeen,
+      isCurrentUser: p._id.toString() === userId
+    }));
+    
+    res.status(200).json({
+      success: true,
+      participants: formattedParticipants,
+      totalCount: formattedParticipants.length
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des participants:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur', error: error.message });
+  }
+});
+
+// --- AJOUT : Support pour les GIFs dans les messages ---
+// Ajouter dans le middleware de création de message
+router.post('/:conversationId/messages', auth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { content, userId: senderId, contentType = 'text', gifUrl } = req.body;
+    
+    // ... existing code ...
+    
+    // Support pour les différents types de contenu
+    const messageData = {
+      conversationId,
+      senderId,
+      content,
+      contentType: contentType || 'text'
+    };
+    
+    // Si c'est un GIF, ajouter l'URL du GIF
+    if (contentType === 'gif' && gifUrl) {
+      messageData.gifUrl = gifUrl;
+    }
+    
+    const message = new Message(messageData);
+    
+    // ... existing code ...
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi du message:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'envoi du message' });
+  }
+});
+
+/**
+ * @route GET /api/conversations/with-producer/:producerId
+ * @desc Obtenir ou créer une conversation entre un utilisateur et un producteur
+ * @access Private
+ */
+router.get('/with-producer/:producerId', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { producerId } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(producerId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID de producteur invalide' 
+      });
+    }
+    
+    console.log(`🔍 Recherche d'une conversation entre l'utilisateur ${userId} et le producteur ${producerId}`);
+    
+    // Chercher une conversation existante entre l'utilisateur et le producteur
+    let conversation = await Conversation.findOne({
+      type: 'private',
+      $and: [
+        { 'participants.userId': userId },
+        { 'participants.userId': producerId }
+      ],
+      participants: { $size: 2 }
+    }).populate('participants.userId', 'name username profilePicture photo_url');
+    
+    // Si aucune conversation n'existe, en créer une nouvelle
+    if (!conversation) {
+      console.log('👋 Création d\'une nouvelle conversation avec le producteur');
+      
+      // Vérifier que le producteur existe
+      const producer = await User.findById(producerId);
+      if (!producer) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Producteur non trouvé' 
+        });
+      }
+      
+      // Créer une nouvelle conversation
+      conversation = new Conversation({
+        type: 'private',
+        participants: [
+          { 
+            userId, 
+            role: 'member', 
+            joinedAt: new Date(),
+            settings: { notifications: true },
+            unreadCount: 0
+          },
+          { 
+            userId: producerId, 
+            role: 'member', 
+            joinedAt: new Date(),
+            settings: { notifications: true },
+            unreadCount: 0
+          }
+        ]
+      });
+      
+      await conversation.save();
+      
+      // Recharger la conversation avec les données utilisateur
+      conversation = await Conversation.findById(conversation._id)
+        .populate('participants.userId', 'name username profilePicture photo_url');
+    }
+    
+    // Récupérer les messages de la conversation
+    const messages = await Message.find({ conversationId: conversation._id })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .populate('senderId', 'name username profilePicture photo_url');
+    
+    // Mise à jour du statut de lecture pour l'utilisateur
+    if (messages.length > 0) {
+      await conversation.markAsReadForUser(userId, messages[0]._id);
+    }
+    
+    res.status(200).json({
+      success: true,
+      conversation: {
+        _id: conversation._id,
+        type: conversation.type,
+        participants: conversation.participants.map(p => ({
+          _id: p.userId._id,
+          name: p.userId.name || p.userId.username,
+          profilePicture: p.userId.profilePicture || p.userId.photo_url,
+          role: p.role,
+          settings: p.settings,
+          unreadCount: p.unreadCount
+        })),
+        lastMessage: conversation.lastMessage
+      },
+      messages: messages.map(m => ({
+        _id: m._id,
+        content: m.content,
+        contentType: m.contentType,
+        senderId: m.senderId._id,
+        senderName: m.senderId.name || m.senderId.username,
+        senderPhoto: m.senderId.profilePicture || m.senderId.photo_url,
+        createdAt: m.createdAt,
+        reactions: m.reactions,
+        mediaInfo: m.mediaInfo
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la récupération de la conversation:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur serveur',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/conversations/start-with-business
+ * @desc Démarre une conversation avec un restaurant ou autre établissement via la recherche unifiée
+ * @access Private
+ */
+router.post('/start-with-business', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { businessType, businessId, message } = req.body;
+    
+    if (!businessId || !businessType) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Type et ID de l\'établissement requis' 
+      });
+    }
+    
+    console.log(`🔍 Démarrage d'une conversation avec ${businessType} ${businessId}`);
+    
+    // Vérifier si un utilisateur représentant cet établissement existe déjà
+    let businessUser = await User.findOne({ 
+      $or: [
+        { "metadata.businessId": businessId },
+        { "metadata.placeId": businessId }
+      ]
+    });
+    
+    if (!businessUser) {
+      console.log("👋 Création d'un utilisateur représentant l'établissement");
+      
+      // Récupérer les détails de l'établissement depuis l'API unifiée
+      const businessDetails = await fetch(`${process.env.BASE_URL || 'http://localhost:5000'}/api/unified/${businessId}`)
+        .then(res => res.json())
+        .catch(err => {
+          console.error('❌ Erreur lors de la récupération des détails:', err);
+          return null;
+        });
+      
+      if (!businessDetails || !businessDetails._id) {
+        return res.status(404).json({
+          success: false,
+          message: 'Établissement non trouvé'
+        });
+      }
+      
+      // Créer un utilisateur représentant l'établissement
+      businessUser = new User({
+        username: `business_${businessId.substring(0, 8)}`,
+        email: `business_${businessId.substring(0, 8)}@example.com`,
+        password: await bcrypt.hash(Math.random().toString(36).substring(2), 10),
+        name: {
+          first: businessDetails.name || 'Business'
+        },
+        profilePicture: businessDetails.avatar || businessDetails.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(businessDetails.name || 'B')}&background=random`,
+        badges: [{ type: 'verified', description: 'Business Account' }],
+        metadata: {
+          businessId: businessId,
+          businessType: businessType,
+          placeId: businessDetails.place_id || '',
+          isBusinessAccount: true,
+          address: businessDetails.address || '',
+          phone: businessDetails.phone || '',
+          website: businessDetails.website || ''
+        }
+      });
+      
+      await businessUser.save();
+    }
+    
+    // Chercher une conversation existante entre l'utilisateur et l'établissement
+    let conversation = await Conversation.findOne({
+      type: 'private',
+      $and: [
+        { 'participants.userId': userId },
+        { 'participants.userId': businessUser._id }
+      ],
+      participants: { $size: 2 }
+    });
+    
+    // Si aucune conversation n'existe, en créer une nouvelle
+    if (!conversation) {
+      conversation = new Conversation({
+        type: 'private',
+        participants: [
+          { 
+            userId, 
+            role: 'member', 
+            joinedAt: new Date(),
+            settings: { notifications: true },
+            unreadCount: 0
+          },
+          { 
+            userId: businessUser._id, 
+            role: 'member', 
+            joinedAt: new Date(),
+            settings: { notifications: true },
+            unreadCount: 0
+          }
+        ]
+      });
+      
+      await conversation.save();
+    }
+    
+    // Envoyer un message initial si fourni
+    if (message && message.trim()) {
+      const newMessage = new Message({
+        conversationId: conversation._id,
+        senderId: userId,
+        content: message,
+        contentType: 'text',
+        createdAt: new Date()
+      });
+      
+      await newMessage.save();
+      
+      // Mettre à jour le dernier message de la conversation
+      const sender = await User.findById(userId).select('name username');
+      conversation.updateLastMessage(newMessage, sender.name?.first || sender.username);
+      
+      // Incrémenter le compteur de non lus pour l'établissement
+      conversation.incrementUnreadCount(userId);
+    }
+    
+    // Recharger la conversation avec les données utilisateur
+    conversation = await Conversation.findById(conversation._id)
+      .populate('participants.userId', 'name username profilePicture photo_url');
+    
+    // Récupérer les messages de la conversation
+    const messages = await Message.find({ conversationId: conversation._id })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .populate('senderId', 'name username profilePicture photo_url');
+    
+    res.status(200).json({
+      success: true,
+      conversation: {
+        _id: conversation._id,
+        type: conversation.type,
+        participants: conversation.participants.map(p => ({
+          _id: p.userId._id,
+          name: p.userId.name?.first || p.userId.username,
+          profilePicture: p.userId.profilePicture || p.userId.photo_url,
+          role: p.role,
+          settings: p.settings,
+          unreadCount: p.unreadCount,
+          isBusinessAccount: p.userId.metadata?.isBusinessAccount || false
+        })),
+        lastMessage: conversation.lastMessage
+      },
+      messages: messages.map(m => ({
+        _id: m._id,
+        content: m.content,
+        contentType: m.contentType,
+        senderId: m.senderId._id,
+        senderName: m.senderId.name?.first || m.senderId.username,
+        senderPhoto: m.senderId.profilePicture || m.senderId.photo_url,
+        createdAt: m.createdAt,
+        reactions: m.reactions,
+        mediaInfo: m.mediaInfo
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors du démarrage de la conversation:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur serveur',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/conversations/:conversationId/media
+ * @desc Envoyer un message avec média (image, vidéo, audio, document)
+ * @access Private
+ */
+router.post('/:conversationId/media', auth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user.id;
+    const { mediaUrl, contentType, caption, fileName, fileSize, width, height, duration, thumbnailUrl } = req.body;
+    
+    if (!mediaUrl || !contentType) {
+      return res.status(400).json({
+        success: false,
+        message: 'URL du média et type de contenu requis'
+      });
+    }
+    
+    // Vérifier si la conversation existe
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Conversation non trouvée'
+      });
+    }
+    
+    // Vérifier que l'utilisateur est un participant de la conversation
+    const isParticipant = conversation.participants.some(p => p.userId.toString() === userId);
+    if (!isParticipant) {
+      return res.status(403).json({
+        success: false,
+        message: 'Vous n\'êtes pas autorisé à envoyer des messages dans cette conversation'
+      });
+    }
+    
+    // Préparer les informations du média
+    const mediaInfo = {
+      url: mediaUrl,
+      thumbnailUrl: thumbnailUrl || '',
+      fileName: fileName || '',
+      fileSize: fileSize || 0,
+      fileMimeType: contentType,
+      width: width || null,
+      height: height || null,
+      duration: duration || null
+    };
+    
+    // Créer le nouveau message
+    const newMessage = new Message({
+      conversationId,
+      senderId: userId,
+      content: caption || '',
+      contentType,
+      mediaInfo,
+      createdAt: new Date()
+    });
+    
+    await newMessage.save();
+    
+    // Mettre à jour le dernier message de la conversation
+    const sender = await User.findById(userId).select('name username');
+    conversation.updateLastMessage(newMessage, sender.name?.first || sender.username);
+    
+    // Incrémenter le compteur de non lus pour les autres participants
+    conversation.incrementUnreadCount(userId);
+    
+    // Notifier les autres participants via WebSocket
+    conversation.participants.forEach(participant => {
+      if (participant.userId.toString() !== userId) {
+        io.to(`user_${participant.userId}`).emit('new_message', {
+          conversationId,
+          message: {
+            _id: newMessage._id,
+            content: newMessage.content,
+            contentType: newMessage.contentType,
+            senderId: userId,
+            senderName: sender.name?.first || sender.username,
+            mediaInfo: newMessage.mediaInfo,
+            createdAt: newMessage.createdAt
+          }
+        });
+      }
+    });
+    
+    res.status(201).json({
+      success: true,
+      message: {
+        _id: newMessage._id,
+        content: newMessage.content,
+        contentType: newMessage.contentType,
+        senderId: userId,
+        senderName: sender.name?.first || sender.username,
+        mediaInfo: newMessage.mediaInfo,
+        createdAt: newMessage.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi du média:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/conversations/messages/:messageId/react
+ * @desc Réagir à un message avec un emoji
+ * @access Private
+ */
+router.post('/messages/:messageId/react', auth, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user.id;
+    const { emoji } = req.body;
+    
+    if (!emoji) {
+      return res.status(400).json({
+        success: false,
+        message: 'Emoji requis'
+      });
+    }
+    
+    // Vérifier si le message existe
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message non trouvé'
+      });
+    }
+    
+    // Vérifier que l'utilisateur est autorisé à réagir (participant à la conversation)
+    const conversation = await Conversation.findById(message.conversationId);
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Conversation non trouvée'
+      });
+    }
+    
+    const isParticipant = conversation.participants.some(p => p.userId.toString() === userId);
+    if (!isParticipant) {
+      return res.status(403).json({
+        success: false,
+        message: 'Vous n\'êtes pas autorisé à réagir à ce message'
+      });
+    }
+    
+    // Ajouter la réaction en utilisant la méthode du modèle Message
+    await message.addReaction(userId, emoji);
+    
+    // Notifier les autres participants via WebSocket
+    conversation.participants.forEach(participant => {
+      if (participant.userId.toString() !== userId) {
+        io.to(`user_${participant.userId}`).emit('message_reaction', {
+          conversationId: conversation._id,
+          messageId: message._id,
+          userId,
+          emoji
+        });
+      }
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'Réaction ajoutée avec succès',
+      reaction: {
+        userId,
+        emoji,
+        createdAt: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'ajout de la réaction:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route DELETE /api/conversations/messages/:messageId/react
+ * @desc Supprimer une réaction d'un message
+ * @access Private
+ */
+router.delete('/messages/:messageId/react', auth, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user.id;
+    
+    // Vérifier si le message existe
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message non trouvé'
+      });
+    }
+    
+    // Supprimer la réaction en utilisant la méthode du modèle Message
+    await message.removeReaction(userId);
+    
+    // Notifier les autres participants via WebSocket
+    const conversation = await Conversation.findById(message.conversationId);
+    if (conversation) {
+      conversation.participants.forEach(participant => {
+        if (participant.userId.toString() !== userId) {
+          io.to(`user_${participant.userId}`).emit('message_reaction_removed', {
+            conversationId: conversation._id,
+            messageId: message._id,
+            userId
+          });
+        }
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Réaction supprimée avec succès'
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la suppression de la réaction:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
+      error: error.message
     });
   }
 });

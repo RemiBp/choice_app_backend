@@ -1,17 +1,28 @@
 const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
 // Change this to use a function pattern like UserModels.js
 module.exports = (connection) => {
+  // --- ADDED: Schema for users who made a choice at this producer ---
+  const ChoiceUserSchema = new Schema({
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    ratings: { type: Map, of: Number }, // Contains ratings like service, lieu, etc.
+    comment: { type: String, default: '' },
+    menuItems: { type: Array, default: [] }, // Specific to restaurant choices
+    // Note: emotions are usually linked to events/wellness, maybe not directly stored here? Check choices.js if needed.
+    createdAt: { type: Date, default: Date.now }
+  }, { _id: false });
+
   const ProducerSchema = new mongoose.Schema({
-    place_id: { type: String, unique: true },
-    name: String,
+    place_id: { type: String, unique: true, sparse: true },
+    name: { type: String, required: true },
     verified: { type: Boolean, default: false },
     featured: { type: Boolean, default: false },
     photo: String,
     description: String,
     menu: Array,
     menu_items: Array,
-    address: String,
+    address: { type: String, required: true },
     formatted_address: String,
     gps_coordinates: {
       type: { type: String, enum: ['Point'], default: 'Point' },
@@ -23,6 +34,16 @@ module.exports = (connection) => {
     opening_hours: [String],
     phone_number: String,
     website: String,
+    platform_links: {
+      thefork: String,
+      tripadvisor: String
+    },
+    service_options: {
+      dine_in: Boolean,
+      takeaway: Boolean,
+      delivery: Boolean
+    },
+    menus_structures: mongoose.Schema.Types.Mixed,
     notes_globales: {
       service: Number,
       lieu: Number,
@@ -102,7 +123,21 @@ module.exports = (connection) => {
     }],
     stripe_customer_id: String,
     created_at: { type: Date, default: Date.now },
-    updated_at: { type: Date, default: Date.now }
+    updated_at: { type: Date, default: Date.now },
+    // --- ADDED: Fields related to user choices ---
+    choiceUsers: [ChoiceUserSchema],
+    choiceCount: { type: Number, default: 0 },
+    ratingCount: { type: Number, default: 0 }, // Count of users who provided ratings
+    ratingTotals: { // Sum of ratings for calculating averages
+      service: { type: Number, default: 0 },
+      lieu: { type: Number, default: 0 },
+      portions: { type: Number, default: 0 },
+      ambiance: { type: Number, default: 0 },
+      proprete: { type: Number, default: 0 }, // For wellness/beauty? Check usage
+      expertise: { type: Number, default: 0 }  // For wellness/beauty? Check usage
+      // Add other rating keys if needed (e.g., 'qualite' for events)
+    }
+    // --- END ADDED ---
   }, {
     strict: false
   });

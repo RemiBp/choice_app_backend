@@ -1,8 +1,10 @@
 const mongoose = require('mongoose');
-const { UserChoice } = require('../models/User');
+const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { choiceAppDb } = require('../index');
+const Choice = require('../models/choiceModel');
+const Producer = require('../models/Producer');
 
 /**
  * Contrôleur pour gérer les utilisateurs
@@ -23,13 +25,13 @@ const userController = {
       if (req.query.status) filterParams.status = req.query.status;
       
       // Obtenir les utilisateurs paginés
-      const users = await UserChoice.find(filterParams)
+      const users = await User.find(filterParams)
         .skip(skip)
         .limit(limit)
         .select('-password -refreshToken -resetToken'); // Exclure les informations sensibles
       
       // Compter le nombre total de résultats pour la pagination
-      const totalUsers = await UserChoice.countDocuments(filterParams);
+      const totalUsers = await User.countDocuments(filterParams);
       
       res.status(200).json({
         users,
@@ -53,7 +55,7 @@ const userController = {
   getUserById: async (req, res) => {
     try {
       const { id } = req.params;
-      const user = await UserChoice.findById(id).select('-password -refreshToken -resetToken');
+      const user = await User.findById(id).select('-password -refreshToken -resetToken');
       
       if (!user) {
         return res.status(404).json({ message: 'Utilisateur non trouvé' });
@@ -75,7 +77,7 @@ const userController = {
       const updateData = req.body;
       
       // Vérifier que l'utilisateur existe
-      const user = await UserChoice.findById(id);
+      const user = await User.findById(id);
       if (!user) {
         return res.status(404).json({ message: 'Utilisateur non trouvé' });
       }
@@ -89,7 +91,7 @@ const userController = {
       });
       
       // Mettre à jour l'utilisateur
-      const updatedUser = await UserChoice.findByIdAndUpdate(
+      const updatedUser = await User.findByIdAndUpdate(
         id,
         { $set: updateData },
         { new: true }
@@ -113,13 +115,13 @@ const userController = {
       const { id } = req.params;
       
       // Vérifier que l'utilisateur existe
-      const user = await UserChoice.findById(id);
+      const user = await User.findById(id);
       if (!user) {
         return res.status(404).json({ message: 'Utilisateur non trouvé' });
       }
       
       // Supprimer l'utilisateur
-      await UserChoice.findByIdAndDelete(id);
+      await User.findByIdAndDelete(id);
       
       res.status(200).json({ message: 'Utilisateur supprimé avec succès' });
     } catch (error) {
@@ -136,7 +138,7 @@ const userController = {
       const { id } = req.params;
       
       // Vérifier que l'utilisateur existe
-      const user = await UserChoice.findById(id).select('followingProducers followingEvents');
+      const user = await User.findById(id).select('followingProducers followingEvents');
       
       if (!user) {
         return res.status(404).json({ message: 'Utilisateur non trouvé' });
@@ -158,17 +160,53 @@ const userController = {
   getUserProfile: async (req, res) => {
     try {
       const { id } = req.params;
-      
-      // Vérifier que l'utilisateur existe
-      const user = await UserChoice.findById(id).select('-password -refreshToken -resetToken');
-      
+
+      // Vérifier que l'ID est valide
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+          return res.status(400).json({ message: 'Invalid User ID format' });
+      }
+
+      // Récupérer l'utilisateur et peupler les choices et leurs lieux associés
+      const user = await User.findById(id)
+        .select('-password -refreshToken -resetToken') // Exclure les champs sensibles
+        .populate({
+            path: 'choices', // Le champ dans UserChoice qui référence les Choices
+            model: 'Choice', // Le nom du modèle Choice
+            populate: {       // Peupler le lieu à l'intérieur de chaque choice
+                path: 'locationId',
+                select: 'name address category photos image photo_url type', // Sélectionner les champs utiles du lieu
+                 // Si 'locationId' peut référencer plusieurs modèles (Producer, Event, etc.)
+                 // Mongoose peut essayer de deviner, mais il est préférable d'avoir un champ 'locationType' dans Choice
+                 // ou d'utiliser des discriminants si Producer/Event/etc. héritent d'un modèle de base.
+                 // Pour l'instant, on suppose que populate peut le résoudre ou que locationId pointe vers un modèle unifié/Producer.
+            }
+        })
+        .populate('posts') // Peuple également les posts si nécessaire
+        .populate('followers', 'name profilePicture') // Infos de base des followers
+        .populate('following', 'name profilePicture'); // Infos de base des followings
+
       if (!user) {
         return res.status(404).json({ message: 'Utilisateur non trouvé' });
       }
-      
-      res.status(200).json(user);
+
+      // Conversion en objet JS pour potentiellement manipuler avant envoi
+      const userObject = user.toObject();
+
+      // Optionnel: Assurer que les champs peuplés sont bien des tableaux (même si vides)
+      userObject.choices = userObject.choices || [];
+      userObject.posts = userObject.posts || [];
+      userObject.followers = userObject.followers || [];
+      userObject.following = userObject.following || [];
+
+      console.log(`Fetched profile for ${id} with ${userObject.choices.length} populated choices.`);
+
+      res.status(200).json(userObject);
     } catch (error) {
       console.error('❌ Erreur dans getUserProfile:', error);
+      // Vérifier si l'erreur est due à un ID mal formaté
+      if (error.name === 'CastError' && error.kind === 'ObjectId') {
+            return res.status(400).json({ message: 'Invalid User ID format' });
+      }
       res.status(500).json({ message: 'Erreur lors de la récupération du profil utilisateur', error: error.message });
     }
   },
@@ -186,7 +224,7 @@ const userController = {
       }
       
       // Vérifier que l'utilisateur existe
-      const user = await UserChoice.findById(id);
+      const user = await User.findById(id);
       if (!user) {
         return res.status(404).json({ message: 'Utilisateur non trouvé' });
       }
@@ -225,7 +263,7 @@ const userController = {
       }
       
       // Vérifier que l'utilisateur existe
-      const user = await UserChoice.findById(userId);
+      const user = await User.findById(userId);
       if (!user) {
         return res.status(404).json({ message: 'Utilisateur non trouvé' });
       }
@@ -233,7 +271,7 @@ const userController = {
       // Suivre un utilisateur ou un producteur selon le type
       if (targetType === 'user') {
         // Vérifier que l'utilisateur cible existe
-        const targetUser = await UserChoice.findById(targetId);
+        const targetUser = await User.findById(targetId);
         if (!targetUser) {
           return res.status(404).json({ message: 'Utilisateur cible non trouvé' });
         }
@@ -295,7 +333,7 @@ const userController = {
       }
       
       // Vérifier que l'utilisateur existe
-      const user = await UserChoice.findById(userId);
+      const user = await User.findById(userId);
       if (!user) {
         return res.status(404).json({ message: 'Utilisateur non trouvé' });
       }
@@ -303,7 +341,7 @@ const userController = {
       // Ne plus suivre un utilisateur ou un producteur selon le type
       if (targetType === 'user') {
         // Vérifier que l'utilisateur cible existe
-        const targetUser = await UserChoice.findById(targetId);
+        const targetUser = await User.findById(targetId);
         if (!targetUser) {
           return res.status(404).json({ message: 'Utilisateur cible non trouvé' });
         }
@@ -341,7 +379,40 @@ const userController = {
       console.error('❌ Erreur dans unfollow:', error);
       res.status(500).json({ message: 'Erreur lors du retrait du suivi', error: error.message });
     }
-  }
+  },
+
+  /**
+   * Obtenir le profil public d'un utilisateur
+   */
+  getPublicProfile: async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      // Vérifier que l'ID est valide
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).json({ message: 'Invalid User ID format' });
+      }
+
+      // Récupérer l'utilisateur et sélectionner uniquement les champs publics
+      const user = await User.findById(userId)
+        .select('_id name profilePicture bio liked_tags'); // Champs publics
+
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      }
+
+      res.status(200).json(user); // Renvoyer le profil public
+
+    } catch (error) {
+      console.error('❌ Erreur dans getPublicProfile:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération du profil public', error: error.message });
+    }
+  },
+
+  /**
+   * Endpoint pour suggérer des utilisateurs
+   */
+  // ... existing code ...
 };
 
 module.exports = userController; 

@@ -1,5 +1,5 @@
 const aiService = require('../services/aiService');
-const getDbConnections = require('../index'); // Assuming connections are exported from index.js
+const db = require('../config/db');
 
 // GET /api/ai/:producerType/:producerId/recommendations
 exports.getRecommendations = async (req, res) => {
@@ -12,10 +12,10 @@ exports.getRecommendations = async (req, res) => {
         }
 
         const connections = {
-             choiceAppDb: getDbConnections.choiceAppDb,
-             restaurationDb: getDbConnections.restaurationDb,
-             loisirsDb: getDbConnections.loisirsDb,
-             beautyWellnessDb: getDbConnections.beautyWellnessDb
+             choiceAppDb: db.getChoiceAppDb(),
+             restaurationDb: db.getRestaurationDb(),
+             loisirsDb: db.getLoisirsDb(),
+             beautyWellnessDb: db.getBeautyWellnessDb()
         }
 
         const recommendations = await aiService.fetchRecommendationsForProducer(producerId, producerType, connections);
@@ -49,10 +49,10 @@ exports.handleProducerQuery = async (req, res) => {
          }
 
         const connections = {
-             choiceAppDb: getDbConnections.choiceAppDb,
-             restaurationDb: getDbConnections.restaurationDb,
-             loisirsDb: getDbConnections.loisirsDb,
-             beautyWellnessDb: getDbConnections.beautyWellnessDb
+             choiceAppDb: db.getChoiceAppDb(),
+             restaurationDb: db.getRestaurationDb(),
+             loisirsDb: db.getLoisirsDb(),
+             beautyWellnessDb: db.getBeautyWellnessDb()
         }
 
         // Call the AI service to process the query
@@ -67,8 +67,46 @@ exports.handleProducerQuery = async (req, res) => {
         res.status(500).json({
              response: "Désolé, une erreur interne est survenue lors du traitement de votre demande.",
              profiles: [],
+             analysisResults: null,
              error: error.message // Include error message in dev?             
          });
+    }
+};
+
+// --- NEW: Controller for Producer Insights ---
+exports.handleGetInsights = async (req, res) => {
+    try {
+        const { producerId } = req.params;
+
+        // Authenticated user check should have been done in the route middleware
+        // Ensure req.user.id matches producerId
+        if (req.user?.id !== producerId) {
+           console.warn(`Mismatch AI insights attempt for producer ${producerId} by user ${req.user?.id}`);
+           return res.status(403).json({ message: 'Forbidden: User ID does not match producer ID for insights.' });
+        }
+
+        const connections = {
+            choiceAppDb: db.getChoiceAppDb(),
+            restaurationDb: db.getRestaurationDb(),
+            loisirsDb: db.getLoisirsDb(),
+            beautyWellnessDb: db.getBeautyWellnessDb()
+       };
+
+       // Call the AI service to generate insights
+       const insightsResponse = await aiService.getProducerInsights(producerId, connections);
+
+       // Send the structured response back to the frontend
+       res.json(insightsResponse); // { response: "...", profiles: [...], analysisResults: {...} }
+
+    } catch (error) {
+        console.error('Error handling producer AI insights:', error);
+        // Send a structured error response
+        res.status(500).json({
+             response: "Désolé, une erreur interne est survenue lors de la génération des insights.",
+             profiles: [],
+             analysisResults: null,
+             error: error.message // Include error message in dev?
+        });
     }
 };
 

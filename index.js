@@ -131,16 +131,13 @@ const initializeApp = async () => {
       console.error('❌ Échec de l\'initialisation des modèles, le serveur pourrait ne pas fonctionner correctement');
     }
 
-    // Initialiser les connexions dans le module routes/index.js
-    const dbConnections = require('./routes/index');
-    dbConnections.initializeDatabaseConnections();
-    
     // Exposer les connexions aux bases de données pour les modules qui les importent
     // C'est important de le faire après l'initialisation des modèles
-    exports.choiceAppDb = dbConnections.choiceAppDb;
-    exports.restaurationDb = dbConnections.restaurationDb;
-    exports.loisirsDb = dbConnections.loisirsDb;
-    exports.beautyWellnessDb = dbConnections.beautyWellnessDb;
+    // Correction: Get connections directly from dbConfig after models are initialized
+    exports.choiceAppDb = dbConfig.getChoiceAppConnection();
+    exports.restaurationDb = dbConfig.getRestoConnection();
+    exports.loisirsDb = dbConfig.getLoisirsConnection();
+    exports.beautyWellnessDb = dbConfig.getBeautyConnection();
 
     // --- Register Interaction Model --- 
     if (exports.choiceAppDb) {
@@ -156,7 +153,6 @@ const initializeApp = async () => {
     const authRoutes = require('./routes/auth');
     const producersRoutes = require('./routes/producers');
     const eventsRoutes = require('./routes/events');
-    const wellnessRoutes = require('./routes/wellness');
     const preferencesRoutes = require('./routes/preferences');
     const paymentsRoutes = require('./routes/payments');
     const postsRoutes = require('./routes/posts');
@@ -180,11 +176,64 @@ const initializeApp = async () => {
     const subscriptionRoutes = require('./routes/subscription'); // Import subscription routes
     const premiumFeaturesRoutes = require('./routes/premium_features'); // Import premium features routes
     const tagsRoutes = require('./routes/tags'); // Importe la nouvelle route
+    const searchRoutes = require('./routes/searchRoutes');
+    const stripeWebhooksRoutes = require('./routes/stripe_webhooks'); // Nouvelle route unifiée pour les webhooks
+    const offerRoutes = require('./routes/offers'); // <-- Import offer routes
+    const heatmapRoutes = require('./routes/heatmap'); // <-- AJOUTER CET IMPORT
     
+    // --- Initialize Routes that require DB Connections ---
+    // Correction: Use the connection objects obtained directly from dbConfig
+    const connections = { 
+      choiceAppDb: exports.choiceAppDb, // Use connection from dbConfig
+      restaurationDb: exports.restaurationDb, // Use connection from dbConfig
+      loisirsDb: exports.loisirsDb, // Use connection from dbConfig
+      beautyWellnessDb: exports.beautyWellnessDb // Use connection from dbConfig
+    };
+
+    // Add a check to ensure connections are valid Mongoose connection objects
+    for (const [key, conn] of Object.entries(connections)) {
+      if (!conn || typeof conn.model !== 'function') {
+        console.error(`❌ Invalid connection object for ${key}. Aborting initialization.`);
+        throw new Error(`Invalid Mongoose connection object for ${key}`);
+      }
+    }
+    console.log('✅ Verified database connection objects for route initialization.');
+
+    if (typeof choicesRoutes.initialize === 'function') {
+      choicesRoutes.initialize(connections);
+      console.log('✅ choicesRoutes initialized');
+    } else {
+      console.error('❌ choicesRoutes does not have an initialize function');
+    }
+    
+    if (typeof eventsRoutes.initialize === 'function') {
+      eventsRoutes.initialize(connections.loisirsDb);
+      console.log('✅ eventsRoutes initialized');
+    }
+    if (typeof leisureProducersRoutes.initialize === 'function') {
+      leisureProducersRoutes.initialize(connections.loisirsDb);
+       console.log('✅ leisureProducersRoutes initialized');
+    }
+     if (typeof finderRoutes.initialize === 'function') {
+      finderRoutes.initialize(connections.loisirsDb);
+      console.log('✅ finderRoutes initialized');
+    }
+    if (friendsRoutesModule && typeof friendsRoutesModule.initialize === 'function') {
+       friendsRoutesModule.initialize(connections.choiceAppDb); // Assuming it only needs choiceAppDb
+       console.log('✅ friendsRoutesModule initialized');
+     }
+     
+    // Initialiser d'autres routes qui pourraient en avoir besoin...
+    // e.g., if producersRoutes needs initialization:
+    // if (producersRoutes && typeof producersRoutes.initialize === 'function') {
+    //   producersRoutes.initialize(connections); 
+    //   console.log('✅ producersRoutes initialized');
+    // }
+    // --- End Route Initialization ---
+
     // Vérifier que les routes sont bien des fonctions middleware
     const routeModules = {
-      usersRoutes, authRoutes, producersRoutes, eventsRoutes, wellnessRoutes, 
-      preferencesRoutes, paymentsRoutes, postsRoutes, choicesRoutes, statsRoutes, 
+      usersRoutes, authRoutes, producersRoutes, eventsRoutes, preferencesRoutes, paymentsRoutes, postsRoutes, choicesRoutes, statsRoutes, 
       unifiedRoutes, newuserRoutes, aiRoutes, leisureProducersRoutes, finderRoutes,
       locationHistoryRoutes, translationsRoutes, producerFeedRoutes, growthAnalyticsRoutes,
       conversationsRoutes,
@@ -194,13 +243,18 @@ const initializeApp = async () => {
       interactionsRoutes, // Add to verification
       subscriptionRoutes, // Add to verification
       premiumFeaturesRoutes, // Add to verification
-      tagsRoutes // Add to verification
+      tagsRoutes, // Add to verification
+      searchRoutes, // Add to verification
+      stripeWebhooksRoutes, // Add to verification
+      offerRoutes, // Add to verification
+      heatmapRoutes // Add to verification
     };
     
     let allRoutesValid = true;
     for (const [name, route] of Object.entries(routeModules)) {
-      if (typeof route !== 'function') {
-        console.error(`❌ ${name} is not a function`);
+      // Added support for both direct function exports and router object exports
+      if (typeof route !== 'function' && !(route && route.router && typeof route.router === 'function')) {
+        console.error(`❌ ${name} is not a function or object with router function`);
         allRoutesValid = false;
       }
     }
@@ -216,9 +270,16 @@ const initializeApp = async () => {
       process.exit(1);
     }
 
-    // Routes principales
+    // Routes sans parsing JSON brut pour les webhooks Stripe (évite de parser le corps de la requête)
+    app.use('/api/webhooks/stripe', stripeWebhooksRoutes);
+
+    // Routes qui nécessitent le body parsing
     app.use('/api/users', usersRoutes);
     app.use('/api/auth', authRoutes);
+    app.use('/api/payments', paymentsRoutes);
+    app.use('/api/subscription', subscriptionRoutes);
+
+    // Routes principales
     app.use('/api/producers', producersRoutes);
     app.use('/api/events', eventsRoutes);
     // Redirection de /api/evenements vers /api/events pour compatibilité
@@ -231,7 +292,7 @@ const initializeApp = async () => {
     app.use('/api/feed', postsRoutes);
     app.use('/api/leisure', require('./routes/leisure'));
     app.use('/api/analytics', analyticsRoutes); // Use the updated routes
-    app.use('/api/ai', aiRoutes); // Intégration des routes IA avec accès MongoDB
+    app.use('/api/ai', aiRoutes.router); // Always use .router with the new export format
     app.use('/api/leisureProducers', leisureProducersRoutes); // Routes pour les producteurs de loisirs
     app.use('/api/finder', finderRoutes); // Routes pour le finder universel
     app.use('/api/location-history', locationHistoryRoutes); // Routes pour la vérification de l'historique des visites
@@ -243,14 +304,15 @@ const initializeApp = async () => {
     app.use('/api/ingest', dataIngestionRoutes);
     app.use('/api/producer-actions', producerActionsRoutes);
     app.use('/api/interactions', interactionsRoutes); // Mount interactions route
-    app.use('/api/subscription', subscriptionRoutes); // Mount subscription routes
     app.use('/api/premium-features', premiumFeaturesRoutes); // Mount premium features routes
     app.use('/api/tags', tagsRoutes); // Utilise la nouvelle route
+    app.use('/api/search', searchRoutes);
+    app.use('/api/offers', offerRoutes); // <-- Register offer routes
+    app.use('/api/heatmap', heatmapRoutes); // <-- AJOUTER CE MONTAGE
     
     // Ajouter les routes pour beauty et wellness
     app.use('/api/beauty_places', require('./routes/beautyPlaces')); 
     app.use('/api/beauty', require('./routes/beautyProducers')); 
-    app.use('/api/wellness', wellnessRoutes);
     
     // Ajouter TOUTES les routes manquantes
     try {
@@ -270,20 +332,16 @@ const initializeApp = async () => {
       app.use('/api/notifications', require('./routes/notifications'));
       app.use('/api/chat', require('./routes/chat'));
       // app.use('/api/messages', require('./routes/messages')); // Commented out - Causes startup error, functionality in conversations.js
-      app.use('/api/search', require('./routes/search'));
-      app.use('/api/profile', require('./routes/profile'));
-      app.use('/api/reels', require('./routes/reels'));
-      app.use('/api/booking', require('./routes/booking'));
-      app.use('/api/favorites', require('./routes/favorites'));
-      app.use('/api/reviews', require('./routes/reviews'));
-      app.use('/api/menu', require('./routes/menu'));
-      app.use('/api/items', require('./routes/items'));
-      app.use('/api/upload', require('./routes/upload'));
-      app.use('/api/filters', require('./routes/filters'));
-      
-      // Support de l'API avancée pour les différents types de producteurs
-      app.use('/api/restaurants', require('./routes/restaurants'));
-      app.use('/api/wellnessProducers', require('./routes/wellnessProducers'));
+      // app.use('/api/reels', require('./routes/reels'));
+      // app.use('/api/booking', require('./routes/booking'));
+      // app.use('/api/favorites', require('./routes/favorites'));
+      // app.use('/api/reviews', require('./routes/reviews'));
+      // app.use('/api/menu', require('./routes/menu'));
+      // app.use('/api/items', require('./routes/items'));
+      // app.use('/api/upload', require('./routes/upload'));
+      // app.use('/api/filters', require('./routes/filters'));
+      // app.use('/api/restaurants', require('./routes/restaurants'));
+      // app.use('/api/wellnessProducers', require('./routes/wellnessProducers'));
       
       console.log('✅ Routes supplémentaires chargées avec succès');
     } catch (error) {
@@ -359,6 +417,21 @@ const initializeApp = async () => {
       app.get('*', (req, res) => {
         res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
       });
+    }
+
+    // ADD HERE: Initialize AI models after aiRoutes is loaded
+    // Initialize AI models if the function exists
+    if (aiRoutes.initializeModels) {
+      try {
+        await aiRoutes.initializeModels();
+        console.log('✅ AI models initialized successfully');
+      } catch (error) {
+        console.error('❌ Failed to initialize AI models:', error);
+        // Don't fail the whole server, just this route may not work correctly
+        console.warn('⚠️ AI routes may not function correctly');
+      }
+    } else {
+      console.warn('⚠️ aiRoutes.initializeModels function not found');
     }
 
     // Démarrage du serveur - MODIFIED: Use http server instead of app

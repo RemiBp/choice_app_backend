@@ -13,6 +13,20 @@ module.exports = (connection) => {
     },
     
     // Relations avec d'autres collections
+    author: {
+      id: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        required: true, 
+        refPath: 'authorModel' 
+      },
+      authorModel: { 
+        type: String, 
+        required: true, 
+        enum: ['User', 'Producer', 'LeisureProducer', 'WellnessPlace']
+      },
+      name: String,
+      avatar: String
+    },
     event_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Event'
@@ -23,14 +37,11 @@ module.exports = (connection) => {
     },
     producerType: {
       type: String,
-      enum: ['Producer', 'LeisureProducer', 'BeautyProducer'],
+      enum: ['Producer', 'LeisureProducer', 'WellnessPlace'],
       required: function() {
         return this.producer_id != null;
-      }
-    },
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
+      },
+      index: true
     },
 
     // Localisation
@@ -64,7 +75,7 @@ module.exports = (connection) => {
     }],
 
     // Métadonnées
-    posted_at: {
+    time_posted: {
       type: Date,
       default: Date.now
     },
@@ -81,6 +92,7 @@ module.exports = (connection) => {
       enum: ['draft', 'published', 'archived'],
       default: 'published'
     },
+    is_automated: { type: Boolean, default: false },
 
     // Tags et catégories
     tags: [{
@@ -151,6 +163,35 @@ module.exports = (connection) => {
       platform: String
     }],
 
+    // Target Specific Fields (Mostly for User posts)
+    target_id: String,
+    target_type: { type: String, enum: ['Event', 'Producer', 'LeisureProducer', 'WellnessPlace'] },
+    post_type: { type: String, enum: ['event', 'restaurant', 'beauty', 'leisure', 'wellness'] },
+    referenced_event_id: String,
+    
+    // Boolean flags for easier filtering/identification
+    isProducerPost: { type: Boolean, default: false, index: true },
+    isLeisureProducer: { type: Boolean, default: false },
+    isWellnessProducer: { type: Boolean, default: false },
+    isRestaurationProducer: { type: Boolean, default: false },
+    is_event_post: { type: Boolean, default: false },
+    isBeautyPlace: { type: Boolean, default: false },
+    isEvent: { type: Boolean, default: false },
+    isRestaurant: { type: Boolean, default: false },
+    
+    // Specific fields when user posts about Beauty/Wellness
+    beauty_id: String,
+    beauty_name: String,
+    beauty_category: String,
+    beauty_subcategory: String,
+
+    // Specific fields when user posts about Events
+    event_title: String,
+
+    // Specific fields when user posts about Restaurants
+    restaurant_id: String,
+    restaurant_name: String,
+
     // Statistiques
     stats: {
       likes_count: {
@@ -196,29 +237,65 @@ module.exports = (connection) => {
 
   // Indexes
   postSchema.index({ location: '2dsphere' });
-  postSchema.index({ posted_at: -1 });
+  postSchema.index({ time_posted: -1 });
   postSchema.index({ tags: 1 });
   postSchema.index({ content_type: 1 });
   postSchema.index({ 'stats.likes_count': -1 });
   postSchema.index({ 'stats.views_count': -1 });
+  postSchema.index({ isProducerPost: 1 });
+  postSchema.index({ producerType: 1 });
 
   // Middleware pour mettre à jour les compteurs
   postSchema.pre('save', function(next) {
     if (this.isModified('likes')) {
-      this.stats.likes_count = this.likes.length;
+      this.stats.likes_count = this.likes?.length ?? 0;
     }
     if (this.isModified('comments')) {
-      this.stats.comments_count = this.comments.length;
+      this.stats.comments_count = this.comments?.length ?? 0;
     }
     if (this.isModified('shares')) {
-      this.stats.shares_count = this.shares.length;
+      this.stats.shares_count = this.shares?.length ?? 0;
     }
     if (this.isModified('views')) {
-      this.stats.views_count = this.views.length;
+      this.stats.views_count = this.views?.length ?? 0;
     }
     if (this.isModified('choices')) {
-      this.stats.choices_count = this.choices.length;
+      this.stats.choices_count = this.choices?.length ?? 0;
     }
+
+    if (this.author?.authorModel && ['Producer', 'LeisureProducer', 'WellnessPlace'].includes(this.author.authorModel)) {
+      this.isProducerPost = true;
+      const type = this.author.authorModel;
+      this.isRestaurationProducer = type === 'Producer';
+      this.isLeisureProducer = type === 'LeisureProducer';
+      this.isWellnessProducer = type === 'WellnessPlace';
+      if (!this.producerType && this.producer_id) {
+        this.producerType = type;
+      }
+    } else {
+      this.isProducerPost = false;
+      this.isRestaurationProducer = false;
+      this.isLeisureProducer = false;
+      this.isWellnessProducer = false;
+    }
+    
+    if (this.producer_id && this.producerType) {
+        this.isProducerPost = true;
+        this.isRestaurationProducer = this.producerType === 'Producer';
+        this.isLeisureProducer = this.producerType === 'LeisureProducer';
+        this.isWellnessProducer = this.producerType === 'WellnessPlace';
+        if (this.author && !this.author.authorModel && this.author.id === this.producer_id) {
+            this.author.authorModel = this.producerType;
+        }
+    }
+
+    this.isEvent = !!this.event_id || this.post_type === 'event';
+    this.isRestaurant = (this.producerType === 'Producer' || this.post_type === 'restaurant');
+
+    if (this.isModified()) {
+      this.updated_at = new Date();
+    }
+
     next();
   });
 
@@ -237,12 +314,12 @@ module.exports = (connection) => {
         height: m.height
       })) || [],
       location: obj.location,
-      posted_at: obj.posted_at,
+      time_posted: obj.time_posted,
       tags: obj.tags || [],
       stats: obj.stats,
       producer: obj.producer_id,
       event: obj.event_id,
-      user: obj.userId
+      author: obj.author
     };
   };
 

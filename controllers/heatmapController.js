@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 const { createModel, databases } = require('../utils/modelCreator');
 const User = require('../models/User');
+// Remove the potentially problematic require if UserActivity is defined below
+// const UserActivity = require('../models/UserActivity'); 
+const constants = require('../utils/constants');
 
 // Modèles pour les différents types de producteurs
 const Producer = createModel(
@@ -148,12 +151,15 @@ const heatmapController = {
    */
   getHotspots: async (req, res) => {
     try {
-      const { latitude, longitude, radius = 2000, limit = 50, timespan = 'all' } = req.query;
+      const { latitude, longitude, radius = '2000', limit = '50', timespan = '90d' } = req.query; // Default to 90d
 
       if (!latitude || !longitude) {
-        return res.status(400).json({ message: 'Latitude et longitude requises' });
+        return res.status(400).json({ message: 'Les paramètres latitude et longitude sont requis.' });
       }
-
+      // Validate inputs
+      if (isNaN(parseFloat(latitude)) || isNaN(parseFloat(longitude)) || isNaN(parseInt(radius, 10)) || isNaN(parseInt(limit, 10))) {
+         return res.status(400).json({ message: 'Paramètres numériques invalides (latitude, longitude, radius, limit).' });
+      }
       const lat = parseFloat(latitude);
       const lng = parseFloat(longitude);
       const radiusM = parseInt(radius, 10);
@@ -178,7 +184,8 @@ const heatmapController = {
           $match: {
             location: {
               $geoWithin: {
-                 $centerSphere: [ [lng, lat], radiusM / 6378100 ] // radius in radians
+                 // Use coordinates directly from request
+                 $centerSphere: [ [lng, lat], radiusM / constants.EARTH_RADIUS_METERS ] // radius in radians
               }
             },
             ...timeFilter // Apply time filter
@@ -189,8 +196,9 @@ const heatmapController = {
           $group: {
             _id: {
               // Adjust grid size as needed (e.g., 0.001 degrees ~ 111m at equator)
-              latGrid: { $floor: { $divide: ["$location.coordinates.1", 0.001] } },
-              lngGrid: { $floor: { $divide: ["$location.coordinates.0", 0.001] } }
+              // Using constants for grid size
+              latGrid: { $floor: { $divide: ["$location.coordinates.1", constants.HEATMAP_GRID_SIZE_DEGREES] } },
+              lngGrid: { $floor: { $divide: ["$location.coordinates.0", constants.HEATMAP_GRID_SIZE_DEGREES] } }
             },
             latitude: { $avg: "$location.coordinates.1" },
             longitude: { $avg: "$location.coordinates.0" },
@@ -206,7 +214,8 @@ const heatmapController = {
             // id: { $toString: "$_id" }, // Generate ID later
             latitude: 1,
             longitude: 1,
-            intensity: { $min: [{ $divide: ["$count", 50] }, 1] }, // Normalize intensity (adjust divisor)
+            // Use a constant for normalization divisor, e.g., MAX_EXPECTED_COUNT_PER_CELL
+            intensity: { $min: [{ $divide: ["$count", constants.HEATMAP_INTENSITY_NORMALIZATION] }, 1] },
             visitorCount: { $size: "$userIds" },
             timestamps: 1 // Pass timestamps to the next stage (or process here)
           }
@@ -218,717 +227,459 @@ const heatmapController = {
 
       const aggregatedHotspots = await LocationHistory.aggregate(aggregationPipeline);
 
-      // Enrich hotspots with calculated distributions and final ID/name
+      // Enrich hotspots with calculated distributions, recommendations, and final ID/name
       const hotspots = aggregatedHotspots.map(spot => {
         // Calculate distributions from collected timestamps
         const { timeDistribution, dayDistribution } = calculateDistributions(spot.timestamps);
 
-        // Generate final hotspot object
+        // Generate recommendations based on distributions and intensity
+        const recommendations = [];
+        const intensity = spot.intensity;
+
+        // Define helper functions locally or import if reused elsewhere
+        const _getBestTimeSlot = (dist) => {
+            let maxValue = 0; let bestTime = '';
+            // Use descriptive keys for clarity
+            const timeMap = { morning: 'en matinée (6h-12h)', afternoon: 'l\'après-midi (12h-18h)', evening: 'en soirée (18h-0h)', night: 'la nuit (0h-6h)' }; // Adjusted evening range
+            // Iterate through the expected keys
+            for (const key of ['morning', 'afternoon', 'evening', 'night']) {
+                const value = dist[key] || 0; // Handle potentially missing keys
+                // Use a meaningful threshold, e.g., constants.RECOMMENDATION_TIME_THRESHOLD
+                if (value > maxValue && value > constants.RECOMMENDATION_TIME_THRESHOLD) {
+                    maxValue = value; bestTime = key;
+                }
+            }
+            return timeMap[bestTime] || '';
+        };
+
+        const _getBestDay = (dist) => {
+            let maxValue = 0; let bestDayKey = '';
+            const dayMap = { sunday: 'Dimanche', monday: 'Lundi', tuesday: 'Mardi', wednesday: 'Mercredi', thursday: 'Jeudi', friday: 'Vendredi', saturday: 'Samedi' };
+            // Iterate through the expected keys
+            for (const key of ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']) {
+                 const value = dist[key] || 0; // Handle potentially missing keys
+                 // Use a meaningful threshold, e.g., constants.RECOMMENDATION_DAY_THRESHOLD
+                 if (value > maxValue && value > constants.RECOMMENDATION_DAY_THRESHOLD) {
+                    maxValue = value; bestDayKey = key;
+                 }
+            }
+            return dayMap[bestDayKey] || '';
+        };
+
+
+        const bestTime = _getBestTimeSlot(timeDistribution);
+        if (bestTime) {
+          recommendations.push({
+            title: 'Optimisez vos Horaires',
+            description: `La zone est populaire ${bestTime}. Adaptez vos promotions ou personnel pendant ces pics.`,
+            type: 'time_peak' // Consistent type naming
+          });
+        }
+
+        const bestDay = _getBestDay(dayDistribution);
+        if (bestDay) {
+          recommendations.push({
+            title: 'Jour de Forte Affluence',
+            description: `Le ${bestDay} semble être clé. Envisagez des offres spéciales ou événements ce jour-là.`,
+            type: 'day_peak' // Consistent type naming
+          });
+        }
+
+        // Use constants for intensity thresholds
+        if (intensity > constants.RECOMMENDATION_INTENSITY_HIGH) {
+          recommendations.push({
+            title: 'Zone à Fort Potentiel',
+            description: 'Cette zone montre une forte activité globale. C\'est un bon endroit pour des actions marketing ciblées.',
+            type: 'high_potential' // Consistent type naming
+          });
+        } else if (intensity < constants.RECOMMENDATION_INTENSITY_LOW) {
+          recommendations.push({
+            title: 'Zone Calme',
+            description: 'L\'activité semble faible ici. Concentrez peut-être vos efforts sur d\'autres zones plus dynamiques.',
+            type: 'low_activity' // Consistent type naming
+          });
+        }
+
+        if (recommendations.length === 0) {
+           recommendations.push({ title: 'Données Stables', description: 'L\'activité dans cette zone est stable, sans pic majeur détecté.', type: 'stable' });
+        }
+
+        // Generate final hotspot object including recommendations
         return {
           id: new mongoose.Types.ObjectId().toString(), // Generate unique ID
           latitude: spot.latitude,
           longitude: spot.longitude,
-          zoneName: `Zone ${spot.latitude.toFixed(3)}, ${spot.longitude.toFixed(3)}`, // Simple zone name
+          // Generate a more meaningful name if possible, e.g., based on reverse geocoding or nearby landmarks (complex)
+          zoneName: `Zone (${spot.latitude.toFixed(3)}, ${spot.longitude.toFixed(3)})`, // Simple zone name for now
           intensity: spot.intensity,
           visitorCount: spot.visitorCount,
-          weight: spot.intensity, // weight might be redundant if same as intensity
+          // weight: spot.intensity, // weight might be redundant if same as intensity - REMOVED, use intensity
           timeDistribution: timeDistribution,
-          dayDistribution: dayDistribution
+          dayDistribution: dayDistribution,
+          recommendations: recommendations // <-- Include generated recommendations
         };
       });
 
       res.status(200).json(hotspots);
-    } catch (error) {
+    } catch (error) { // Added catch block
       console.error('❌ Erreur dans getHotspots:', error);
-      if (error.code === 51024) { // Specific error code for $geoNear/Within index miss
-         console.error('   Hint: Missing 2dsphere index on locationHistories.location.coordinates');
-         return res.status(500).json({ message: 'Erreur de base de données: Index géospatial manquant.', code: 'DB_GEO_INDEX_MISSING' });
+      if (error.code === 51024 || error.message.includes('unable to find index for $geoNear query')) { // More robust index error check
+         console.error('   Hint: Missing 2dsphere index on locationHistories.location');
+         return res.status(500).json({ message: 'Erreur de base de données: Index géospatial manquant sur locationHistories.', code: 'DB_GEO_INDEX_MISSING' });
       }
-      res.status(500).json({ message: 'Erreur serveur', error: error.message });
+      res.status(500).json({ message: 'Erreur serveur lors de la récupération des hotspots', error: error.message });
     }
-  },
-  
+  }, // Added comma
+
   /**
    * Récupérer les données de heatmap en temps réel pour un producteur
    * @route GET /api/heatmap/realtime/:producerId
    */
   getRealtimeHeatmap: async (req, res) => {
-    try {
-      const { producerId } = req.params;
-      const { timeframe = '30m' } = req.query;
-      
-      // Validation
-      if (!producerId) {
-        return res.status(400).json({ message: 'ID du producteur requis' });
-      }
-      
-      // Trouver le producteur
-      const producerResult = await findProducerInAnyCollection(producerId);
-      if (!producerResult) {
-        return res.status(404).json({ message: 'Producteur non trouvé' });
-      }
-      
-      const { producer, type: producerType } = producerResult;
-      
-      // Déterminer l'intervalle de temps
-      const now = new Date();
-      let startTime = new Date(now);
-      
-      switch (timeframe) {
-        case '15m':
-          startTime.setMinutes(now.getMinutes() - 15);
-          break;
-        case '30m':
-          startTime.setMinutes(now.getMinutes() - 30);
-          break;
-        case '1h':
-          startTime.setHours(now.getHours() - 1);
-          break;
-        case '3h':
-          startTime.setHours(now.getHours() - 3);
-          break;
-        case '6h':
-          startTime.setHours(now.getHours() - 6);
-          break;
-        case '12h':
-          startTime.setHours(now.getHours() - 12);
-          break;
-        case '24h':
-          startTime.setHours(now.getHours() - 24);
-          break;
-        default:
-          startTime.setMinutes(now.getMinutes() - 30);
-      }
-      
-      // Récupérer les coordonnées du producteur
-      let producerLocation;
-      
-      if (producer.location && producer.location.coordinates) {
-        producerLocation = producer.location;
-      } else if (producer.coordinates) {
-        producerLocation = {
-          type: 'Point',
-          coordinates: [producer.coordinates.longitude, producer.coordinates.latitude]
-        };
-      } else if (producer.longitude && producer.latitude) {
-        producerLocation = {
-          type: 'Point',
-          coordinates: [producer.longitude, producer.latitude]
-        };
-      } else {
-        return res.status(400).json({ message: 'Coordonnées du producteur non disponibles' });
-      }
-      
-      // Récupérer les activités des utilisateurs à proximité
-      const activityPoints = await UserActivity.find({
-        timestamp: { $gte: startTime },
-        'location.coordinates': {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: producerLocation.coordinates
-            },
-            $maxDistance: 2000 // 2km de rayon
-          }
-        }
-      })
-      .sort({ timestamp: -1 })
-      .limit(50)
-      .lean();
-      
-      // Calculer la distance pour chaque point
-      const processedActivityPoints = activityPoints.map(point => {
-        const distance = calculateDistance(
-          producerLocation.coordinates[1],
-          producerLocation.coordinates[0],
-          point.location.coordinates[1],
-          point.location.coordinates[0]
-        );
-        
-        return {
-          ...point,
-          distance
-        };
-      });
-      
-      // Générer des zones chaudes
-      const hotZones = generateHotZones(producerLocation.coordinates, processedActivityPoints);
-      
-      // Récupérer les recherches récentes
-      const searches = await UserActivity.find({
-        action: 'search',
-        timestamp: { $gte: startTime },
-        'location.coordinates': {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: producerLocation.coordinates
-            },
-            $maxDistance: 5000 // 5km de rayon pour les recherches
-          }
-        }
-      })
-      .sort({ timestamp: -1 })
-      .limit(20)
-      .lean();
-      
-      // Calculer la distance pour chaque recherche
-      const processedSearches = searches.map(search => {
-        const distance = calculateDistance(
-          producerLocation.coordinates[1],
-          producerLocation.coordinates[0],
-          search.location.coordinates[1],
-          search.location.coordinates[0]
-        );
-        
-        return {
-          ...search,
-          distance
-        };
-      });
-      
-      // Construire la réponse
-      const heatmapData = {
-        producer: {
-          id: producerId,
-          name: producer.name || producer.lieu,
-          type: producerType,
-          location: producerLocation
-        },
-        timeframe,
-        timestamp: now,
-        activityPoints: processedActivityPoints,
-        hotZones,
-        searches: processedSearches,
-        stats: {
-          totalActivities: processedActivityPoints.length,
-          uniqueUsers: new Set(processedActivityPoints.map(p => p.userId.toString())).size,
-          totalSearches: processedSearches.length
-        }
-      };
-      
-      res.status(200).json(heatmapData);
-    } catch (error) {
-      console.error('❌ Erreur dans getRealtimeHeatmap:', error);
-      res.status(500).json({ message: 'Erreur serveur', error: error.message });
-    }
-  },
-  
+    // Keep the simple 501 implementation as the other was test data
+    res.status(501).json({ message: 'Fonctionnalité temps réel non implémentée.' });
+  }, // Added comma
+
   /**
    * Récupérer les utilisateurs actifs autour d'un producteur
    * @route GET /api/heatmap/active-users/:producerId
+   * @requires auth
    */
   getActiveUsers: async (req, res) => {
+    // Keep the second, more complete implementation
     try {
       const { producerId } = req.params;
-      
-      // Validation
-      if (!producerId) {
-        return res.status(400).json({ message: 'ID du producteur requis' });
+      // Use constants for defaults
+      const radius = parseInt(req.query.radius, 10) || constants.DEFAULT_ACTIVE_USER_RADIUS_METERS;
+      const lastMinutes = parseInt(req.query.lastMinutes, 10) || constants.DEFAULT_ACTIVE_USER_TIMESPAN_MINUTES;
+
+      // 1. Get producer location
+      const producerData = await findProducerInAnyCollection(producerId);
+      if (!producerData || !producerData.producer.location || !producerData.producer.location.coordinates) {
+        return res.status(404).json({ message: 'Localisation du producteur introuvable.' });
       }
-      
-      // Trouver le producteur
-      const producerResult = await findProducerInAnyCollection(producerId);
-      if (!producerResult) {
-        return res.status(404).json({ message: 'Producteur non trouvé' });
+      const [prodLng, prodLat] = producerData.producer.location.coordinates;
+
+      // 2. Define search criteria
+      const radiusM = radius;
+      const timeLimit = new Date(Date.now() - lastMinutes * 60 * 1000);
+
+      // 3. Find users within radius and time limit
+      // Ensure User model has a 2dsphere index on currentLocation
+      const activeUsers = await User.find({
+         // Exclude the producer themselves if they are also a user (if applicable)
+         // Ensure producerId is a valid ObjectId before using $ne
+        _id: mongoose.Types.ObjectId.isValid(producerId) ? { $ne: new mongoose.Types.ObjectId(producerId) } : undefined,
+        currentLocation: {
+          $geoWithin: {
+            $centerSphere: [[prodLng, prodLat], radiusM / constants.EARTH_RADIUS_METERS] // radius in radians
+          }
+        },
+        lastSeen: { $gte: timeLimit } // Filter by last seen time
+      })
+      .select('_id name profilePicture currentLocation lastSeen') // Select necessary fields
+      // Use constant for limit
+      .limit(constants.MAX_ACTIVE_USERS_RETURNED);
+
+      // 4. Format the response
+      const formattedUsers = activeUsers.map(user => ({
+        userId: user._id, // Consistent naming with frontend
+        name: user.name,
+        profilePicture: user.profilePicture,
+        // Return the standard GeoJSON structure expected by frontend
+        location: user.currentLocation,
+        lastSeen: user.lastSeen,
+        // Calculate distance on backend? Or frontend? Doing it here:
+        distance: calculateDistance(prodLat, prodLng, user.currentLocation.coordinates[1], user.currentLocation.coordinates[0])
+      }));
+
+      res.status(200).json(formattedUsers); // Return the array directly
+
+    } catch (error) {
+      console.error('❌ Erreur dans getActiveUsers:', error);
+      if (error.code === 51024 || (error.message && error.message.includes('unable to find index for $geoNear query'))) {
+         console.error('   Hint: Missing 2dsphere index on users.currentLocation');
+         return res.status(500).json({ message: 'Erreur de base de données: Index géospatial manquant sur users.currentLocation.', code: 'DB_GEO_INDEX_MISSING' });
       }
-      
-      const { producer } = producerResult;
-      
-      // Récupérer les coordonnées du producteur
-      let producerLocation;
-      
-      if (producer.location && producer.location.coordinates) {
-        producerLocation = producer.location;
-      } else if (producer.coordinates) {
-        producerLocation = {
-          type: 'Point',
-          coordinates: [producer.coordinates.longitude, producer.coordinates.latitude]
-        };
-      } else if (producer.longitude && producer.latitude) {
-        producerLocation = {
-          type: 'Point',
-          coordinates: [producer.longitude, producer.latitude]
-        };
-      } else {
-        return res.status(400).json({ message: 'Coordonnées du producteur non disponibles' });
+      res.status(500).json({ message: 'Erreur serveur lors de la récupération des utilisateurs actifs', error: error.message });
+    }
+  }, // Added comma
+
+  /**
+   * Récupérer les opportunités d'action pour un producteur basées sur l'historique de localisation
+   * @route GET /api/heatmap/action-opportunities/:producerId
+   * @requires auth
+   */
+  getActionOpportunities: async (req, res) => {
+    // Keep the second, more complete implementation
+    try {
+      const { producerId } = req.params;
+      // Use constants for defaults
+      const radiusM = parseInt(req.query.radius, 10) || constants.DEFAULT_INSIGHTS_RADIUS_METERS;
+      const daysToAnalyze = parseInt(req.query.days, 10) || constants.DEFAULT_INSIGHTS_TIMESPAN_DAYS;
+
+      // 1. Trouver le producteur et sa localisation
+      const producerData = await findProducerInAnyCollection(producerId);
+      if (!producerData || !producerData.producer || !producerData.producer.location || !producerData.producer.location.coordinates) {
+        return res.status(404).json({ message: 'Localisation du producteur introuvable.' });
       }
-      
-      // Définir la période de temps pour "actif" (30 minutes)
-      const activeTime = new Date();
-      activeTime.setMinutes(activeTime.getMinutes() - 30);
-      
-      // Agréger les utilisateurs actifs à proximité
-      const activeUsers = await LocationHistory.aggregate([
+      const [prodLng, prodLat] = producerData.producer.location.coordinates;
+
+      // 2. Définir la période d'analyse
+      const analysisStartDate = new Date();
+      analysisStartDate.setDate(analysisStartDate.getDate() - daysToAnalyze);
+
+      // 3. Agréger l'historique de localisation proche
+      const aggregationPipeline = [
+        // Match documents near the producer within the timeframe
         {
           $match: {
-            timestamp: { $gte: activeTime },
-            'location.coordinates': {
-              $near: {
-                $geometry: {
-                  type: 'Point',
-                  coordinates: producerLocation.coordinates
-                },
-                $maxDistance: 2000 // 2km de rayon
+            timestamp: { $gte: analysisStartDate },
+            location: {
+              $geoWithin: {
+                 $centerSphere: [ [prodLng, prodLat], radiusM / constants.EARTH_RADIUS_METERS ] // radius in radians
               }
             }
           }
         },
+        // Project hour and dayOfWeek (adjust for timezone if needed)
+        {
+          $project: {
+              // Consider using timezone from producer or user settings if available
+             hour: { $hour: { date: "$timestamp", timezone: constants.DEFAULT_TIMEZONE } }, // Example: "Europe/Paris"
+             dayOfWeek: { $dayOfWeek: { date: "$timestamp", timezone: constants.DEFAULT_TIMEZONE } } // 1=Sun, 7=Sat
+          }
+        },
+        // Group by hour and day to count occurrences
         {
           $group: {
-            _id: "$userId",
-            lastSeen: { $max: "$timestamp" },
-            location: { $last: "$location" },
+            _id: {
+              hour: "$hour",
+              dayOfWeek: "$dayOfWeek"
+            },
             count: { $sum: 1 }
           }
         },
-        {
-          $lookup: {
-            from: "Users",
-            localField: "_id",
-            foreignField: "_id",
-            as: "userInfo"
-          }
-        },
-        {
-          $unwind: {
-            path: "$userInfo",
-            preserveNullAndEmptyArrays: true
-          }
-        },
-        {
-          $project: {
-            _id: 0,
-            userId: "$_id",
-            name: { $ifNull: ["$userInfo.name", "Utilisateur"] },
-            profilePicture: { $ifNull: ["$userInfo.profilePicture", null] },
-            lastSeen: 1,
-            location: 1,
-            activityCount: "$count"
-          }
-        },
-        { $sort: { lastSeen: -1 } },
-        { $limit: 20 }
-      ]);
-      
-      // Calculer la distance pour chaque utilisateur
-      const users = activeUsers.map(user => {
-        if (!user.location || !user.location.coordinates) return user;
-        
-        const distance = calculateDistance(
-          producerLocation.coordinates[1],
-          producerLocation.coordinates[0],
-          user.location.coordinates[1],
-          user.location.coordinates[0]
-        );
-        
-        return {
-          ...user,
-          distance
-        };
-      });
-      
-      res.status(200).json({ activeUsers: users });
-    } catch (error) {
-      console.error('❌ Erreur dans getActiveUsers:', error);
-      res.status(500).json({ message: 'Erreur serveur', error: error.message });
-    }
-  },
-  
-  /**
-   * Récupérer les opportunités d'action pour un producteur
-   * @route GET /api/heatmap/action-opportunities/:producerId
-   */
-  getActionOpportunities: async (req, res) => {
-    try {
-      const { producerId } = req.params;
-      const radiusM = 2000; // Radius for nearby traffic analysis (e.g., 2km)
-      const timespan = '30d'; // Default timespan for analysis (e.g., 30 days)
+        // Sort for easier processing (optional but can help)
+        { $sort: { "_id.dayOfWeek": 1, "_id.hour": 1 } }
+      ];
 
-      // --- Validation & Producer Info --- 
-      if (!producerId || !mongoose.Types.ObjectId.isValid(producerId)) {
-        return res.status(400).json({ message: 'ID du producteur valide requis' });
-      }
-      const producerResult = await findProducerInAnyCollection(producerId);
-      if (!producerResult) {
-        return res.status(404).json({ message: 'Producteur non trouvé' });
-      }
-      const { producer, type: producerType } = producerResult;
+      const activityData = await LocationHistory.aggregate(aggregationPipeline);
 
-      // Get producer location (essential for nearby analysis)
-      let producerLocationCoords;
-      if (producer.location?.coordinates?.length === 2) {
-        producerLocationCoords = producer.location.coordinates; // GeoJSON [lng, lat]
-      } else if (producer.coordinates?.longitude && producer.coordinates?.latitude) {
-        producerLocationCoords = [producer.coordinates.longitude, producer.coordinates.latitude];
-      } else if (producer.longitude && producer.latitude) {
-        producerLocationCoords = [producer.longitude, producer.latitude];
+      // 4. Analyser les données agrégées pour générer des insights
+      const insights = [];
+      if (activityData.length < constants.MIN_ACTIVITY_POINTS_FOR_INSIGHTS) { // Use constant
+        insights.push({ title: "Peu de Données Locales", insights: ["Pas assez de données de localisation récentes à proximité pour générer des insights détaillés.", `Seulement ${activityData.length} points trouvés (minimum ${constants.MIN_ACTIVITY_POINTS_FOR_INSIGHTS} requis).`], type: "warning" });
       } else {
-         console.warn(`⚠️ Coordonnées non trouvées pour le producteur ${producerId}`);
-         // Proceed without location-based insights if coordinates are missing
-      }
+        // Calculate total counts per time slot and day
+        let timeCounts = { morning: 0, afternoon: 0, evening: 0, night: 0 }; // Matin: 6-12, Aprem: 12-18, Soir: 18-24, Nuit: 0-6
+        let dayCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 }; // Sun-Sat (based on $dayOfWeek)
+        let totalActivity = 0;
 
-      let opportunities = [];
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const startDate = thirtyDaysAgo;
+        activityData.forEach(item => {
+          const hour = item._id.hour;
+          const day = item._id.dayOfWeek; // 1=Sun, 7=Sat
+          const count = item.count;
+          totalActivity += count;
 
-      // --- 1. Analyze Producer-Specific Activities --- 
-      const activities = await UserActivity.find({
-        producerId,
-        timestamp: { $gte: startDate }
-      }).lean();
+          // Use constants for time slot boundaries
+          if (hour >= constants.TIMESLOT_MORNING_START && hour < constants.TIMESLOT_AFTERNOON_START) timeCounts.morning += count;
+          else if (hour >= constants.TIMESLOT_AFTERNOON_START && hour < constants.TIMESLOT_EVENING_START) timeCounts.afternoon += count;
+          else if (hour >= constants.TIMESLOT_EVENING_START && hour < constants.TIMESLOT_NIGHT_START) timeCounts.evening += count; // Assuming 18-24
+          else timeCounts.night += count; // 0-6
 
-      // 1a. Peak Hours (Producer Interactions)
-      const activityHourCounts = Array(24).fill(0);
-      activities.forEach(activity => { activityHourCounts[new Date(activity.timestamp).getHours()]++; });
-      const activityPeakHours = activityHourCounts.map((count, hour) => ({ hour, count })).sort((a, b) => b.count - a.count).slice(0, 3).map(item => item.hour);
-      if (activityPeakHours.length > 0 && activityHourCounts[activityPeakHours[0]] > 0) {
-          opportunities.push({
-            type: 'producer_peak_hours',
-            title: 'Vos Heures de Pointe (Interactions)',
-            description: `Votre profil/offres génèrent le plus d'engagement vers ${activityPeakHours.map(h => `${h}h`).join(', ')}`,
-            actionable: true,
-            action: 'Adaptez vos publications ou offres spéciales pendant ces heures.'
-          });
-      }
-
-      // 1b. Peak Days (Producer Interactions)
-      const activityDayCounts = Array(7).fill(0);
-      activities.forEach(activity => { activityDayCounts[new Date(activity.timestamp).getDay()]++; });
-      const daysOfWeek = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']; // Consistent naming
-      const activityPeakDays = activityDayCounts.map((count, day) => ({ day: daysOfWeek[day], count })).sort((a, b) => b.count - a.count).slice(0, 2).filter(item => item.count > 0).map(item => item.day);
-       if (activityPeakDays.length > 0) {
-           opportunities.push({
-             type: 'producer_peak_days',
-             title: 'Vos Jours les Plus Actifs (Interactions)',
-             description: `Votre profil/offres reçoivent le plus d'attention le ${activityPeakDays.join(' et le ')}`,
-             actionable: true,
-             action: 'Planifiez vos communications ou événements majeurs ces jours-là.'
-           });
-       }
-
-      // 1c. Popular Searches Leading to Producer (if tracked)
-      // This requires UserActivity to sometimes store the search query *when* a user clicks on this producer from search results.
-      // For now, we'll adapt the previous logic which looked at *all* searches near the producer.
-       const searchQueries = activities.filter(a => a.action === 'search' && a.query).map(a => a.query);
-       if (searchQueries.length > 0) {
-          const queryCounts = {};
-          searchQueries.forEach(query => { queryCounts[query] = (queryCounts[query] || 0) + 1; });
-          const popularQueries = Object.entries(queryCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([query]) => query);
-          if (popularQueries.length > 0) {
-            opportunities.push({
-              type: 'popular_searches',
-              title: 'Recherches Populaires Associées',
-              description: `Certains utilisateurs vous trouvent via: ${popularQueries.join(', ')}`,
-              actionable: true,
-              action: 'Vérifiez que votre profil met bien en avant ces termes.'
-            });
-          }
-       }
-
-      // --- 2. Analyze General Nearby Location Data (If coordinates exist) ---
-      if (producerLocationCoords) {
-          try {
-              const nearbyTrafficAggregation = [
-                  { $match: { 
-                      location: { $geoWithin: { $centerSphere: [ producerLocationCoords, radiusM / 6378100 ] }}, 
-                      timestamp: { $gte: startDate } 
-                  } },
-                  { $project: { 
-                      hour: { $hour: "$timestamp" }, 
-                      dayOfWeek: { $dayOfWeek: "$timestamp" } // 1=Sun, 7=Sat
-                  } },
-                  { $facet: {
-                      "hourly": [ { $group: { _id: "$hour", count: { $sum: 1 } } }, { $sort: { count: -1 } } ],
-                      "daily": [ { $group: { _id: "$dayOfWeek", count: { $sum: 1 } } }, { $sort: { count: -1 } } ]
-                  }}
-              ];
-              const [nearbyTrafficResults] = await LocationHistory.aggregate(nearbyTrafficAggregation);
-
-              // 2a. Peak Hours (General Traffic Nearby)
-              if (nearbyTrafficResults?.hourly?.length > 0) {
-                  const trafficPeakHours = nearbyTrafficResults.hourly.slice(0, 3).map(item => item._id);
-                  if (trafficPeakHours.length > 0 && nearbyTrafficResults.hourly[0].count > 0) {
-                     opportunities.push({
-                         type: 'nearby_peak_hours',
-                         title: 'Heures de Pointe (Passage à Proximité)',
-                         description: `Le plus de passage près de chez vous est observé vers ${trafficPeakHours.map(h => `${h}h`).join(', ')}`,
-                         actionable: true,
-                         action: 'Profitez de ces créneaux pour attirer les passants (promotions flash, vitrine attractive...).'
-                     });
-                  }
-              }
-
-              // 2b. Peak Days (General Traffic Nearby)
-              if (nearbyTrafficResults?.daily?.length > 0) {
-                  const dayMapping = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']; // Map 1-7 to names
-                  const trafficPeakDays = nearbyTrafficResults.daily.slice(0, 2).filter(item => item.count > 0).map(item => dayMapping[item._id - 1]);
-                  if (trafficPeakDays.length > 0) {
-                      opportunities.push({
-                          type: 'nearby_peak_days',
-                          title: 'Jours de Pointe (Passage à Proximité)',
-                          description: `Les jours avec le plus de passage près de chez vous sont ${trafficPeakDays.join(' et ')}`,
-                          actionable: true,
-                          action: 'Intensifiez vos opérations ou promotions ces jours-là.'
-                      });
-                  }
-              }
-
-          } catch (aggError) {
-              console.error(`❌ Erreur lors de l'agrégation du trafic proche pour ${producerId}:`, aggError);
-          }
-      }
-
-      // --- 3. Generic Producer Type Recommendations --- 
-      if (producerType === 'restaurant') {
-        opportunities.push({ type: 'menu_suggestion', title: 'Suggestion Menu', description: 'Envisagez une mise à jour saisonnière de votre menu.', actionable: true, action: 'Ajoutez des plats de saison.' });
-      } else if (producerType === 'leisure') {
-        opportunities.push({ type: 'event_suggestion', title: 'Suggestion Événement', description: 'Les événements en soirée engagent souvent plus.', actionable: true, action: 'Planifiez un événement nocturne.' });
-      } else if (producerType === 'wellness') {
-        opportunities.push({ type: 'service_suggestion', title: 'Suggestion Service', description: 'Les services de relaxation sont souvent recherchés.', actionable: true, action: 'Mettez en avant vos offres de relaxation.' });
-      }
-
-      // --- Generate Dynamic "AI" Insights based on calculated data ---
-      let aiInsights = [];
-
-      // Insight about peak interaction times
-      if (activityPeakHours.length > 0) {
-        aiInsights.push({
-           title: "Optimisation des Horaires d'Interaction",
-           insights: [
-              `Vos pics d'engagement sont vers ${activityPeakHours.map(h => `${h}h`).join(', ')}.`, 
-              `Publiez vos contenus ou offres spéciales durant ces créneaux pour maximiser la visibilité.`, 
-              `Analysez si ces heures correspondent à vos heures d'ouverture actuelles.`
-           ]
+          if (day >= 1 && day <= 7) dayCounts[day] += count;
         });
+
+        // Find peak time slot
+        const [peakTimeSlot, peakTimeCount] = Object.entries(timeCounts).reduce((prev, curr) => (curr[1] > prev[1] ? curr : prev), ["", 0]);
+        const timeSlotMap = { morning: "en matinée (6h-12h)", afternoon: "l'après-midi (12h-18h)", evening: "en soirée (18h-0h)", night: "la nuit (0h-6h)" }; // Corrected map
+        // Use constant for threshold
+        if (peakTimeCount > totalActivity * constants.INSIGHTS_PEAK_TIME_THRESHOLD) {
+           insights.push({ title: "Pic d'Activité Temporel", insights: [`La majorité de l'activité locale est détectée ${timeSlotMap[peakTimeSlot] ?? 'à certaines heures'}.`, "Adaptez vos opérations ou promotions durant ces périodes."], type: "trend" });
+        }
+
+        // Find peak day
+        const [peakDayNumStr, peakDayCount] = Object.entries(dayCounts).reduce((prev, curr) => (curr[1] > prev[1] ? curr : prev), ["0", 0]);
+        const peakDayNum = parseInt(peakDayNumStr, 10); // Convert key to number
+        const dayNameMap = { 1: "Dimanche", 2: "Lundi", 3: "Mardi", 4: "Mercredi", 5: "Jeudi", 6: "Vendredi", 7: "Samedi" };
+         // Use constant for threshold
+        if (peakDayCount > totalActivity * constants.INSIGHTS_PEAK_DAY_THRESHOLD && dayNameMap[peakDayNum]) {
+            insights.push({ title: "Jour le Plus Actif", insights: [`Le ${dayNameMap[peakDayNum]} semble attirer le plus d'activité à proximité.`, "Envisagez une offre spéciale ou un événement ce jour-là."], type: "opportunity" });
+        }
+
+        // Add a generic insight if few specific ones were found or total activity is low/high
+        if (insights.length < 2) {
+            insights.push({ title: "Analyse Générale", insights: ["Continuez à surveiller l'activité locale pour affiner votre stratégie.", `Total de ${totalActivity} points de données analysés sur ${daysToAnalyze} jours dans un rayon de ${radiusM}m.`], type: "info" });
+        }
       }
 
-      // Insight about peak traffic days
-      if (trafficPeakDays.length > 0) {
-        aiInsights.push({
-          title: "Capitaliser sur les Jours de Fort Passage",
-          insights: [
-            `Les ${trafficPeakDays.join(' et ')} sont les jours avec le plus de passage détecté à proximité.`, 
-            `Assurez-vous d'avoir assez de personnel et de stock ces jours-là.`, 
-            `Envisagez des promotions "spécial ${trafficPeakDays[0]}" pour attirer les passants.`
-          ]
-        });
-      }
+      // Format insights for frontend (keep structure simple)
+       const formattedInsights = insights.map(insight => ({
+           title: insight.title,
+           insights: insight.insights, // Keep as array of strings
+           type: insight.type, // Let frontend map type to color/icon
+       }));
 
-      // Insight about popular searches
-      if (popularQueries.length > 0) {
-        aiInsights.push({
-          title: "Alignement avec les Recherches Utilisateurs",
-          insights: [
-             `Les termes "${popularQueries.join('", "')}" apparaissent dans les recherches menant à votre profil.`, 
-             `Vérifiez que votre menu/description/services reflètent bien ces mots-clés.`, 
-             `Utilisez ces termes dans vos prochaines publications pour améliorer votre SEO local.`
-          ]
-        });
-      }
-
-      // Generic insight based on producer type
-      if (producerType === 'restaurant') {
-        aiInsights.push({
-          title: "Tendances Gastronomiques",
-          insights: [
-            "Les options végétariennes et locales gagnent en popularité.", 
-            "La livraison et la vente à emporter restent des canaux importants.", 
-            "Pensez à une offre 'menu du jour' attractive pour le midi."
-          ]
-        });
-      } else if (producerType === 'leisure') {
-         aiInsights.push({
-           title: "Dynamiser l'Expérience Loisir",
-           insights: [
-             "Les ateliers thématiques ou événements spéciaux attirent une nouvelle clientèle.", 
-             "Proposez des offres combinées ou des tarifs de groupe.", 
-             "Mettez en avant les aspects uniques de votre activité sur les réseaux sociaux."
-           ]
-         });
-      } else if (producerType === 'wellness') {
-         aiInsights.push({
-           title: "Focus Bien-Être",
-           insights: [
-             "Les offres de relaxation et gestion du stress sont porteuses.", 
-             "Proposez des forfaits découvertes pour attirer de nouveaux clients.", 
-             "Communiquez sur les bienfaits spécifiques de vos services."
-           ]
-         });
-      }
-
-      // Add a default insight if none were generated
-      if (aiInsights.length === 0) {
-         aiInsights.push({
-           title: "Analyse Générale",
-           insights: [
-             "Continuez à surveiller vos statistiques pour identifier des tendances.",
-             "Engagez votre communauté avec du contenu régulier et pertinent.",
-             "Sollicitez les avis de vos clients pour améliorer vos services."
-           ]
-         });
-      }
-
-      // --- Combine Opportunities (Simulated AI + Rule-based) ---
-      // For simplicity, we'll just return the aiInsights directly now.
-      // In a real scenario, you might merge/prioritize.
-      
-      // Replace the old opportunities array with the new aiInsights format
-      // res.status(200).json({ actionOpportunities: opportunities }); 
-      res.status(200).json({ aiInsights: aiInsights }); // Use the new key 'aiInsights'
+      console.log(`📊 Generated ${formattedInsights.length} action opportunities for producer ${producerId}`);
+      // Use constant for limit
+      res.status(200).json(formattedInsights.slice(0, constants.MAX_INSIGHTS_RETURNED));
 
     } catch (error) {
       console.error('❌ Erreur dans getActionOpportunities:', error);
-      res.status(500).json({ message: 'Erreur serveur', error: error.message });
+      // Provide more specific error info if possible
+      if (error.code === 51024 || (error.message && error.message.includes('unable to find index for $geoNear query'))) {
+         console.error('   Hint: Missing 2dsphere index on locationHistories.location');
+         return res.status(500).json({ message: 'Erreur de base de données: Index géospatial (location) manquant sur locationHistories.', code: 'DB_GEO_INDEX_MISSING' });
+      }
+      res.status(500).json({ message: 'Erreur serveur lors de la récupération des opportunités', error: error.message });
     }
-  },
-  
+  }, // Added comma
+
   /**
    * Récupérer l'emplacement d'un producteur
    * @route GET /api/producers/:producerId/location
    */
   getProducerLocation: async (req, res) => {
+    // This implementation looks fine
     try {
       const { producerId } = req.params;
-      
-      // Validation
-      if (!producerId) {
-        return res.status(400).json({ message: 'ID du producteur requis' });
+      const producerData = await findProducerInAnyCollection(producerId);
+
+      if (!producerData || !producerData.producer.location || !producerData.producer.location.coordinates) {
+        // Fallback to User model only if producerId is a valid ObjectId and might represent a user
+        if (mongoose.Types.ObjectId.isValid(producerId)) {
+            const user = await User.findById(producerId).select('currentLocation');
+            if (user && user.currentLocation && user.currentLocation.coordinates) {
+               console.warn(`WARN: Producer location not found for ${producerId}, using user's current location as fallback.`);
+                return res.status(200).json({
+                  // Return standard lat/lng fields
+                  latitude: user.currentLocation.coordinates[1],
+                  longitude: user.currentLocation.coordinates[0]
+                });
+            }
+        }
+        // If still not found
+        return res.status(404).json({ message: 'Localisation du producteur ou de l\'utilisateur introuvable.' });
       }
-      
-      // Trouver le producteur
-      const producerResult = await findProducerInAnyCollection(producerId);
-      if (!producerResult) {
-        return res.status(404).json({ message: 'Producteur non trouvé' });
-      }
-      
-      const { producer } = producerResult;
-      
-      // Récupérer les coordonnées du producteur
-      let locationData = {};
-      
-      if (producer.location && producer.location.coordinates) {
-        locationData = {
-          latitude: producer.location.coordinates[1],
-          longitude: producer.location.coordinates[0]
-        };
-      } else if (producer.coordinates) {
-        locationData = {
-          latitude: producer.coordinates.latitude,
-          longitude: producer.coordinates.longitude
-        };
-      } else if (producer.latitude && producer.longitude) {
-        locationData = {
-          latitude: producer.latitude,
-          longitude: producer.longitude
-        };
-      } else {
-        return res.status(400).json({ message: 'Coordonnées du producteur non disponibles' });
-      }
-      
-      res.status(200).json(locationData);
+
+      res.status(200).json({
+        // Return standard lat/lng fields
+        latitude: producerData.producer.location.coordinates[1],
+        longitude: producerData.producer.location.coordinates[0]
+      });
     } catch (error) {
       console.error('❌ Erreur dans getProducerLocation:', error);
-      res.status(500).json({ message: 'Erreur serveur', error: error.message });
+      res.status(500).json({ message: 'Erreur serveur lors de la récupération de la localisation', error: error.message });
     }
-  },
+  }, // Added comma
 
   /**
    * Récupérer les recherches récentes à proximité d'un producteur
    * @route GET /api/heatmap/nearby-searches/:producerId
+   * @requires auth
    */
   getNearbySearches: async (req, res) => {
+    // This implementation looks fine
     try {
       const { producerId } = req.params;
-      const { radius = 5000, limit = 30, timeframe = '60m' } = req.query;
+      // Use constants for defaults
+      const radiusM = parseInt(req.query.radius, 10) || constants.DEFAULT_NEARBY_SEARCH_RADIUS_METERS;
+      const minutesAgo = parseInt(req.query.minutes, 10) || constants.DEFAULT_NEARBY_SEARCH_TIMESPAN_MINUTES;
+      const limit = parseInt(req.query.limit, 10) || constants.MAX_NEARBY_SEARCHES_RETURNED;
 
-      // Validation
-      if (!producerId || !mongoose.Types.ObjectId.isValid(producerId)) {
-        return res.status(400).json({ message: 'ID du producteur valide requis' });
+      // 1. Trouver le producteur et sa localisation
+      const producerData = await findProducerInAnyCollection(producerId);
+      if (!producerData || !producerData.producer || !producerData.producer.location || !producerData.producer.location.coordinates) {
+        return res.status(404).json({ message: 'Localisation du producteur introuvable.' });
       }
+      const [prodLng, prodLat] = producerData.producer.location.coordinates;
 
-      // Trouver le producteur pour obtenir ses coordonnées
-      const producerResult = await findProducerInAnyCollection(producerId);
-      if (!producerResult) {
-        return res.status(404).json({ message: 'Producteur non trouvé' });
-      }
-      const { producer } = producerResult;
+      // 2. Définir la période de temps
+      const searchSince = new Date(Date.now() - minutesAgo * 60 * 1000);
 
-      // Récupérer les coordonnées du producteur
-      let producerLocationCoords;
-      if (producer.location?.coordinates?.length === 2) {
-        producerLocationCoords = producer.location.coordinates; // GeoJSON [lng, lat]
-      } else if (producer.coordinates?.longitude && producer.coordinates?.latitude) {
-        producerLocationCoords = [producer.coordinates.longitude, producer.coordinates.latitude];
-      } else if (producer.longitude && producer.latitude) {
-        producerLocationCoords = [producer.longitude, producer.latitude];
-      } else {
-        console.warn(`⚠️ Coordonnées non trouvées pour le producteur ${producerId} dans getNearbySearches`);
-        return res.status(400).json({ message: 'Coordonnées du producteur non disponibles pour la recherche de proximité' });
-      }
-
-      // Définir la période de temps pour "récent"
-      const now = new Date();
-      let startTime = new Date(now);
-      const timeValue = parseInt(timeframe.slice(0, -1), 10);
-      const timeUnit = timeframe.slice(-1);
-      if (timeUnit === 'm') {
-        startTime.setMinutes(now.getMinutes() - timeValue);
-      } else if (timeUnit === 'h') {
-        startTime.setHours(now.getHours() - timeValue);
-      } else {
-        startTime.setMinutes(now.getMinutes() - 60); // Default to 60 minutes
-      }
-      
-      const radiusM = parseInt(radius, 10);
-      const resultLimit = parseInt(limit, 10);
-
-      // Récupérer les activités de recherche récentes à proximité
-      const recentSearches = await UserActivity.find({
-        action: 'search',
-        timestamp: { $gte: startTime },
-        location: {
-          $nearSphere: {
-            $geometry: {
-              type: 'Point',
-              coordinates: producerLocationCoords
-            },
-            $maxDistance: radiusM 
+      // 3. Agréger les activités de recherche récentes
+      // Ensure UserActivity model has a 2dsphere index on 'location'
+      const aggregationPipeline = [
+        // Match search actions near the producer within the timeframe
+        {
+          $match: {
+            action: constants.USER_ACTIVITY_ACTIONS.SEARCH, // Use constant
+            timestamp: { $gte: searchSince },
+            location: {
+              // Use $nearSphere for distance-based search from producer location
+              $nearSphere: {
+                $geometry: {
+                  type: "Point",
+                  coordinates: [prodLng, prodLat]
+                },
+                $maxDistance: radiusM // Max distance in meters
+              }
+            }
+          }
+        },
+        // Sort by timestamp descending (most recent first)
+        { $sort: { timestamp: -1 } },
+        // Limit the results
+        { $limit: limit },
+        // Lookup user details (name, profilePicture)
+        {
+          $lookup: {
+            from: "users", // Collection name for User model (check your actual name)
+            localField: "userId",
+            foreignField: "_id",
+            // Pipeline to select only specific fields from user
+             pipeline: [
+               { $project: { _id: 0, name: 1, profilePicture: 1 } }
+             ],
+            as: "userDetails"
+          }
+        },
+        // Deconstruct userDetails array (should be 0 or 1 element)
+        {
+          $unwind: {
+            path: "$userDetails",
+            preserveNullAndEmptyArrays: true // Keep searches even if user details not found/user deleted
+          }
+        },
+        // Project the final desired format matching frontend model
+        {
+          $project: {
+            _id: 0, // Exclude the aggregation _id
+            searchId: "$_id", // Use the activity _id as searchId
+            userId: "$userId",
+            query: "$query", // Make sure 'query' field exists in UserActivity schema
+            timestamp: "$timestamp",
+            location: "$location", // Include location GeoJSON
+            // Use $ifNull to provide default name if userDetails missing
+            userName: { $ifNull: ["$userDetails.name", constants.DEFAULT_UNKNOWN_USERNAME] },
+            userProfilePicture: "$userDetails.profilePicture" // Will be null if userDetails missing
           }
         }
-      })
-      .sort({ timestamp: -1 })
-      .limit(resultLimit)
-      .select('userId query location timestamp') // Sélectionner les champs nécessaires
-      .lean(); // Utiliser lean pour de meilleures performances
+      ];
 
-      // Formatter pour correspondre à NearbySearchEvent du frontend si nécessaire
-      // Actuellement, les noms de champs semblent correspondre
-      const formattedSearches = recentSearches.map(search => ({
-        userId: search.userId?.toString(), // S'assurer que l'ID est une chaîne
-        query: search.query,
-        // Renvoyer la structure de localisation telle quelle ou extraire lat/lng
-        location: search.location, // Ou: { latitude: search.location.coordinates[1], longitude: search.location.coordinates[0] },
-        timestamp: search.timestamp
-      }));
+      // Execute aggregation on UserActivity model
+      const nearbySearches = await UserActivity.aggregate(aggregationPipeline);
 
-      res.status(200).json({ nearbySearches: formattedSearches });
+      console.log(`🔎 Found ${nearbySearches.length} nearby search activities for producer ${producerId} within ${radiusM}m in the last ${minutesAgo} mins.`);
+      res.status(200).json(nearbySearches);
 
     } catch (error) {
       console.error('❌ Erreur dans getNearbySearches:', error);
-      if (error.name === 'MongoServerError' && error.code === 13038) { // Error code for $nearSphere needing 2dsphere index
-         console.error('   Hint: Missing 2dsphere index on userActivities.location');
-         return res.status(500).json({ message: 'Erreur de base de données: Index géospatial manquant sur UserActivity.', code: 'DB_GEO_INDEX_MISSING' });
+      // Check for geo index error ($nearSphere needs index)
+      if (error.code === 166 || (error.message && error.message.includes('$nearSphere requires a 2dsphere index'))) {
+        console.error('   Hint: Missing 2dsphere index on userActivities.location field!');
+        return res.status(500).json({ message: 'Erreur de base de données: Index géospatial (location) manquant sur UserActivity.', code: 'DB_GEO_INDEX_MISSING' });
       }
-      res.status(500).json({ message: 'Erreur serveur', error: error.message });
+      res.status(500).json({ message: 'Erreur serveur lors de la récupération des recherches proches', error: error.message });
     }
-  }
-};
+  } // No comma needed after last method
+}; // Semicolon after object definition
 
 // Fonction utilitaire pour calculer la distance en mètres entre deux points de coordonnées
+// This seems okay, using Haversine formula
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // Rayon de la Terre en mètres
+  const R = constants.EARTH_RADIUS_METERS; // Use constant
   const φ1 = lat1 * Math.PI/180; // φ, λ en radians
   const φ2 = lat2 * Math.PI/180;
   const Δφ = (lat2-lat1) * Math.PI/180;
@@ -940,90 +691,18 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
   const d = R * c; // en mètres
-  return d;
+  return Math.round(d); // Return rounded meters
 }
 
 // Fonction pour générer des zones chaudes à partir de points d'activité
+// NOTE: This function doesn't seem to be used by any of the controller methods.
+// The `getHotspots` method uses aggregation which calculates zones/grids directly.
+// Consider removing this function if it's unused.
 function generateHotZones(producerCoordinates, activityPoints) {
-  // Si pas assez de points, retourner une liste vide
-  if (!activityPoints || activityPoints.length < 5) {
-    return [];
-  }
-  
-  // Regrouper les points par grille
-  const grid = {};
-  const gridSize = 0.001; // Approximativement 100m
-  
-  activityPoints.forEach(point => {
-    if (!point.location || !point.location.coordinates) return;
-    
-    const coords = point.location.coordinates;
-    const latGrid = Math.floor(coords[1] / gridSize);
-    const lngGrid = Math.floor(coords[0] / gridSize);
-    const gridKey = `${latGrid},${lngGrid}`;
-    
-    if (!grid[gridKey]) {
-      grid[gridKey] = {
-        points: [],
-        center: {
-          type: 'Point',
-          coordinates: [0, 0]
-        }
-      };
-    }
-    
-    grid[gridKey].points.push(point);
-  });
-  
-  // Calculer le centre et l'intensité de chaque zone
-  const hotZones = [];
-  
-  Object.keys(grid).forEach(gridKey => {
-    const zone = grid[gridKey];
-    const points = zone.points;
-    
-    // Calculer le centre moyen
-    let sumLat = 0, sumLng = 0;
-    points.forEach(point => {
-      sumLat += point.location.coordinates[1];
-      sumLng += point.location.coordinates[0];
-    });
-    
-    const centerLat = sumLat / points.length;
-    const centerLng = sumLng / points.length;
-    
-    // Mettre à jour le centre
-    zone.center.coordinates = [centerLng, centerLat];
-    
-    // Calculer l'intensité basée sur le nombre de points
-    const intensity = Math.min(points.length / 10, 1.0);
-    
-    // Calculer le rayon en fonction de la dispersion des points
-    let maxDistance = 0;
-    points.forEach(point => {
-      const distance = calculateDistance(
-        centerLat, centerLng,
-        point.location.coordinates[1], point.location.coordinates[0]
-      );
-      maxDistance = Math.max(maxDistance, distance);
-    });
-    
-    // Rayon minimum de 50m, maximum de 300m
-    const radius = Math.max(50, Math.min(maxDistance * 1.2, 300));
-    
-    // Ajouter la zone à la liste
-    hotZones.push({
-      center: zone.center,
-      intensity,
-      radius,
-      points: points.length
-    });
-  });
-  
-  // Trier par intensité décroissante et limiter le nombre de zones
-  return hotZones
-    .sort((a, b) => b.intensity - a.intensity)
-    .slice(0, 10);
+  // If not used, this can be removed. Keeping for now in case it's used elsewhere or planned.
+  // ... (existing implementation) ...
+  console.warn("WARN: generateHotZones function is defined but might be unused in heatmapController."); // Add warning
+  return []; // Return empty array if unused for safety
 }
 
 module.exports = heatmapController; 

@@ -6,9 +6,10 @@ const userController = require('../controllers/userController');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { createModel, databases } = require('../utils/modelCreator');
-const { UserChoice } = require('../models/User'); // Importer UserChoice explicitement
+const { UserSchema } = require('../models/User'); // Import UserSchema instead of UserChoice
 const Follow = require('../models/Follow'); // Import the new Follow model
 const { getChoiceAppConnection } = require('../db/config'); // Importer la fonction pour obtenir la connexion choice_app
+const User = require('../models/User'); // Importez le modèle User
 
 // Modèles créés avec l'utilitaire createModel
 const PostChoice = createModel(
@@ -83,7 +84,7 @@ router.get('/check-following/:id', auth, async (req, res) => {
     }
     
     // Obtenir l'utilisateur courant avec sa liste de "following"
-    const currentUser = await UserChoice.findById(currentUserId);
+    const currentUser = await UserSchema.findById(currentUserId);
     if (!currentUser) {
       console.log(`❌ Utilisateur courant non trouvé: ${currentUserId}`);
       return res.status(404).json({ 
@@ -93,7 +94,7 @@ router.get('/check-following/:id', auth, async (req, res) => {
     }
     
     // Vérifier si l'utilisateur cible existe
-    const targetUser = await UserChoice.findById(targetUserId);
+    const targetUser = await UserSchema.findById(targetUserId);
     if (!targetUser) {
       console.log(`❌ Utilisateur cible non trouvé: ${targetUserId}`);
       return res.status(200).json({ 
@@ -142,7 +143,7 @@ router.get('/search', async (req, res) => {
     if (query && query.trim() !== '') {
       console.log('🔍 Recherche pour le mot-clé :', query);
 
-      const users = await UserChoice.find({
+      const users = await UserSchema.find({
         name: { $regex: query, $options: 'i' }, // Recherche insensible à la casse
       }).select('name profilePicture photo_url email followers_count');
 
@@ -161,7 +162,7 @@ router.get('/search', async (req, res) => {
         return res.status(400).json({ message: 'ID invalide.' });
       }
 
-      const user = await UserChoice.findById(id).select(
+      const user = await UserSchema.findById(id).select(
         'name profilePicture photo_url email followers_count posts'
       );
       if (!user) {
@@ -191,7 +192,7 @@ router.get('/profile', auth, async (req, res) => {
       return res.status(400).json({ error: 'ID utilisateur invalide' });
     }
     
-    const user = await UserChoice.findById(req.user.id).select('-password');
+    const user = await UserSchema.findById(req.user.id).select('-password');
     
     if (!user) {
       console.log(`❌ Utilisateur non trouvé pour l'ID: ${req.user.id}`);
@@ -219,7 +220,7 @@ router.put('/profile', auth, async (req, res) => {
     delete updates.password;
     delete updates.email;
     
-    const user = await UserChoice.findByIdAndUpdate(
+    const user = await UserSchema.findByIdAndUpdate(
       req.user.id,
       { $set: updates },
       { new: true, runValidators: true }
@@ -243,41 +244,41 @@ router.get('/:id/posts', async (req, res) => {
 
   try {
     if (!mongoose.isValidObjectId(id)) {
-      console.log(`\t❌ GET /api/users/:id/posts - Invalid User ID format: ${id}`);
+      console.log(`\t\u274C GET /api/users/:id/posts - Invalid User ID format: ${id}`);
       return res.status(400).json({ message: 'ID utilisateur invalide.' });
     }
 
     // Utiliser la connexion choice_app pour trouver l'utilisateur
     const choiceAppDb = getChoiceAppConnection();
-    const UserOnChoiceAppDb = choiceAppDb.model('User', UserChoice.schema);
+    const UserOnChoiceAppDb = choiceAppDb.model('User', UserSchema, 'Users');
     const userObjectId = new mongoose.Types.ObjectId(id);
     
     let userPosts = null;
 
     // 1. Tentative avec Mongoose pour trouver l'utilisateur et ses posts
-    console.log(`\t[Mongoose] ⏳ Searching user in '${choiceAppDb.name}' DB for posts list...`);
+    console.log(`\t[Mongoose] \u23F3 Searching user in '${choiceAppDb.name}' DB ('Users' collection) for posts list...`);
     const user = await UserOnChoiceAppDb.findOne({ _id: userObjectId }).select('posts').lean(); // Utiliser lean() pour un objet JS simple
 
     if (user) {
-        console.log(`\t[Mongoose] ✅ User found for posts list.`);
+        console.log(`\t[Mongoose] \u2705 User found for posts list.`);
         userPosts = user.posts || [];
     } else {
-        // 2. Si Mongoose échoue, tentative avec le Driver Natif
-        console.log(`\t[Mongoose] ❌ User not found for posts list.`);
-        console.log(`\t[Native Driver] ⏳ Trying native findOne for posts list...`);
+        // 2. Si Mongoose échoue, tentative avec le Driver Natif (ciblant aussi 'Users')
+        console.log(`\t[Mongoose] \u274C User not found for posts list.`);
+        console.log(`\t[Native Driver] \u23F3 Trying native findOne for posts list in 'Users' collection...`);
         try {
             const nativeDb = choiceAppDb.db;
             const nativeUser = await nativeDb.collection('Users').findOne({ _id: userObjectId }, { projection: { posts: 1 } });
             
             if (nativeUser) {
-                console.log(`\t[Native Driver] ✅ User found for posts list.`);
+                console.log(`\t[Native Driver] \u2705 User found for posts list.`);
                 userPosts = nativeUser.posts || [];
             } else {
-                console.log(`\t[Native Driver] ❌ User not found for posts list.`);
+                console.log(`\t[Native Driver] \u274C User not found for posts list.`);
                 return res.status(404).json({ message: 'Utilisateur non trouvé pour récupérer les posts.' });
             }
         } catch (nativeError) {
-            console.error(`\t[Native Driver] ❌ Error during native findOne for posts list:`, nativeError.message);
+            console.error(`\t[Native Driver] \u274C Error during native findOne for posts list:`, nativeError.message);
             return res.status(500).json({ message: 'Erreur serveur lors de la recherche native de l\'utilisateur.' });
         }
     }
@@ -286,7 +287,7 @@ router.get('/:id/posts', async (req, res) => {
     await fetchAndReturnPosts(res, userPosts);
 
   } catch (error) {
-    console.error(`\t❌ GET /api/users/:id/posts - General Server error for User ID ${id}:`, error.message);
+    console.error(`\t\u274C GET /api/users/:id/posts - General Server error for User ID ${id}:`, error.message);
     console.error(error.stack);
     res.status(500).json({ message: 'Erreur serveur lors de la récupération des posts.' });
   }
@@ -364,8 +365,12 @@ router.get('/:userId/info', async (req, res) => {
     if (!mongoose.isValidObjectId(userId)) {
       return res.status(400).json({ error: 'ID utilisateur invalide' });
     }
-    
-    const user = await UserChoice.findById(userId).select('-password');
+
+    // --- START CHANGE: Use choiceAppDb connection and 'Users' collection ---
+    const choiceAppDb = getChoiceAppConnection();
+    const UserOnChoiceAppDb = choiceAppDb.model('User', UserSchema, 'Users');
+    const user = await UserOnChoiceAppDb.findById(userId).select('_id name username profilePicture photo_url bio followers following').lean(); // Use lean() and select specific fields
+    // --- END CHANGE ---
     
     if (!user) {
       return res.status(404).json({ error: 'Utilisateur non trouvé' });
@@ -374,22 +379,21 @@ router.get('/:userId/info', async (req, res) => {
     // Normaliser la réponse pour le frontend
     const userInfo = {
       _id: user._id.toString(),
-      id: user._id.toString(),
-      name: user.name || user.username || 'Utilisateur',
+      id: user._id.toString(), // Keep both for compatibility if needed
+      name: user.name || user.username || 'Utilisateur', // Use name field if available
       username: user.username,
-      email: user.email,
-      profilePicture: user.profilePicture || user.photo_url || 'https://via.placeholder.com/150',
-      avatar: user.profilePicture || user.photo_url || 'https://via.placeholder.com/150',
+      profilePicture: user.profilePicture || user.photo_url || '',
+      avatar: user.profilePicture || user.photo_url || '', // Keep both for compatibility
       bio: user.bio || '',
-      isOnline: user.isOnline || false,
-      followers_count: user.followers ? user.followers.length : 0,
+      // Use length of arrays for counts, ensure arrays exist
+      followers_count: user.followers ? user.followers.length : 0, 
       following_count: user.following ? user.following.length : 0,
-      type: 'user'
+      type: 'user' // Explicitly set type
     };
     
     res.status(200).json(userInfo);
   } catch (error) {
-    console.error('Erreur lors de la récupération des informations de l\'utilisateur:', error);
+    console.error('Erreur lors de la récupération des informations de l\'utilisateur:', error); // Escaped quote
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -429,8 +433,8 @@ router.post('/follow/:id', auth, async (req, res) => {
 
     // Check if users exist (optional, findByIdOrCreate handles this implicitly)
     const [currentUserExists, targetUserExists] = await Promise.all([
-      UserChoice.findById(currentUserId).select('_id'),
-      UserChoice.findById(targetUserId).select('_id')
+      UserSchema.findById(currentUserId).select('_id'),
+      UserSchema.findById(targetUserId).select('_id')
     ]);
 
     if (!currentUserExists || !targetUserExists) {
@@ -545,7 +549,7 @@ router.get('/:id', async (req, res) => {
     console.log(`\t\u2139\uFE0F Mongoose connection state: ${choiceAppDb.readyState} (1 = connected)`);
     
     if (!mongoose.isValidObjectId(id)) {
-      console.log(`\t❌ GET /api/users/:id - Invalid ID format: ${id}`); 
+      console.log(`\t\u274C GET /api/users/:id - Invalid ID format: ${id}`); 
       return res.status(400).json({ message: 'ID invalide.' });
     }
     
@@ -553,25 +557,25 @@ router.get('/:id', async (req, res) => {
     console.log(`\t\uD83D\uDD0D Converted ID to ObjectId: ${objectId}`);
 
     // 1. Tentative avec Mongoose
-    console.log(`\t[Mongoose] ⏳ Searching user in '${choiceAppDb.name}' DB with findOne({ _id: ObjectId('${id}') })`); 
-    const UserOnChoiceAppDb = choiceAppDb.model('User', UserChoice.schema); 
+    console.log(`\t[Mongoose] \u23F3 Searching user in '${choiceAppDb.name}' DB ('Users' collection) with findOne({ _id: ObjectId('${id}') })`); 
+    const UserOnChoiceAppDb = choiceAppDb.model('User', UserSchema, 'Users');
     let user = await UserOnChoiceAppDb.findOne({ _id: objectId });
     
     if (user) {
-      console.log(`\t[Mongoose] ✅ User found in '${choiceAppDb.name}' DB: ${user.name || user._id}`); 
+      console.log(`\t[Mongoose] \u2705 User found in '${choiceAppDb.name}' DB: ${user.name || user._id}`); 
       return res.status(200).json(normalizeUser(user));
     } else {
-       console.log(`\t[Mongoose] ❌ User not found in DB '${choiceAppDb.name}' using findOne({_id: ObjectId(...)}) for ID: ${id}`);
+       console.log(`\t[Mongoose] \u274C User not found in DB '${choiceAppDb.name}' using findOne({_id: ObjectId(...)}) for ID: ${id}`);
     }
     
     // 2. Si Mongoose échoue, tentative avec le Driver Natif
-    console.log(`\t[Native Driver] ⏳ Trying native findOne({ _id: ObjectId('${id}') }) on DB '${choiceAppDb.name}'`);
+    console.log(`\t[Native Driver] \u23F3 Trying native findOne({ _id: ObjectId('${id}') }) on DB '${choiceAppDb.name}' in 'Users' collection`);
     try {
       const nativeDb = choiceAppDb.db; // Accéder à l'objet db natif
       const nativeUser = await nativeDb.collection('Users').findOne({ _id: objectId });
       
       if (nativeUser) {
-        console.log(`\t[Native Driver] ✅ User found in '${choiceAppDb.name}' DB: ${nativeUser.name || nativeUser._id}`);
+        console.log(`\t[Native Driver] \u2705 User found in '${choiceAppDb.name}' DB: ${nativeUser.name || nativeUser._id}`);
         // On a trouvé l'utilisateur avec le driver natif, il y a un problème avec Mongoose
         // On peut renvoyer les données natives (normalisées si possible)
         // Note: Il faudra peut-être adapter la normalisation car ce n'est pas un doc Mongoose
@@ -580,20 +584,21 @@ router.get('/:id', async (req, res) => {
           normalizedNativeUser.profilePicture = normalizedNativeUser.photo_url;
         } 
         // Ajouter d'autres normalisations si nécessaire
+        delete normalizedNativeUser.password; // Ensure password isn't sent
         return res.status(200).json(normalizedNativeUser);
       } else {
-        console.log(`\t[Native Driver] ❌ User not found in DB '${choiceAppDb.name}' using native findOne for ID: ${id}`);
+        console.log(`\t[Native Driver] \u274C User not found in DB '${choiceAppDb.name}' using native findOne for ID: ${id}`);
         // Si même le driver natif ne trouve rien ici, le problème est ailleurs (ou l'ID est vraiment incorrect malgré les apparences)
         return res.status(404).json({ message: 'Utilisateur non trouvé (échec Mongoose et Natif).' });
       }
     } catch (nativeError) {
-        console.error(`\t[Native Driver] ❌ Error during native findOne for ID ${id}:`, nativeError.message);
+        console.error(`\t[Native Driver] \u274C Error during native findOne for ID ${id}:`, nativeError.message);
         console.error(nativeError.stack);
         return res.status(500).json({ message: 'Erreur serveur lors de la recherche native.' });
     }
 
   } catch (error) {
-    console.error(`\t❌ GET /api/users/:id - General Server error for ID ${id}:`, error.message); 
+    console.error(`\t\u274C GET /api/users/:id - General Server error for ID ${id}:`, error.message); 
     console.error(error.stack); 
     res.status(500).json({ message: 'Erreur serveur générale.' });
   }
@@ -631,7 +636,7 @@ router.post('/conversations', async (req, res) => {
       
       // Mettre à jour les utilisateurs pour inclure cette conversation
       for (const userId of validParticipantIds) {
-        await UserChoice.findByIdAndUpdate(
+        await UserSchema.findByIdAndUpdate(
           userId,
           { $addToSet: { conversations: conversation._id } },
           { new: true }
@@ -665,7 +670,7 @@ router.get('/:id/conversations', async (req, res) => {
     }
     
     // Récupère l'utilisateur
-    const user = await UserChoice.findById(id);
+    const user = await UserSchema.findById(id);
     
     if (!user) {
       return res.status(404).json({ message: 'Utilisateur non trouvé.' });
@@ -695,7 +700,7 @@ router.get('/:id/conversations', async (req, res) => {
     
     for (const conv of conversations) {
       const participantIds = conv.participants || [];
-      const participants = await UserChoice.find({
+      const participants = await UserSchema.find({
         _id: { $in: participantIds }
       }).select('name profilePicture photo_url');
       
@@ -784,7 +789,7 @@ router.post('/conversations/:id/messages', async (req, res) => {
     console.log('Message ajouté avec succès à la conversation:', newMessage);
 
     // Mettre à jour l'utilisateur si la conversation est nouvelle
-    const sender = await UserChoice.findById(senderId);
+    const sender = await UserSchema.findById(senderId);
     if (sender && (!sender.conversations || !sender.conversations.includes(conversation._id))) {
       sender.conversations = sender.conversations || [];
       sender.conversations.push(conversation._id);
@@ -827,7 +832,7 @@ router.get('/conversations/:id/messages', async (req, res) => {
 
     // Récupérer les informations des expéditeurs
     const senderIds = [...new Set(conversation.messages.map(m => m.senderId))];
-    const senders = await UserChoice.find({
+    const senders = await UserSchema.find({
       _id: { $in: senderIds }
     }).select('_id name profilePicture photo_url');
 
@@ -919,7 +924,7 @@ router.post('/conversations/new-message', async (req, res) => {
     // Mettre à jour le champ `conversations` des utilisateurs concernés
     const updateUserConversations = async (userId) => {
       try {
-        await UserChoice.findByIdAndUpdate(
+        await UserSchema.findByIdAndUpdate(
           userId,
           { $addToSet: { conversations: conversation._id } }, // $addToSet évite les doublons
           { new: true }
@@ -967,13 +972,13 @@ router.post('/register', async (req, res) => {
     const { name, email, username, password } = req.body;
     
     // Vérification si l'email existe déjà
-    const emailExists = await UserChoice.findOne({ email });
+    const emailExists = await User.findOne({ email });
     if (emailExists) {
       return res.status(400).json({ error: 'Email déjà utilisé' });
     }
     
     // Vérification si le nom d'utilisateur existe déjà
-    const usernameExists = await UserChoice.findOne({ username });
+    const usernameExists = await User.findOne({ username });
     if (usernameExists) {
       return res.status(400).json({ error: 'Nom d\'utilisateur déjà utilisé' });
     }
@@ -983,7 +988,7 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
     
     // Création du nouvel utilisateur
-    const user = new UserChoice({
+    const user = new UserSchema({
       name,
       email,
       username,
@@ -1019,7 +1024,7 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     
     // Vérification si l'utilisateur existe
-    const user = await UserChoice.findOne({ email });
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ error: 'Email ou mot de passe incorrect' });
     }
@@ -1063,10 +1068,10 @@ router.post('/login', async (req, res) => {
 // Obtenir les suggestions d'utilisateurs
 router.get('/suggestions/users', auth, async (req, res) => {
   try {
-    const currentUser = await UserChoice.findById(req.user.id);
+    const currentUser = await UserSchema.findById(req.user.id);
     
     // Obtenir des utilisateurs qui ne sont pas déjà suivis
-    const suggestions = await UserChoice.find({
+    const suggestions = await UserSchema.find({
       _id: { $ne: req.user.id, $nin: currentUser.following },
     })
     .select('name username profilePicture bio')
@@ -1088,7 +1093,7 @@ router.get('/search/users', async (req, res) => {
       return res.status(400).json({ error: 'Requête de recherche requise' });
     }
     
-    const users = await UserChoice.find({
+    const users = await UserSchema.find({
       $or: [
         { name: { $regex: query, $options: 'i' } },
         { username: { $regex: query, $options: 'i' } },
@@ -1104,43 +1109,9 @@ router.get('/search/users', async (req, res) => {
   }
 });
 
-// GET /api/users/:userId/public-profile - Obtenir des informations publiques limitées d'un utilisateur
-router.get('/:userId/public-profile', auth, async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    if (!mongoose.isValidObjectId(userId)) {
-      return res.status(400).json({ error: 'ID utilisateur invalide' });
-    }
-
-    // Select only non-sensitive fields suitable for producer view
-    const user = await UserChoice.findById(userId).select(
-      'name profilePicture photo_url bio liked_tags sector_preferences' // Example fields
-    ).lean(); // Use lean() for plain object
-
-    if (!user) {
-      return res.status(404).json({ error: 'Utilisateur non trouvé' });
-    }
-
-    // Construct the public profile object
-    const publicProfile = {
-      id: user._id.toString(),
-      name: user.name || 'Utilisateur Anonyme', // Provide default
-      profilePicture: user.profilePicture || user.photo_url, // Handle multiple fields
-      bio: user.bio,
-      liked_tags: user.liked_tags || [], // Default to empty array
-      sector_preferences: user.sector_preferences, // Include preferences if available
-      // DO NOT include email, password, location, etc.
-    };
-
-    console.log(`✅ Public profile requested for user ${userId} by producer ${req.user.id}`);
-    res.status(200).json(publicProfile);
-
-  } catch (error) {
-    console.error('❌ Erreur lors de la récupération du profil public:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
+// GET /api/users/:userId/public-profile - Obtenir le profil public d'un utilisateur
+// Cette route n'est pas protégée par auth pour permettre l'accès public
+router.get('/:userId/public-profile', userController.getPublicProfile);
 
 // Fonction utilitaire pour normaliser les données utilisateur (replacée ici)
 const normalizeUser = (user) => {
@@ -1176,5 +1147,96 @@ const normalizeUsers = (users) => {
   if (!users) return [];
   return users.map(normalizeUser);
 };
+
+// PUT /api/users/stripe-customer-id - Mettre à jour l'ID client Stripe d'un utilisateur
+router.put('/stripe-customer-id', auth, async (req, res) => {
+  try {
+    const { stripeCustomerId } = req.body;
+    const userId = req.user.id;
+
+    if (!stripeCustomerId) {
+      return res.status(400).json({ error: 'L\'ID client Stripe est requis' });
+    }
+
+    // Mettre à jour l'utilisateur avec l'ID client Stripe
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { stripeCustomerId: stripeCustomerId },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'ID client Stripe mis à jour avec succès',
+      user: {
+        id: user._id,
+        email: user.email,
+        stripeCustomerId: user.stripeCustomerId
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de l\'ID client Stripe:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour de l\'ID client Stripe' });
+  }
+});
+
+// POST /api/users/:userId/favorite-choice - Définir le coup de cœur du mois de l'utilisateur
+router.post('/:userId/favorite-choice', auth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { choiceId, timestamp } = req.body;
+    
+    // Vérifier que l'utilisateur connecté est bien celui qui fait la demande
+    if (req.user.id !== userId) {
+      return res.status(403).json({ error: 'Non autorisé à modifier le coup de cœur d\'un autre utilisateur' });
+    }
+    
+    // Vérifier que choiceId est fourni
+    if (!choiceId) {
+      return res.status(400).json({ error: 'choiceId est requis' });
+    }
+    
+    // Trouver l'utilisateur
+    const user = await UserSchema.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+    
+    // Trouver le choice parmi les choices de l'utilisateur
+    const userChoices = user.choices || [];
+    const choiceIndex = userChoices.findIndex(choice => 
+      choice._id.toString() === choiceId || 
+      (choice.choiceId && choice.choiceId.toString() === choiceId)
+    );
+    
+    if (choiceIndex === -1) {
+      return res.status(404).json({ error: 'Choice non trouvé dans la liste des choices de l\'utilisateur' });
+    }
+    
+    // Récupérer le choice complet
+    const selectedChoice = userChoices[choiceIndex];
+    
+    // Mettre à jour le favoriteChoice de l'utilisateur
+    user.favoriteChoice = selectedChoice;
+    user.lastFavoriteChoiceTimestamp = timestamp || new Date().toISOString();
+    
+    // Sauvegarder les modifications
+    await user.save();
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Coup de cœur du mois mis à jour avec succès',
+      favoriteChoice: user.favoriteChoice,
+      lastFavoriteChoiceTimestamp: user.lastFavoriteChoiceTimestamp
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la définition du coup de cœur du mois:', error);
+    res.status(500).json({ error: 'Erreur serveur lors de la mise à jour du coup de cœur' });
+  }
+});
 
 module.exports = router;

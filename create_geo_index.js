@@ -1,6 +1,6 @@
 /**
- * Script pour créer un index géospatial sur le champ location.coordinates
- * dans la collection Users
+ * Script pour créer un index géospatial sur le champ location
+ * dans la collection Loisir_Paris_Evenements
  */
 
 const mongoose = require('mongoose');
@@ -15,45 +15,49 @@ async function createGeoSpatialIndex() {
     await mongoose.connect(MONGODB_URI);
     console.log('✅ Connecté à MongoDB');
     
-    // Utiliser la base de données choice_app
-    const db = mongoose.connection.useDb('choice_app');
+    // Utiliser la base de données Loisir&Culture
+    const db = mongoose.connection.useDb('Loisir&Culture');
     
-    // Accéder à la collection Users
-    const usersCollection = db.collection('Users');
+    // Accéder à la collection Loisir_Paris_Evenements
+    const collection = db.collection('Loisir_Paris_Evenements');
     
     // Vérifier si l'index existe déjà
-    const indexes = await usersCollection.indexes();
+    const indexes = await collection.indexes();
     const hasGeoIndex = indexes.some(index => 
-      index.key && index.key['location.coordinates'] === '2dsphere'
+      index.key && index.key['location'] === '2dsphere'
     );
     
     if (hasGeoIndex) {
-      console.log('✅ L\'index géospatial existe déjà');
+      console.log('✅ L\'index géospatial sur "location" existe déjà dans Loisir_Paris_Evenements');
     } else {
-      // Créer l'index géospatial
-      await usersCollection.createIndex(
-        { 'location.coordinates': '2dsphere' }, 
+      // Créer l'index géospatial sur le champ 'location'
+      await collection.createIndex(
+        { 'location': '2dsphere' },
         { name: 'location_2dsphere' }
       );
-      console.log('✅ Index géospatial créé avec succès');
+      console.log('✅ Index géospatial "location_2dsphere" créé avec succès sur Loisir_Paris_Evenements');
     }
     
     // Vérifier qu'un document a la bonne structure
-    const sampleUser = await usersCollection.findOne({});
-    if (sampleUser) {
-      console.log('Structure de l\'utilisateur sample:');
-      console.log('location:', sampleUser.location);
+    const sampleEvent = await collection.findOne({});
+    if (sampleEvent) {
+      console.log('Structure de l\'événement sample:');
+      console.log('location:', sampleEvent.location);
       
-      if (!sampleUser.location || !sampleUser.location.coordinates) {
-        console.log('⚠️ Attention: les utilisateurs ne semblent pas avoir le champ location.coordinates correctement défini');
-        console.log('Format attendu pour location dans MongoDB:');
+      if (!sampleEvent.location || !sampleEvent.location.coordinates || !Array.isArray(sampleEvent.location.coordinates) || sampleEvent.location.coordinates.length !== 2) {
+        console.log('⚠️ Attention: les événements ne semblent pas avoir le champ location correctement défini au format GeoJSON Point');
+        console.log('Format GeoJSON Point attendu pour location dans MongoDB:');
         console.log({
           location: {
             type: 'Point',
             coordinates: [longitude, latitude] // Tableau avec longitude d'abord, puis latitude
           }
         });
+      } else {
+        console.log('✅ La structure du champ "location" semble correcte.');
       }
+    } else {
+      console.log('ℹ️ Aucun événement trouvé pour vérifier la structure.');
     }
     
   } catch (error) {

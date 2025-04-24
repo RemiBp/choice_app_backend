@@ -1,5 +1,12 @@
 const jwt = require('jsonwebtoken');
 
+const JWT_SECRET_KEY = process.env.JWT_SECRET || 'default_jwt_secret';
+
+// Log a warning if the default secret is being used
+if (JWT_SECRET_KEY === 'default_jwt_secret') {
+  console.warn('⚠️ WARNING: Using default JWT secret. Set JWT_SECRET environment variable for production!');
+}
+
 /**
  * Middleware d'authentification
  * Vérifie que le token JWT fourni dans l'en-tête 'Authorization' est valide
@@ -14,15 +21,22 @@ const authenticateJWT = async (req, res, next) => {
     }
     
     // Vérifier le token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret');
+    console.log(`🔑 Verifying token using secret starting with: ${JWT_SECRET_KEY.substring(0, 5)}...`);
+    const decoded = jwt.verify(token, JWT_SECRET_KEY);
     
     // Ajouter TOUTES les données utilisateur décodées à l'objet req
     req.user = decoded;
     
     next();
   } catch (error) {
-    console.error('Erreur d\'authentification:', error);
-    res.status(401).json({ error: 'Token invalide ou expiré' });
+    console.error('Erreur d\'authentification:', error.name, error.message);
+    if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({ error: 'Token invalide (signature)' });
+    } else if (error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ error: 'Token expiré' });
+    } else {
+      return res.status(401).json({ error: 'Token invalide ou problème d\'authentification' });
+    }
   }
 };
 
