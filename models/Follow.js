@@ -1,39 +1,37 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-const FollowSchema = new Schema({
+const followSchema = new Schema({
     followerId: {
-        type: Schema.Types.ObjectId, // ID of the user/producer doing the following
+        type: Schema.Types.ObjectId,
         required: true,
-        index: true
+        refPath: 'followerType' // Ref vers User ou Producer (selon le type)
     },
     followerType: {
-        type: String, // Type: 'User', 'RestaurantProducer', 'LeisureProducer', 'BeautyProducer'
+        type: String,
         required: true,
-        enum: ['User', 'RestaurantProducer', 'LeisureProducer', 'BeautyProducer']
+        enum: ['User', 'Producer', 'LeisureProducer'] // Removed 'BeautyProducer'
     },
-    followingId: {
-        type: Schema.Types.ObjectId, // ID of the user/producer being followed
+    followedId: {
+        type: Schema.Types.ObjectId,
         required: true,
-        index: true
+        refPath: 'followedType' // Ref vers User ou Producer
     },
-    followingType: {
-        type: String, // Type: 'User', 'RestaurantProducer', 'LeisureProducer', 'BeautyProducer'
+    followedType: {
+        type: String,
         required: true,
-        enum: ['User', 'RestaurantProducer', 'LeisureProducer', 'BeautyProducer']
+        enum: ['User', 'Producer', 'LeisureProducer', 'WellnessPlace'] // Use WellnessPlace, Removed 'BeautyProducer'
     },
     createdAt: {
         type: Date,
         default: Date.now
     }
-});
+}, { timestamps: true });
 
-// Ensure a user/producer can only follow another entity once
-FollowSchema.index({ followerId: 1, followingId: 1 }, { unique: true });
+// Index pour optimiser les recherches courantes
+followSchema.index({ followerId: 1, followedId: 1 }, { unique: true });
+followSchema.index({ followedId: 1 });
 
-// Explicitly create the model on the 'choice_app' database connection
-// Assuming you have a connection object named 'choiceAppDb' available
-// If not, adjust this part based on how you manage DB connections.
-// For now, we'll use the default mongoose connection.
-// Consider centralizing model creation like in your 'modelCreator' util if applicable.
-module.exports = mongoose.model('Follow', FollowSchema); 
+module.exports = (connection) => {
+    return connection.model('Follow', followSchema);
+}; 

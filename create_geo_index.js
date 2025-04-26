@@ -7,7 +7,13 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 
 // URL de connexion MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/choice_app';
+const ATLAS_URI = 'mongodb+srv://remibarbier:Calvi8Pierc2@lieuxrestauration.szq31.mongodb.net/?retryWrites=true&w=majority&appName=lieuxrestauration'; // Direct Atlas URI
+const LOCAL_URI = 'mongodb://localhost:27017/choice_app'; // Default local URI
+
+// Use Atlas URI if MONGODB_URI env var is not set or is empty
+const MONGODB_URI = process.env.MONGODB_URI || ATLAS_URI;
+
+console.log(`🔌 Tentative de connexion à: ${MONGODB_URI === ATLAS_URI ? 'Atlas (URI directe)' : 'URI depuis env'}`);
 
 async function createGeoSpatialIndex() {
   try {
@@ -15,37 +21,61 @@ async function createGeoSpatialIndex() {
     await mongoose.connect(MONGODB_URI);
     console.log('✅ Connecté à MongoDB');
     
+    // --- 1. Index pour Loisir_Paris_Evenements --- 
     // Utiliser la base de données Loisir&Culture
-    const db = mongoose.connection.useDb('Loisir&Culture');
+    const loisirDb = mongoose.connection.useDb('Loisir&Culture');
+    const eventsCollection = loisirDb.collection('Loisir_Paris_Evenements');
     
-    // Accéder à la collection Loisir_Paris_Evenements
-    const collection = db.collection('Loisir_Paris_Evenements');
-    
-    // Vérifier si l'index existe déjà
-    const indexes = await collection.indexes();
-    const hasGeoIndex = indexes.some(index => 
+    // Vérifier si l'index existe déjà pour les événements
+    const eventIndexes = await eventsCollection.indexes();
+    const hasEventGeoIndex = eventIndexes.some(index => 
       index.key && index.key['location'] === '2dsphere'
     );
     
-    if (hasGeoIndex) {
-      console.log('✅ L\'index géospatial sur "location" existe déjà dans Loisir_Paris_Evenements');
+    if (hasEventGeoIndex) {
+      console.log('✅ [Events] L\'index géospatial sur "location" existe déjà dans Loisir_Paris_Evenements');
     } else {
-      // Créer l'index géospatial sur le champ 'location'
-      await collection.createIndex(
+      await eventsCollection.createIndex(
         { 'location': '2dsphere' },
-        { name: 'location_2dsphere' }
+        { name: 'location_2dsphere_events' }
       );
-      console.log('✅ Index géospatial "location_2dsphere" créé avec succès sur Loisir_Paris_Evenements');
+      console.log('✅ [Events] Index géospatial "location_2dsphere_events" créé avec succès sur Loisir_Paris_Evenements');
     }
     
-    // Vérifier qu'un document a la bonne structure
-    const sampleEvent = await collection.findOne({});
+    // --- 2. Index pour Posts --- 
+    // Utiliser la base de données CHOICE_APP
+    const appDb = mongoose.connection.useDb('choice_app'); // Assurez-vous que c'est le bon nom de DB
+    const postsCollection = appDb.collection('Posts'); // Assurez-vous que c'est le bon nom de collection
+    
+    // Vérifier si l'index existe déjà pour les posts
+    const postIndexes = await postsCollection.indexes();
+    const hasPostGeoIndex = postIndexes.some(index => 
+      // Vérifiez le nom exact du champ de localisation dans vos posts (ex: 'location', 'coordinates', 'geometry.location')
+      index.key && (index.key['location'] === '2dsphere' || index.key['gps_coordinates'] === '2dsphere' || index.key['geometry.location'] === '2dsphere') 
+    );
+    
+    // **Important**: Assurez-vous que le champ indexé ci-dessous ('location')
+    // est bien celui qui contient vos coordonnées GeoJSON dans la collection Posts.
+    const postLocationField = 'location'; // MODIFIEZ SI NECESSAIRE (ex: 'gps_coordinates', 'geometry.location')
+    
+    if (hasPostGeoIndex) {
+      console.log(`✅ [Posts] L\'index géospatial sur "${postLocationField}" semble déjà exister dans Posts`);
+    } else {
+      await postsCollection.createIndex(
+        { [postLocationField]: '2dsphere' }, // Utilisation de la variable pour le nom du champ
+        { name: `${postLocationField}_2dsphere_posts` }
+      );
+      console.log(`✅ [Posts] Index géospatial "${postLocationField}_2dsphere_posts" créé avec succès sur Posts`);
+    }
+
+    // --- Vérification optionnelle de la structure des données (pour les événements) ---
+    const sampleEvent = await eventsCollection.findOne({});
     if (sampleEvent) {
-      console.log('Structure de l\'événement sample:');
+      console.log('[Events] Structure de l\'événement sample:');
       console.log('location:', sampleEvent.location);
       
       if (!sampleEvent.location || !sampleEvent.location.coordinates || !Array.isArray(sampleEvent.location.coordinates) || sampleEvent.location.coordinates.length !== 2) {
-        console.log('⚠️ Attention: les événements ne semblent pas avoir le champ location correctement défini au format GeoJSON Point');
+        console.log('⚠️ [Events] Attention: les événements ne semblent pas avoir le champ location correctement défini au format GeoJSON Point');
         console.log('Format GeoJSON Point attendu pour location dans MongoDB:');
         console.log({
           location: {
@@ -54,10 +84,10 @@ async function createGeoSpatialIndex() {
           }
         });
       } else {
-        console.log('✅ La structure du champ "location" semble correcte.');
+        console.log('✅ [Events] La structure du champ "location" semble correcte.');
       }
     } else {
-      console.log('ℹ️ Aucun événement trouvé pour vérifier la structure.');
+      console.log('ℹ️ [Events] Aucun événement trouvé pour vérifier la structure.');
     }
     
   } catch (error) {

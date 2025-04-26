@@ -2,9 +2,15 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const { createModel, databases } = require('../utils/modelCreator');
+const { requireAuth } = require('../middleware/authMiddleware'); // <-- IMPORT REAL AUTH
 
 // Importer le modèle Follow
 const Follow = require('../models/Follow')(mongoose.connection.useDb(databases.CHOICE_APP)); // Assurer la connexion à la bonne DB
+
+// Importer les modèles nécessaires au début du fichier si ce n'est pas déjà fait
+const Producer = require('../models/Producer')(mongoose.connection.useDb(databases.RESTAURATION)); // Assumer Restauration par défaut
+const LeisureProducer = require('../models/leisureProducer')(mongoose.connection.useDb(databases.LOISIR));
+const WellnessPlace = require('../models/WellnessPlace')(mongoose.connection.useDb(databases.BEAUTY_WELLNESS));
 
 // Initialiser les modèles avec l'utilitaire
 const Post = createModel(
@@ -12,12 +18,6 @@ const Post = createModel(
   'Post',
   'Posts'
 );
-
-// Middleware d'authentification (à implémenter si nécessaire)
-const auth = async (req, res, next) => {
-  // Ajouter l'authentification si nécessaire
-  next();
-};
 
 // Importer la fonction d'enrichissement de posts depuis posts.js
 // Cette fonction est supposée être la même que dans posts.js
@@ -170,282 +170,372 @@ async function enrichPostWithAuthorInfo(post) {
 }
 
 // GET /:producerId - Obtenir le feed principal d'un producteur
-router.get('/:producerId', auth, async (req, res) => {
+router.get('/:producerId', requireAuth, async (req, res) => {
   try {
-    const producerIdParam = req.params.producerId; // Renommer pour clarté
-    // Récupérer le type de producteur ET le filtre depuis les query params
-    const { page = 1, limit = 10, filter = 'venue', producerType = 'restaurant' } = req.query; 
+    const producerIdParam = req.params.producerId; // ID du profil consulté (peut être le même que l'utilisateur connecté)
+    const loggedInUserId = req.user?.id; // ID de l'utilisateur/producteur connecté
+    const { page = 1, limit = 10, filter = 'venue', producerType: loggedInProducerType = 'restaurant' } = req.query; // Type du producteur connecté
     const skip = (parseInt(page) - 1) * parseInt(limit);
+    const numericLimit = parseInt(limit);
+    const fetchLimit = Math.ceil(numericLimit * 1.5); // Fetch more for diversification
 
-    console.log(`🏪 [Producer Feed Request] ID: ${producerIdParam}, Filter: ${filter}, Page: ${page}, Limit: ${limit}, ProducerType: ${producerType}`);
+    console.log(`🏪 [Producer Feed Request] Profile ID: ${producerIdParam}, Filter: ${filter}, Page: ${page}, Limit: ${limit}, LoggedIn UserID: ${loggedInUserId}, LoggedIn Type: ${loggedInProducerType}`);
 
-    let query = {};
-    let posts = [];
-    let total = 0;
-    let operationSuccessful = true; // Flag pour suivre si une opération échoue
+    let aggregationPipeline = [];
+    let initialMatch = {};
+    let sortBy = { score: -1, posted_at: -1 };
+    let operationSuccessful = true;
+    let loggedInProducerCoords = null;
+    let likedPostIds = [];
+    let interestedTargetIds = [];
+    let loggedInProducerProfileTags = []; // Declare with default value here
 
-    // Essayer de convertir en ObjectId, sinon utiliser la string
-    let producerObjectId;
-    try {
-      producerObjectId = new mongoose.Types.ObjectId(producerIdParam);
-    } catch (e) {
-      console.warn(`⚠️ [Producer Feed] Could not convert producerId ${producerIdParam} to ObjectId, using as string.`);
-      producerObjectId = producerIdParam; // Utiliser la string si la conversion échoue
+    // --- Fetch Logged-in Producer Context (Location, Likes, Interests) ---
+    if (loggedInUserId) {
+      try {
+        let LoggedInProducerModel;
+        let dbConnection;
+        // Select model and connection based on loggedInProducerType
+        if (loggedInProducerType === 'leisure') {
+            LoggedInProducerModel = LeisureProducer;
+            dbConnection = mongoose.connection.useDb(databases.LOISIR);
+        } else if (loggedInProducerType === 'wellness') {
+            LoggedInProducerModel = WellnessPlace;
+            dbConnection = mongoose.connection.useDb(databases.BEAUTY_WELLNESS);
+        } else {
+            LoggedInProducerModel = Producer;
+            dbConnection = mongoose.connection.useDb(databases.RESTAURATION);
+        }
+        // Ensure model registration
+        if (!dbConnection.models[LoggedInProducerModel.modelName]) {
+             dbConnection.model(LoggedInProducerModel.modelName, LoggedInProducerModel.schema);
+        }
+        LoggedInProducerModel = dbConnection.model(LoggedInProducerModel.modelName);
+        
+        let loggedInProducerObjectId;
+         try { loggedInProducerObjectId = new mongoose.Types.ObjectId(loggedInUserId); } catch (e) { loggedInProducerObjectId = loggedInUserId; }
+
+        // Fetch location AND profile data (e.g., types, category)
+        const producerData = await LoggedInProducerModel.findById(loggedInProducerObjectId)
+                                   .select('location.coordinates gps_coordinates geometry.location types category cuisine_type specialties') 
+                                   .lean();
+        
+        if (producerData) {
+            // Find coordinates from available fields
+            if (producerData.location?.coordinates?.length === 2) {
+                loggedInProducerCoords = producerData.location.coordinates;
+            } else if (producerData.gps_coordinates?.coordinates?.length === 2) {
+                 loggedInProducerCoords = producerData.gps_coordinates.coordinates;
+            } else if (producerData.geometry?.location?.coordinates?.length === 2) { // Check geometry format
+                 loggedInProducerCoords = producerData.geometry.location.coordinates;
+            }
+             console.log(`[Producer Feed] Logged-in producer coords: ${loggedInProducerCoords}`);
+             
+             // Extract profile tags/categories
+             if (producerData.types) loggedInProducerProfileTags.push(...producerData.types);
+             if (producerData.category) loggedInProducerProfileTags.push(...(Array.isArray(producerData.category) ? producerData.category : [producerData.category]));
+             if (producerData.cuisine_type) loggedInProducerProfileTags.push(...producerData.cuisine_type);
+             if (producerData.specialties) loggedInProducerProfileTags.push(...producerData.specialties);
+             // Simple deduplication and cleanup
+             loggedInProducerProfileTags = [...new Set(loggedInProducerProfileTags)].map(tag => tag.toLowerCase().trim()).filter(Boolean);
+             console.log(`[Producer Feed] Logged-in producer profile tags/categories: ${loggedInProducerProfileTags.join(', ')}`);
+
+        } else {
+            console.warn(`[Producer Feed] Could not find logged-in producer data for ID: ${loggedInUserId} (Type: ${loggedInProducerType})`);
+        }
+
+        // Fetch IDs of posts liked by the logged-in user
+        try {
+            const likedPosts = await Post.find({ likes: loggedInProducerObjectId }).select('_id').lean();
+            likedPostIds = likedPosts.map(p => p._id); // Array of ObjectIds
+            console.log(`[Producer Feed] Logged-in user ${loggedInUserId} liked ${likedPostIds.length} posts.`);
+        } catch (likeError) {
+            console.error(`[Producer Feed] Error fetching liked posts for user ${loggedInUserId}:`, likeError);
+        }
+
+      } catch (contextError) {
+        console.error(`[Producer Feed] Error fetching context for logged-in user ${loggedInUserId}:`, contextError);
+      }
     }
+    // --- End Fetch Context ---
 
-    // Construire la requête en fonction du filtre
+    // --- Définition du Pipeline d'Agrégation --- 
+    // 1. Filtre Initial ($match) - Basé sur le filtre et producerIdParam
+    // (La logique du switch reste similaire, utilisant producerIdParam pour le contexte du filtre)
     switch (filter) {
       case 'venue':
-        // Posts spécifiques à l'établissement (plus robuste)
-        console.log(`[Producer Feed] Building 'venue' query for producerId: ${producerObjectId}, Type: ${producerType}`);
-        query = {
-          // L'établissement doit correspondre
-          $or: [
-            { producer_id: producerObjectId }, // Comparaison ObjectId
-            { producerId: producerObjectId }, // Comparaison ObjectId (compatibilité)
-            { producer_id: producerIdParam }, // Comparaison String (fallback)
-            { producerId: producerIdParam } // Comparaison String (fallback)
-          ],
-          // ET le type doit correspondre (si fourni et non 'user')
-          ...(producerType && producerType !== 'user' && { 
-              $or: [
-                 { producer_type: producerType },
-                 { producerType: producerType }
-              ]
-          })
-        };
+        // Filtre pour "Mon lieu" : posts créés par ce producteur
+        initialMatch = { 
+            $or: [
+                // Convertir producerIdParam en ObjectId si possible pour le match
+                { producer_id: mongoose.Types.ObjectId.isValid(producerIdParam) ? new mongoose.Types.ObjectId(producerIdParam) : producerIdParam }, 
+                { producerId: producerIdParam } // Garder la version string pour compatibilité
+            ]
+         };
+        console.log(`[Producer Feed] Filter 'venue': Matching posts for producer ${producerIdParam}`);
         break;
-
       case 'interactions':
-        // Posts d'utilisateurs mentionnant l'établissement
-        console.log(`[Producer Feed] Building 'interactions' query for producerId: ${producerObjectId}`);
-        query = {
+        initialMatch = {
           $and: [
-            // Post créé par un utilisateur (non-producteur)
-            { user_id: { $exists: true, $ne: null } }, // Ensure user_id exists and is not null
-            // Qui mentionne ce producteur (plus robuste)
-            {
-              $or: [
-                { mentions: producerObjectId },
-                { mentions: producerIdParam },
-                { target_id: producerObjectId },
-                { targetId: producerObjectId },
-                { target_id: producerIdParam },
-                { targetId: producerIdParam },
-                // Include posts where the producer is referenced directly (less common for interactions)
-                // { producer_id: producerObjectId },
-                // { producerId: producerObjectId },
-                // { producer_id: producerIdParam },
-                // { producerId: producerIdParam }
-              ]
-            }
+            { user_id: { $exists: true } }, // Posts d'utilisateurs
+            // Mentionnant ce producer (assurer la conversion en ObjectId si pertinent)
+            { $or: [
+                { mentions: producerIdParam }, 
+                { target_id: producerIdParam }, 
+                { targetId: producerIdParam }, 
+                { producer_id: mongoose.Types.ObjectId.isValid(producerIdParam) ? new mongoose.Types.ObjectId(producerIdParam) : producerIdParam }, 
+                { producerId: producerIdParam }
+             ] }
           ]
         };
         break;
-
-      case 'localTrends':
-        // Tendances locales (posts populaires dans la même zone)
-        console.log(`[Producer Feed] Building 'localTrends' query for producerId: ${producerObjectId}`);
-        try {
-          // D'abord récupérer les infos du producteur pour connaître sa localisation
-          // Essayer différentes DBs si nécessaire, en fonction du type
-          let producerLocationDb;
-          let producerLocationCollectionName;
-          if (producerType === 'leisure') {
-            producerLocationDb = mongoose.connection.useDb(databases.LOISIR);
-            producerLocationCollectionName = 'Loisir_Paris_Producers';
-          } else if (producerType === 'wellness') {
-            producerLocationDb = mongoose.connection.useDb(databases.BEAUTY_WELLNESS);
-            producerLocationCollectionName = 'Beauty_Wellness_Producers';
-          } else { // Default restaurant
-            producerLocationDb = mongoose.connection.useDb(databases.RESTAURATION);
-            producerLocationCollectionName = 'Producers';
-          }
-          
-          const producerCollection = producerLocationDb.collection(producerLocationCollectionName);
-          const producer = await producerCollection.findOne({ _id: producerObjectId });
-
-          if (producer && producer.location && producer.location.coordinates && producer.location.coordinates.length === 2) {
-            // Construire une requête géospatiale si coordonnées valides
-            const { coordinates } = producer.location;
-            const [longitude, latitude] = coordinates;
-            console.log(`[Producer Feed] Found producer location: [${longitude}, ${latitude}]`);
-
-            // Assurer l'index géospatial (normalement fait une seule fois)
-             try {
-               await Post.collection.createIndex({ "location.coordinates": "2dsphere" });
-             } catch (indexError) {
-               if (indexError.codeName !== 'IndexOptionsConflict' && indexError.codeName !== 'IndexAlreadyExists') {
-                 console.warn(`[Producer Feed] Could not ensure 2dsphere index: ${indexError.message}`);
-               }
-             }
-
-            query = {
-              "location.coordinates": {
-                $nearSphere: { // Utiliser $nearSphere pour une meilleure précision sur la sphère terrestre
-                  $geometry: {
-                    type: "Point",
-                    coordinates: [longitude, latitude]
-                  },
-                  $maxDistance: 5000 // 5km en mètres
-                }
-              }
-            };
-          } else {
-            console.warn(`[Producer Feed] Producer location not found or invalid for ${producerObjectId}. Falling back to recent/popular.`);
-            // Fallback: posts les plus récents/populaires si pas de localisation
-            query = {}; // Tous les posts, triés par popularité ci-dessous
-          }
-        } catch (locationError) {
-            console.error(`[Producer Feed] Error fetching producer location for trends: ${locationError}. Falling back.`);
-            query = {}; // Fallback en cas d'erreur
-        }
-        break;
-
       case 'followers':
-        // NOUVEAU: Posts des comptes SUIVIS par le producteur
-        console.log(`[Producer Feed] Building 'followers' query for producerId: ${producerObjectId} (type: ${producerType})`);
-
+        console.log(`[Producer Feed] Filter 'followers': Fetching followed users for producer ${producerIdParam} (type: ${loggedInProducerType})`);
+        let followingIds = [];
         try {
-          // Utiliser l'ObjectId déjà géré (producerObjectId)
-          // Trouver les enregistrements où ce producteur est le follower
-          const followRecords = await Follow.find({
-            followerId: producerObjectId, // Utiliser l'ObjectId
-            // Assurer que le type correspond, même si le modèle Follow ne l'utilise pas toujours
-            // followerType: producerType 
-          }).lean(); // lean() pour performance
-
-          if (!followRecords || followRecords.length === 0) {
-            console.log(`[Producer Feed] Producteur ${producerObjectId} (type ${producerType}) ne suit personne ou enregistrements non trouvés.`);
-            posts = [];
-            total = 0;
-            operationSuccessful = false; // Marquer comme échoué pour ne pas exécuter la requête Post.find vide
-          } else {
-            // Extraire les IDs des comptes suivis (peuvent être des Users ou des Producers)
-            const followedIds = followRecords.map(record => record.followingId);
-            console.log(`[Producer Feed] ${followedIds.length} comptes suivis trouvés pour ${producerObjectId}`);
-            if (followedIds.length === 0) {
-                operationSuccessful = false; // Si la liste est vide après map
-            } else {
-                // Construire la requête pour trouver les posts de ces comptes
-                // Inclure à la fois les posts d'utilisateurs et de producteurs suivis
-                query = {
-                  $or: [
-                    { user_id: { $in: followedIds } }, // Posts d'utilisateurs suivis
-                    { producer_id: { $in: followedIds } } // Posts de producteurs suivis
-                  ]
-                };
-                // La requête sera exécutée plus bas
+            let TargetProducerModel;
+            let dbConnection;
+            // Sélectionner le bon modèle et la bonne connexion DB
+            if (loggedInProducerType === 'leisure') {
+              TargetProducerModel = LeisureProducer;
+              dbConnection = mongoose.connection.useDb(databases.LOISIR);
+            } else if (loggedInProducerType === 'wellness') {
+              TargetProducerModel = WellnessPlace;
+              dbConnection = mongoose.connection.useDb(databases.BEAUTY_WELLNESS);
+            } else { // 'restaurant' ou par défaut
+              TargetProducerModel = Producer;
+              dbConnection = mongoose.connection.useDb(databases.RESTAURATION);
             }
-          }
-        } catch (followError) {
-            console.error(`[Producer Feed] Error fetching follow records for ${producerObjectId}: ${followError}`);
-            posts = [];
-            total = 0;
+            
+            // S'assurer que le modèle est bien enregistré sur la connexion
+            if (!dbConnection.models[TargetProducerModel.modelName]) {
+                 console.warn(`Model ${TargetProducerModel.modelName} was not registered on DB ${dbConnection.name}. Re-registering.`);
+                 dbConnection.model(TargetProducerModel.modelName, TargetProducerModel.schema);
+            }
+            TargetProducerModel = dbConnection.model(TargetProducerModel.modelName);
+
+            let producerObjectId;
+            try {
+              producerObjectId = new mongoose.Types.ObjectId(producerIdParam);
+            } catch(e) {
+              producerObjectId = producerIdParam;
+            }
+
+            // Récupérer le producteur et ses 'following'
+            const producerDoc = await TargetProducerModel.findById(producerObjectId).select('following').lean();
+
+            if (!producerDoc || !producerDoc.following || !Array.isArray(producerDoc.following.users) || producerDoc.following.users.length === 0) {
+              console.log(`[Producer Feed] Producer ${producerObjectId} (type ${loggedInProducerType}) not found or is not following anyone.`);
+              operationSuccessful = false; // Pas d'ID à chercher, le feed sera vide
+            } else {
+              followingIds = producerDoc.following.users; // Array of user ObjectIds
+              console.log(`[Producer Feed] Found ${followingIds.length} followed user IDs for producer ${producerObjectId}.`);
+              initialMatch = {
+                user_id: { $in: followingIds } // Match posts where user_id is in the list of followed users
+              };
+            }
+        } catch (error) {
+            console.error(`[Producer Feed] Error fetching producer's following list for ${producerIdParam} (type ${loggedInProducerType}):`, error);
             operationSuccessful = false;
         }
-        break; // Fin du case 'followers'
-
-      case 'wellnessInspiration':
-        // NOUVEAU: Posts d'inspiration bien-être généraux
-        console.log(`[Producer Feed] Building 'wellnessInspiration' query.`);
-        query = {
-          $or: [
-            { producer_type: 'wellness' }, // Posts marqués comme wellness
-            { producerType: 'wellness' },
-            { tags: { $in: ['wellness', 'bien-être', 'spa', 'yoga', 'meditation', 'fitness'] } } // Ou contenant des tags pertinents
-          ]
-          // Optionnel: Exclure les posts de ce producteur ?
-          // $nor: [
-          //   { producer_id: producerObjectId },
-          //   { producerId: producerObjectId },
-          //   { producer_id: producerIdParam }, 
-          //   { producerId: producerIdParam } 
-          // ]
-        };
-        // Le tri par date récente est appliqué plus bas
-        operationSuccessful = true; // Assurer que la requête s'exécute
-        break; 
-
-      default:
-        // Par défaut, renvoyer les posts de l'établissement (venue)
-        console.log(`[Producer Feed] Defaulting to 'venue' query for producerId: ${producerObjectId}, Type: ${producerType}`);
-        query = {
-          $or: [
-            { producer_id: producerObjectId },
-            { producerId: producerObjectId },
-            { producer_id: producerIdParam }, // Fallback string
-            { producerId: producerIdParam } // Fallback string
-          ],
-          // ET le type doit correspondre (si fourni et non 'user')
-          ...(producerType && producerType !== 'user' && { 
-              $or: [
-                 { producer_type: producerType },
-                 { producerType: producerType }
-              ]
-          })
-        };
-    }
-
-    // Exécuter la requête et récupérer les posts (si l'opération précédente a réussi)
-    if (operationSuccessful) {
-        console.log('[Producer Feed] Executing query:', JSON.stringify(query));
-        
-        if (filter === 'localTrends') {
-          // Trier les tendances par popularité (si possible, ajouter d'autres métriques)
-          // Assurer l'existence de ces champs ou utiliser $size pour les arrays
-          posts = await Post.find(query)
-            .sort({ 
-              // Tentative de tri par popularité (peut nécessiter des champs dénormalisés comme likes_count)
-              // 'likes_count': -1, 
-              // 'comments_count': -1, 
-              'posted_at': -1, // Tri principal par date récente
-              'createdAt': -1 
-            })
-            .skip(skip)
-            .limit(parseInt(limit));
-          total = await Post.countDocuments(query);
+        break;
+      case 'localTrends':
+        // Pas de $match initial, $geoNear est ajouté plus bas
+        if (!loggedInProducerCoords) {
+            console.warn("[Producer Feed] Cannot apply 'localTrends' filter: Logged-in producer coordinates not available. Falling back to general feed.");
+            // Option: Fallback to a default match or remove geoNear stage
         } else {
-          // Trier les autres filtres par date
-          posts = await Post.find(query)
-            .sort({ posted_at: -1, createdAt: -1 }) // Tri par date de post ou de création
-            .skip(skip)
-            .limit(parseInt(limit));
-          total = await Post.countDocuments(query);
+             sortBy = { score: -1, distance: 1 }; // Sort by score, then proximity
         }
-        
-        console.log(`[Producer Feed] Found ${posts.length} raw posts (Total potential: ${total}).`);
-
-        // Normaliser les posts et ajouter les informations d'auteur
-        const normalizedPostsPromises = posts.map(post => enrichPostWithAuthorInfo(post)); // Utiliser la fonction locale
-        const normalizedPosts = (await Promise.all(normalizedPostsPromises)).filter(p => p !== null); // Filtrer les posts qui n'ont pas pu être enrichis
-
-        console.log(`[Producer Feed] Successfully enriched ${normalizedPosts.length} posts.`);
-
-        res.status(200).json({
-          // S'assurer que la clé est 'posts' comme attendu par l'ancien code (si nécessaire)
-          // ou 'items' si la standardisation de fetchFeed est préférée partout
-          items: normalizedPosts, // Utiliser 'items' pour cohérence avec fetchFeed
-          posts: normalizedPosts, // Garder 'posts' pour rétrocompatibilité si nécessaire
-          totalPages: Math.ceil(total / parseInt(limit)),
-          currentPage: parseInt(page),
-          total,
-          hasMore: (parseInt(page) * parseInt(limit)) < total // Calculer hasMore
-        });
-    } else {
-        // Si operationSuccessful est false (ex: le producteur ne suit personne)
-        console.log(`[Producer Feed] Operation unsuccessful for filter '${filter}'. Returning empty feed.`);
-        res.status(200).json({
-          items: [],
-          posts: [],
-          totalPages: 0,
-          currentPage: parseInt(page),
-          total: 0,
-          hasMore: false
-        });
+        break;
+      // Ajoutez d'autres cas...
+      default:
+        if (loggedInProducerType && loggedInProducerType !== 'user') {
+           initialMatch = { $or: [{ producer_type: loggedInProducerType }, { producerType: loggedInProducerType }] };
+        }
+        break;
     }
+    
+    // Si une étape critique a échoué (ex: impossible de trouver les followers), ne pas continuer l'agrégation
+    if (!operationSuccessful) {
+        console.log('[Producer Feed] Operation marked as unsuccessful. Returning empty feed.');
+        return res.status(200).json({ posts: [], items: [], totalPages: 0, currentPage: parseInt(page), total: 0, hasMore: false });
+    }
+
+    // Ajouter le $match initial au pipeline s'il n'est pas vide
+    if (Object.keys(initialMatch).length > 0) {
+        aggregationPipeline.push({ $match: initialMatch });
+    }
+    
+    // 3. Calcul des Scores ($addFields)
+    aggregationPipeline.push({
+      $addFields: {
+        recencyScore: {
+            $divide: [
+                1,
+                { $add: [1, { $divide: [{ $subtract: [new Date(), "$posted_at"] }, 1000 * 60 * 60 * 24] }] } // Divise par nb jours
+            ]
+        },
+        popularityScore: {
+           $cond: { 
+              if: { $isArray: "$likes" }, 
+              then: { $size: "$likes" }, 
+              else: 0 
+           }
+        },
+        interactionScore: {
+           $cond: {
+              if: { $in: ["$_id", likedPostIds] }, // Check if current post ID is in the liked list
+              then: 1,
+              else: 0
+           }
+        },
+        // Nouveau: Score de pertinence thématique
+        relevanceScore: {
+           $let: {
+              vars: {
+                 // Convertir les tags/catégories du post en minuscules et s'assurer que c'est un tableau
+                 postTags: { 
+                     $map: { 
+                         input: { $ifNull: [ { $cond: { if: { $isArray: "$tags" }, then: "$tags", else: [] } }, [] ] }, 
+                         as: "tag", 
+                         in: { $toLower: "$$tag" } 
+                     }
+                  },
+                 postCategories: { 
+                      $map: { 
+                          input: { $ifNull: [ { $cond: { if: { $isArray: "$categories" }, then: "$categories", else: [] } }, [] ] }, 
+                          as: "cat", 
+                          in: { $toLower: "$$cat" } 
+                      }
+                  }
+              },
+              in: {
+                 // Calculer l'intersection entre les tags/catégories du post et ceux du profil producteur
+                 $size: { 
+                    $filter: { 
+                        input: "$$postTags", 
+                        as: "postTag",
+                        cond: { $in: ["$$postTag", loggedInProducerProfileTags] } // Now always defined
+                    }
+                 } 
+              }
+           }
+        }
+      }
+    });
+    
+    // 4. Calcul du Score Final Pondéré ($addFields) - Inclure relevanceScore
+    let weights = { recency: 0.4, popularity: 0.2, interaction: 0.1, relevance: 0.3 }; 
+    if (filter === 'localTrends') {
+        // Weights for localTrends without location
+        weights = { recency: 0.4, popularity: 0.2, interaction: 0.1, relevance: 0.3 }; 
+    } 
+    
+    aggregationPipeline.push({
+        $addFields: {
+            score: {
+                $add: [
+                    { $multiply: ["$recencyScore", weights.recency || 0] },
+                    { $multiply: ["$popularityScore", weights.popularity || 0] },
+                    { $multiply: ["$interactionScore", weights.interaction || 0] },
+                    { $multiply: ["$relevanceScore", weights.relevance || 0] } 
+                ]
+            }
+        }
+    });
+
+    // 5. Tri ($sort) - Adjusted for removed distance
+    // Default sort is by score then recency
+    sortBy = { score: -1, posted_at: -1 }; 
+    aggregationPipeline.push({ $sort: sortBy });
+
+    // 6. Pagination - Récupérer PLUS de posts pour la diversification
+    aggregationPipeline.push({ $skip: skip });
+    aggregationPipeline.push({ $limit: fetchLimit }); // Utiliser fetchLimit
+    
+    // --- Exécution du Pipeline --- 
+    console.log("[Producer Feed] Executing Aggregation Pipeline:", JSON.stringify(aggregationPipeline).substring(0, 500) + "...");
+    const aggregatedPostsRaw = await Post.aggregate(aggregationPipeline);
+
+    // --- Comptage Total Précis --- 
+    let total = 0;
+    try {
+        const countPipeline = aggregationPipeline.slice(0, -2); // Pipeline sans $skip, $limit
+        // Retirer le $sort aussi pour optimiser le comptage
+        if (countPipeline.length > 0 && countPipeline[countPipeline.length - 1].$sort) {
+            countPipeline.pop(); 
+        }
+        countPipeline.push({ $count: 'totalDocs' });
+        
+        console.log("[Producer Feed] Executing Count Pipeline:", JSON.stringify(countPipeline).substring(0, 500) + "...");
+        const countResult = await Post.aggregate(countPipeline);
+        if (countResult.length > 0) {
+            total = countResult[0].totalDocs;
+        }
+         console.log(`[Producer Feed] Accurate total posts found: ${total}`);
+    } catch (countError) {
+        console.error("[Producer Feed] Error executing count aggregation:", countError);
+        // Fallback (moins précis, surtout avec $geoNear)
+        try {
+            let simpleMatchQuery = {};
+            const initialMatchStage = aggregationPipeline.find(stage => stage.$match);
+            if (initialMatchStage) simpleMatchQuery = initialMatchStage.$match;
+             // Attention: countDocuments ne gère pas $geoNear nativement
+             if (filter === 'localTrends') {
+                 console.warn("Fallback countDocuments may be inaccurate for localTrends.");
+                 // Pourrait nécessiter une requête find avec $geoNear pour un compte fallback plus précis
+             } 
+             total = await Post.countDocuments(simpleMatchQuery);
+             console.log("[Producer Feed] Fallback countDocuments result:", total);
+        } catch (fallbackError) {
+             console.error("[Producer Feed] Fallback countDocuments also failed:", fallbackError);
+             total = aggregatedPostsRaw.length; // Pire cas: utiliser le nombre récupéré
+        }
+    }
+
+    // --- Diversification Post-Agrégation --- 
+    const finalPosts = [];
+    const recentAuthors = []; // Garder une trace des derniers auteurs ajoutés
+    const maxConsecutiveAuthor = 2; // Limite
+
+    for (const post of aggregatedPostsRaw) {
+        if (finalPosts.length >= numericLimit) break; // Stop when we have enough posts
+
+        const authorId = post.authorId || post.user_id || post.producer_id || 'unknown';
+        
+        // Compter combien de fois cet auteur apparaît dans les X derniers posts ajoutés
+        const recentCount = recentAuthors.slice(-maxConsecutiveAuthor).filter(id => id === authorId).length;
+
+        if (recentCount < maxConsecutiveAuthor) {
+            finalPosts.push(post);
+            recentAuthors.push(authorId);
+            if (recentAuthors.length > maxConsecutiveAuthor * 2) { // Limiter la taille de l'historique
+               recentAuthors.shift();
+            } 
+        } else {
+             console.log(`[Producer Feed Diversification] Skipping post ${post._id} from author ${authorId} to improve variety.`);
+        }
+    }
+    console.log(`[Producer Feed] Diversified results: ${finalPosts.length} posts returned (fetched ${aggregatedPostsRaw.length}).`);
+
+    // --- Enrichissement des Posts FINAUX --- 
+    const enrichedPostsPromises = finalPosts.map(post => enrichPostWithAuthorInfo(post));
+    const enrichedPosts = await Promise.all(enrichedPostsPromises);
+
+    console.log(`[Producer Feed] Successfully enriched ${enrichedPosts.length} posts.`);
+
+    res.status(200).json({
+      posts: enrichedPosts,
+      items: enrichedPosts,
+      totalPages: Math.ceil(total / numericLimit), // Utiliser le total précis
+      currentPage: parseInt(page),
+      total, // Utiliser le total précis
+      hasMore: (parseInt(page) * numericLimit) < total // Comparer avec le total précis
+    });
+
   } catch (error) {
-    console.error('❌ Erreur lors de la récupération du feed producteur:', error);
+    console.error('❌ Erreur lors de la récupération du feed producteur (agrégation):', error);
     res.status(500).json({ 
       message: 'Erreur lors de la récupération du feed producteur', 
       error: error.message 
@@ -454,7 +544,7 @@ router.get('/:producerId', auth, async (req, res) => {
 });
 
 // GET /:producerId/venue-posts - Obtenir les posts de l'établissement
-router.get('/:producerId/venue-posts', auth, async (req, res) => {
+router.get('/:producerId/venue-posts', requireAuth, async (req, res) => {
   try {
     const producerId = req.params.producerId;
     const { page = 1, limit = 10 } = req.query;
@@ -495,7 +585,7 @@ router.get('/:producerId/venue-posts', auth, async (req, res) => {
 });
 
 // GET /:producerId/interactions - Obtenir les interactions des utilisateurs avec l'établissement
-router.get('/:producerId/interactions', auth, async (req, res) => {
+router.get('/:producerId/interactions', requireAuth, async (req, res) => {
   try {
     const producerId = req.params.producerId;
     const { page = 1, limit = 10 } = req.query;

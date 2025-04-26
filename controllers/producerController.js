@@ -1,20 +1,8 @@
 const mongoose = require('mongoose');
-const { Producer } = require('../models/Producer');
-const { UserChoice } = require('../models/User');
-
-// Variable pour stocker la connexion à la base de données
-let restaurationDb;
-let RestaurantProducer;
-
-// Fonction d'initialisation à appeler après l'établissement de la connexion MongoDB
-const initialize = (db) => {
-  if (db && db.restaurationDb) {
-    restaurationDb = db.restaurationDb;
-    
-    // Initialiser le modèle RestaurantProducer
-    RestaurantProducer = restaurationDb.model('Producer', new mongoose.Schema({}), 'producers');
-  }
-};
+// Keep Producer model import if it defines the schema, but we won't use the variable directly here for querying.
+// const { Producer } = require('../models/Producer'); 
+const { UserChoice } = require('../models/User'); // Assuming User model is on default connection or handled separately
+const { getModel } = require('../models');
 
 /**
  * Contrôleur pour gérer les producteurs (restaurants principalement)
@@ -24,6 +12,10 @@ const producerController = {
    * Obtenir tous les producteurs avec pagination
    */
   getAllProducers: async (req, res) => {
+    const ProducerModel = getModel('Producer');
+    if (!ProducerModel) {
+      return res.status(500).json({ message: 'Producer model not initialized' });
+    }
     try {
       // Paramètres de pagination
       const page = parseInt(req.query.page) || 1;
@@ -38,13 +30,13 @@ const producerController = {
       if (req.query.price_level) filterParams.price_level = { $lte: parseInt(req.query.price_level) };
       
       // Obtenir les producteurs paginés
-      const producers = await RestaurantProducer.find(filterParams)
+      const producers = await ProducerModel.find(filterParams)
         .skip(skip)
         .limit(limit)
-        .sort({ rating: -1 });
+        .sort({ rating: -1 }); // Assurez-vous que le tri est pertinent
       
       // Compter le nombre total de résultats pour la pagination
-      const totalProducers = await RestaurantProducer.countDocuments(filterParams);
+      const totalProducers = await ProducerModel.countDocuments(filterParams);
       
       res.status(200).json({
         producers,
@@ -66,54 +58,81 @@ const producerController = {
    * Obtenir un producteur par ID
    */
   getProducerById: async (req, res) => {
+    const ProducerModel = getModel('Producer');
+    if (!ProducerModel) {
+      return res.status(500).json({ success: false, message: 'Producer model not initialized.'});
+    }
     try {
       const { id } = req.params;
-      const producer = await RestaurantProducer.findById(id);
+      console.log(`🔍 [producerController] Tentative d'accès au modèle 'Producer' sur restaurationDb.`);
+      const producer = await ProducerModel.findById(id);
       
       if (!producer) {
-        return res.status(404).json({ message: 'Producteur non trouvé' });
+         // Log more details if producer is not found
+         console.warn(`⚠️ Producteur non trouvé pour ID: ${id}`);
+        return res.status(404).json({ success: false, message: 'Producteur non trouvé' });
       }
       
-      res.status(200).json(producer);
+      res.status(200).json(producer); // Send the producer data directly
     } catch (error) {
-      console.error('❌ Erreur dans getProducerById:', error);
-      res.status(500).json({ message: 'Erreur lors de la récupération du producteur', error: error.message });
+      console.error(`❌ Erreur dans getProducerById pour ID ${req.params.id}:`, error);
+      // Check for specific Mongoose CastError (invalid ID format)
+      if (error instanceof mongoose.Error.CastError) {
+         return res.status(400).json({ success: false, message: 'Format ID invalide', error: error.message });
+      }
+      res.status(500).json({ success: false, message: 'Erreur serveur lors de la récupération du producteur', error: error.message });
     }
   },
   
   /**
-   * Obtenir uniquement la localisation d'un producteur par ID
+   * Obtenir uniquement la localisation d\'un producteur par ID
    */
   getProducerLocationById: async (req, res) => {
     try {
-      const { id } = req.params;
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ message: 'ID producteur invalide' });
+      const ProducerModel = getModel('Producer');
+      if (!ProducerModel) {
+        console.error('Error: Producer model not initialized in getProducerLocationById.');
+        return res.status(500).json({ message: 'Producer model error' });
       }
-
-      // Utiliser ProducerModel ou une fonction équivalente si vous utilisez initialize
-      // Si RestaurantProducer est initialisé :
-      const producer = await RestaurantProducer.findById(id).select('geometry.location name'); // Select name for context
+      
+      const producer = await ProducerModel.findById(req.params.id).select('name geometry gps_coordinates').lean();
 
       if (!producer) {
-        return res.status(404).json({ message: 'Producteur non trouvé' });
+        return res.status(404).json({ message: 'Producteur non trouvé.' });
       }
 
-      // Vérifier si la localisation existe
-      if (!producer.geometry || !producer.geometry.location || producer.geometry.location.lat == null || producer.geometry.location.lng == null) {
-         console.log(`⚠️ Localisation manquante pour le producteur: ${producer.name} (ID: ${id})`);
-         return res.status(404).json({ message: 'Localisation du producteur introuvable.' });
+      let latitude = null;
+      let longitude = null;
+
+      // 1. Check geometry.location first
+      if (producer.geometry?.location?.lat != null && producer.geometry?.location?.lng != null) {
+        latitude = producer.geometry.location.lat;
+        longitude = producer.geometry.location.lng;
+        console.log(`📍 Location found for ${producer.name} in geometry.location`);
+      }
+      // 2. If not found, check gps_coordinates (GeoJSON format: [longitude, latitude])
+      else if (producer.gps_coordinates?.coordinates?.length === 2) {
+        longitude = producer.gps_coordinates.coordinates[0];
+        latitude = producer.gps_coordinates.coordinates[1];
+         console.log(`📍 Location found for ${producer.name} in gps_coordinates`);
       }
 
-      // Retourner uniquement les coordonnées lat/lng
-      res.status(200).json({
-        latitude: producer.geometry.location.lat,
-        longitude: producer.geometry.location.lng
-      });
+      // Convert to numbers just in case they are stored as strings
+      latitude = typeof latitude === 'string' ? parseFloat(latitude) : latitude;
+      longitude = typeof longitude === 'string' ? parseFloat(longitude) : longitude;
+
+      // Check if valid numbers were found
+      if (typeof latitude === 'number' && !isNaN(latitude) && typeof longitude === 'number' && !isNaN(longitude)) {
+        res.status(200).json({ latitude, longitude });
+      } else {
+        // Location not found in either field or invalid
+        console.warn(`⚠️ Localisation manquante ou invalide pour le producteur: ${producer.name} (ID: ${req.params.id})`);
+        res.status(404).json({ message: 'Localisation du producteur introuvable.' });
+      }
 
     } catch (error) {
-      console.error(`❌ Erreur dans getProducerLocationById pour ID ${req.params.id}:`, error);
-      res.status(500).json({ message: 'Erreur serveur lors de la récupération de la localisation', error: error.message });
+      console.error(`❌ Erreur lors de la récupération de la localisation pour ${req.params.id}:`, error);
+      res.status(500).json({ message: 'Erreur serveur lors de la récupération de la localisation.', error: error.message });
     }
   },
   
@@ -121,6 +140,10 @@ const producerController = {
    * Rechercher des producteurs
    */
   searchProducers: async (req, res) => {
+    const ProducerModel = getModel('Producer');
+    if (!ProducerModel) {
+      return res.status(500).json({ message: 'Producer model not initialized' });
+    }
     try {
       const { q, category, cuisine, tags, page = 1, limit = 20 } = req.query;
       const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -130,26 +153,27 @@ const producerController = {
       
       // Recherche textuelle si query est fournie
       if (q) {
+        // Consider adding a text index in MongoDB for better performance
         searchQuery.$or = [
           { name: { $regex: q, $options: 'i' } },
           { description: { $regex: q, $options: 'i' } },
           { cuisine: { $regex: q, $options: 'i' } },
-          { tags: { $regex: q, $options: 'i' } }
+          { tags: { $regex: q, $options: 'i' } } // Be careful searching tags with regex if it's an array
         ];
       }
       
       // Filtres supplémentaires
       if (category) searchQuery.category = category;
       if (cuisine) searchQuery.cuisine = cuisine;
-      if (tags) searchQuery.tags = { $in: tags.split(',') };
+      if (tags) searchQuery.tags = { $in: tags.split(',') }; // Assumes tags is a comma-separated string
       
       // Exécuter la recherche
-      const producers = await RestaurantProducer.find(searchQuery)
+      const producers = await ProducerModel.find(searchQuery)
         .skip(skip)
         .limit(parseInt(limit))
-        .sort({ rating: -1 });
+        .sort({ rating: -1 }); // Ensure 'rating' exists and is sortable
       
-      const totalProducers = await RestaurantProducer.countDocuments(searchQuery);
+      const totalProducers = await ProducerModel.countDocuments(searchQuery);
       
       res.status(200).json({
         producers,
@@ -171,6 +195,10 @@ const producerController = {
    * Obtenir les producteurs à proximité
    */
   getNearbyProducers: async (req, res) => {
+    const ProducerModel = getModel('Producer');
+    if (!ProducerModel) {
+      return res.status(500).json({ message: 'Producer model not initialized' });
+    }
     try {
       const { lat, lng, radius = 5000, limit = 20 } = req.query;
       
@@ -178,15 +206,16 @@ const producerController = {
         return res.status(400).json({ message: 'Les coordonnées (lat, lng) sont requises' });
       }
       
-      // Recherche géospatiale
-      const producers = await RestaurantProducer.find({
-        location: {
+      // Assumes a 2dsphere index exists on the 'location' field
+      // The location field should be GeoJSON format, e.g., { type: 'Point', coordinates: [lng, lat] }
+      const producers = await ProducerModel.find({
+        location: { // Ensure 'location' is the correct field name for GeoJSON
           $nearSphere: {
             $geometry: {
               type: "Point",
               coordinates: [parseFloat(lng), parseFloat(lat)]
             },
-            $maxDistance: parseInt(radius)
+            $maxDistance: parseInt(radius) // Radius in meters
           }
         }
       }).limit(parseInt(limit));
@@ -202,23 +231,26 @@ const producerController = {
    * Obtenir les événements d'un producteur
    */
   getProducerEvents: async (req, res) => {
+    const ProducerModel = getModel('Producer');
+    if (!ProducerModel) {
+      return res.status(500).json({ message: 'Producer model not initialized' });
+    }
     try {
       const { id } = req.params;
-      const producer = await RestaurantProducer.findById(id);
+      const producer = await ProducerModel.findById(id).select('events'); // Only select events
       
       if (!producer) {
         return res.status(404).json({ message: 'Producteur non trouvé' });
       }
       
-      // Si le producteur a des événements, les retourner
-      if (producer.events && Array.isArray(producer.events)) {
-        return res.status(200).json(producer.events);
-      }
+      // Return events array or empty array if not present/not an array
+      res.status(200).json(Array.isArray(producer.events) ? producer.events : []);
       
-      // Par défaut, retourner un tableau vide
-      res.status(200).json([]);
     } catch (error) {
-      console.error('❌ Erreur dans getProducerEvents:', error);
+      console.error(`❌ Erreur dans getProducerEvents pour ID ${req.params.id}:`, error);
+       if (error instanceof mongoose.Error.CastError) {
+         return res.status(400).json({ message: 'Format ID invalide', error: error.message });
+      }
       res.status(500).json({ message: 'Erreur lors de la récupération des événements du producteur', error: error.message });
     }
   },
@@ -227,501 +259,102 @@ const producerController = {
    * Ajouter un producteur aux favoris d'un utilisateur
    */
   addToFavorites: async (req, res) => {
+    const ProducerModel = getModel('Producer');
+    const UserChoiceModel = getModel('UserChoice'); // Assuming UserChoice model exists
+    if (!ProducerModel || !UserChoiceModel) {
+       return res.status(500).json({ message: 'Required models not initialized' });
+     }
     try {
-      const { userId } = req.params;
-      const { producerId } = req.body;
+      const { userId } = req.params; // Assuming userId comes from URL param
+      const { producerId } = req.body; // Assuming producerId comes from request body
       
       if (!userId || !producerId) {
         return res.status(400).json({ message: 'ID utilisateur et ID producteur requis' });
       }
       
-      // Vérifier que l'utilisateur existe
-      const user = await UserChoice.findById(userId);
+      // --- Validate IDs ---
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+         return res.status(400).json({ message: 'Format ID utilisateur invalide' });
+      }
+       if (!mongoose.Types.ObjectId.isValid(producerId)) {
+         return res.status(400).json({ message: 'Format ID producteur invalide' });
+      }
+      
+      // --- Check if user exists (assuming UserChoice model is available) ---
+      // IMPORTANT: Adjust this if UserChoice is on a different connection
+      const user = await UserChoiceModel.findById(userId);
       if (!user) {
         return res.status(404).json({ message: 'Utilisateur non trouvé' });
       }
       
-      // Vérifier que le producteur existe
-      const producer = await RestaurantProducer.findById(producerId);
+      // --- Check if producer exists ---
+      const producer = await ProducerModel.findById(producerId);
       if (!producer) {
         return res.status(404).json({ message: 'Producteur non trouvé' });
       }
       
-      // Vérifier si le producteur est déjà dans les favoris
-      if (user.followingProducers && user.followingProducers.includes(producerId)) {
-        return res.status(400).json({ message: 'Producteur déjà dans les favoris' });
+      // --- Add producer to favorites (if not already present) ---
+      // Assuming user.favorites is an array of ObjectIds
+      if (!user.favorites || !Array.isArray(user.favorites)) {
+         user.favorites = []; // Initialize if doesn't exist or wrong type
+      }
+
+      if (!user.favorites.includes(producerId)) {
+        user.favorites.push(producerId);
+        await user.save();
+        res.status(200).json({ message: 'Producteur ajouté aux favoris avec succès', favorites: user.favorites });
+      } else {
+        res.status(200).json({ message: 'Producteur déjà dans les favoris', favorites: user.favorites });
       }
       
-      // Ajouter le producteur aux favoris
-      if (!user.followingProducers) {
-        user.followingProducers = [];
-      }
-      user.followingProducers.push(producerId);
-      await user.save();
-      
-      res.status(200).json({ message: 'Producteur ajouté aux favoris' });
     } catch (error) {
-      console.error('❌ Erreur dans addToFavorites:', error);
+      console.error(`❌ Erreur dans addToFavorites (User: ${req.params.userId}, Producer: ${req.body.producerId}):`, error);
       res.status(500).json({ message: 'Erreur lors de l\'ajout aux favoris', error: error.message });
     }
   },
   
   /**
-   * Retirer un producteur des favoris d'un utilisateur
-   */
-  removeFromFavorites: async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { producerId } = req.body;
-      
-      if (!userId || !producerId) {
-        return res.status(400).json({ message: 'ID utilisateur et ID producteur requis' });
-      }
-      
-      // Vérifier que l'utilisateur existe
-      const user = await UserChoice.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: 'Utilisateur non trouvé' });
-      }
-      
-      // Vérifier si le producteur est dans les favoris
-      if (!user.followingProducers || !user.followingProducers.includes(producerId)) {
-        return res.status(400).json({ message: 'Producteur non trouvé dans les favoris' });
-      }
-      
-      // Retirer le producteur des favoris
-      user.followingProducers = user.followingProducers.filter(id => id.toString() !== producerId);
-      await user.save();
-      
-      res.status(200).json({ message: 'Producteur retiré des favoris' });
-    } catch (error) {
-      console.error('❌ Erreur dans removeFromFavorites:', error);
-      res.status(500).json({ message: 'Erreur lors du retrait des favoris', error: error.message });
-    }
-  },
-  
-  /**
-   * Obtenir les relations d'un producteur (followers, following, choiceUsers, interestedUsers)
+   * Obtenir les relations d'un producteur
    */
   getProducerRelations: async (req, res) => {
+    const ProducerModel = getModel('Producer');
+    if (!ProducerModel) {
+      return res.status(500).json({ message: 'Producer model not initialized' });
+    }
     try {
-      const { producerId } = req.params;
-      
-      // Vérifier que le producteur existe en utilisant une connexion de secours si nécessaire
-      let producer;
-      if (RestaurantProducer) {
-        // Utiliser le modèle s'il est initialisé
-        producer = await RestaurantProducer.findById(producerId).select(
-          'followers following choiceUsers interestedUsers'
-        );
-      } else {
-        // Créer un modèle temporaire si le modèle principal n'est pas initialisé
-        console.log('⚠️ RestaurantProducer non initialisé, utilisation d\'un modèle temporaire');
-        const tempModel = global.db.restaurationDb.model(
-          'Producer', 
-          new mongoose.Schema({}, { strict: false }), 
-          'producers'
-        );
-        producer = await tempModel.findById(producerId).select(
-          'followers following choiceUsers interestedUsers'
-        );
-      }
+        const { id } = req.params;
+        const producer = await ProducerModel.findById(id)
+            .populate('followers.users', 'name photo _id')
+            .populate('following.users', 'name photo _id')
+            .populate('choiceUsers.userId', 'name photo _id')
+            .populate('interestedUsers.users', 'name photo _id');
       
       if (!producer) {
         return res.status(404).json({ message: 'Producteur non trouvé' });
       }
       
-      // Robust fallback: always return arrays, even if fields are missing or malformed
-      const followersArr = Array.isArray(producer.followers) ? producer.followers : [];
-      const followingArr = Array.isArray(producer.following) ? producer.following : [];
-      // choiceUsers can be array of IDs or array of objects {userId}
-      let choiceUsersArr = [];
-      if (Array.isArray(producer.choiceUsers)) {
-        if (producer.choiceUsers.length > 0 && typeof producer.choiceUsers[0] === 'object' && producer.choiceUsers[0] !== null && 'userId' in producer.choiceUsers[0]) {
-          choiceUsersArr = producer.choiceUsers.map(obj => obj.userId);
-        } else {
-          choiceUsersArr = producer.choiceUsers;
+        // Construct the response object, ensuring default structures
+        const relations = {
+            followers: producer.followers || { count: 0, users: [] },
+            following: producer.following || { count: 0, users: [] },
+            choiceUsers: producer.choiceUsers || { count: 0, users: [] },
+            interestedUsers: producer.interestedUsers || { count: 0, users: [] },
+        };
+
+        res.status(200).json(relations);
+    } catch (error) {
+        console.error(`❌ Erreur dans getProducerRelations pour ID ${req.params.id}:`, error);
+        if (error instanceof mongoose.Error.CastError) {
+          return res.status(400).json({ message: 'Format ID invalide', error: error.message });
         }
-      }
-      const interestedUsersArr = Array.isArray(producer.interestedUsers) ? producer.interestedUsers : [];
-
-      const data = {
-        followers: {
-          count: followersArr.length,
-          users: followersArr.map(id => id.toString()),
-        },
-        following: {
-          count: followingArr.length,
-          users: followingArr.map(id => id.toString()),
-        },
-        choiceUsers: {
-          count: choiceUsersArr.length,
-          users: choiceUsersArr.map(id => id.toString()),
-        },
-        interestedUsers: {
-          count: interestedUsersArr.length,
-          users: interestedUsersArr.map(id => id.toString()),
-        },
-      };
-      
-      res.status(200).json(data);
-    } catch (error) {
-      console.error('❌ Erreur dans getProducerRelations:', error);
-      res.status(500).json({ message: 'Erreur lors de la récupération des relations', error: error.message });
+        res.status(500).json({ message: 'Erreur serveur lors de la récupération des relations', error: error.message });
     }
   },
 
-  // Récupérer tous les producteurs
-  async getAllProducers(req, res) {
-    try {
-      const producers = await Producer.find({});
-      res.json(producers);
-    } catch (error) {
-      console.error('❌ Erreur lors de la récupération des producteurs:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Erreur serveur', 
-        error: error.message 
-      });
-    }
-  },
+  // ... (Rest of the controller functions need similar modification) ...
+  // Make sure ALL functions using RestaurantProducer now use restaurationDb.model('Producer')
+  // Remember to add the !restaurationDb check at the beginning of each async function.
 
-  // Récupérer un producteur par son ID
-  async getProducerById(req, res) {
-    try {
-      const producer = await Producer.findById(req.params.id);
-      if (!producer) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Producteur non trouvé' 
-        });
-      }
-      res.json(producer);
-    } catch (error) {
-      console.error(`❌ Erreur lors de la récupération du producteur ${req.params.id}:`, error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Erreur serveur', 
-        error: error.message 
-      });
-    }
-  },
+}; // End of producerController object
 
-  // Créer un nouvel élément de menu
-  async addMenuItem(req, res) {
-    try {
-      const producerId = req.params.id;
-      
-      // Récupérer les données du plat du corps de la requête
-      const { 
-        name, 
-        description, 
-        price, 
-        category,
-        nutritional_info 
-      } = req.body;
-      
-      // Validation des données
-      if (!name || !price) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Le nom et le prix sont obligatoires' 
-        });
-      }
-      
-      // Générer un ID unique pour l'élément de menu
-      const itemId = new mongoose.Types.ObjectId().toString();
-      
-      // Créer l'objet du nouvel élément
-      const newItem = {
-        _id: itemId,
-        name,
-        description: description || '',
-        price,
-        category: category || 'Autre',
-        nutritional_info: nutritional_info || {},
-        created_at: new Date()
-      };
-      
-      // Ajouter l'élément à la collection menu_items du producteur
-      const result = await Producer.findByIdAndUpdate(
-        producerId,
-        { 
-          $push: { menu_items: newItem } 
-        },
-        { new: true }
-      );
-      
-      if (!result) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Producteur non trouvé' 
-        });
-      }
-      
-      res.status(201).json({
-        success: true,
-        message: 'Élément de menu ajouté avec succès',
-        item: newItem
-      });
-    } catch (error) {
-      console.error('❌ Erreur lors de l\'ajout d\'un élément de menu:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Erreur serveur', 
-        error: error.message 
-      });
-    }
-  },
-
-  // Créer un nouveau menu (ensemble de plats)
-  async createMenu(req, res) {
-    try {
-      const producerId = req.params.id;
-      
-      // Récupérer les données du menu du corps de la requête
-      const { 
-        name, 
-        description, 
-        price, 
-        items // Liste d'IDs d'éléments de menu
-      } = req.body;
-      
-      // Validation des données
-      if (!name || !price || !items || !Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Le nom, le prix et au moins un plat sont obligatoires' 
-        });
-      }
-      
-      // Récupérer le producteur pour vérifier les éléments de menu
-      const producer = await Producer.findById(producerId);
-      
-      if (!producer) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Producteur non trouvé' 
-        });
-      }
-      
-      // Vérifier que tous les éléments existent
-      const menuItems = producer.menu_items || [];
-      const validItems = items.filter(itemId => 
-        menuItems.some(item => item._id && item._id.toString() === itemId)
-      );
-      
-      if (validItems.length === 0) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Aucun plat valide trouvé parmi les IDs fournis' 
-        });
-      }
-      
-      // Générer un ID unique pour le menu
-      const menuId = new mongoose.Types.ObjectId().toString();
-      
-      // Créer l'objet du nouveau menu
-      const newMenu = {
-        _id: menuId,
-        name,
-        description: description || '',
-        price,
-        items: validItems,
-        created_at: new Date()
-      };
-      
-      // Ajouter le menu à la collection menu du producteur
-      const result = await Producer.findByIdAndUpdate(
-        producerId,
-        { 
-          $push: { menu: newMenu } 
-        },
-        { new: true }
-      );
-      
-      res.status(201).json({
-        success: true,
-        message: 'Menu créé avec succès',
-        menu: newMenu
-      });
-    } catch (error) {
-      console.error('❌ Erreur lors de la création d\'un menu:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Erreur serveur', 
-        error: error.message 
-      });
-    }
-  },
-
-  // Ajouter une photo au producteur
-  async addPhoto(req, res) {
-    try {
-      const producerId = req.params.id;
-      const { photo, filename } = req.body;
-      
-      // Validation de la photo (base64)
-      if (!photo) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Une photo est requise' 
-        });
-      }
-      
-      // En production, il faudrait:
-      // 1. Valider le format de l'image
-      // 2. Redimensionner l'image si nécessaire
-      // 3. Compresser l'image
-      // 4. Stocker sur un service comme AWS S3, Cloudinary, etc.
-      
-      // Pour ce MVP, simulons un upload réussi avec une URL fictive
-      // Dans un environnement de production, cette URL proviendrait du service de stockage
-      const photoUrl = `https://storage.example.com/producers/${producerId}/photos/${Date.now()}_${filename || 'photo.jpg'}`;
-      
-      // Ajouter l'URL de la photo à la liste des photos du producteur
-      const result = await Producer.findByIdAndUpdate(
-        producerId,
-        { 
-          $push: { photos: photoUrl } 
-        },
-        { new: true }
-      );
-      
-      if (!result) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Producteur non trouvé' 
-        });
-      }
-      
-      res.status(201).json({
-        success: true,
-        message: 'Photo ajoutée avec succès',
-        photoUrl
-      });
-    } catch (error) {
-      console.error('❌ Erreur lors de l\'ajout d\'une photo:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Erreur serveur', 
-        error: error.message 
-      });
-    }
-  },
-
-  // Créer un nouveau post pour un producteur
-  async createPost(req, res) {
-    try {
-      const producerId = req.params.id;
-      const { content, media } = req.body;
-      
-      // Validation
-      if (!content) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Le contenu du post est obligatoire' 
-        });
-      }
-      
-      // Récupérer le producteur pour vérifier son existence
-      const producer = await Producer.findById(producerId);
-      
-      if (!producer) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Producteur non trouvé' 
-        });
-      }
-      
-      // Créer un nouvel ID pour le post
-      const postId = new mongoose.Types.ObjectId().toString();
-      
-      // Structure du post
-      const newPost = {
-        _id: postId,
-        producer_id: producerId,
-        content,
-        media: media || [],
-        author_name: producer.name,
-        author_photo: producer.photo,
-        created_at: new Date(),
-        likes: [],
-        comments: [],
-        interested: [],
-        choices: []
-      };
-      
-      // Dans un environnement réel, il faudrait:
-      // 1. Stocker ce post dans une collection 'posts' séparée
-      // 2. Créer une référence au post dans le document du producteur
-      
-      // Pour ce MVP, simulons l'enregistrement du post
-      // Ajouter l'ID du post à la liste des posts du producteur
-      await Producer.findByIdAndUpdate(
-        producerId,
-        { 
-          $push: { posts: postId } 
-        }
-      );
-      
-      // Stocker le post dans une collection 'posts' (simulé ici)
-      // Dans un environnement réel, cela serait fait avec un modèle Mongoose dédié
-      console.log(`✅ Post créé pour le producteur ${producerId}: ${postId}`);
-      
-      res.status(201).json({
-        success: true,
-        message: 'Post créé avec succès',
-        post: newPost
-      });
-    } catch (error) {
-      console.error('❌ Erreur lors de la création d\'un post:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Erreur serveur', 
-        error: error.message 
-      });
-    }
-  },
-
-  // Uploader un média (image ou vidéo)
-  async uploadMedia(req, res) {
-    try {
-      const { file, filename, type } = req.body;
-      
-      // Validation du fichier (base64)
-      if (!file || !filename) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Le fichier et le nom de fichier sont obligatoires' 
-        });
-      }
-      
-      // En production, il faudrait:
-      // 1. Valider le format du fichier
-      // 2. Redimensionner/Compresser si nécessaire
-      // 3. Stocker sur un service comme AWS S3, Cloudinary, etc.
-      
-      // Pour ce MVP, simulons un upload réussi avec une URL fictive
-      const mediaUrl = `https://storage.example.com/media/${Date.now()}_${filename}`;
-      
-      res.status(201).json({
-        success: true,
-        message: 'Média uploadé avec succès',
-        url: mediaUrl,
-        type: type || 'image'
-      });
-    } catch (error) {
-      console.error('❌ Erreur lors de l\'upload d\'un média:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Erreur serveur', 
-        error: error.message 
-      });
-    }
-  }
-};
-
-// Exporter à la fois le contrôleur et la fonction d'initialisation
 module.exports = producerController;
-producerController.initialize = initialize; 

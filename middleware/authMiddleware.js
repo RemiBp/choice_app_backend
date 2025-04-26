@@ -4,17 +4,16 @@ const { getUserModel, getModel } = require('../models/index');
 const { ObjectId } = require('mongodb');
 const User = require('../models/User'); // Adjust path as needed
 
-// Helper function to get producer model (moved logic here)
+// Helper function to get producer model (simplified)
 const getProducerModelForType = (accountType) => {
   switch (accountType) {
     case 'RestaurantProducer':
-      return getModel('Producer'); // Assumes 'Producer' model is for restaurants
+      return getModel('Producer'); 
     case 'LeisureProducer':
       return getModel('LeisureProducer');
-    case 'WellnessProducer': // Assuming 'WellnessPlace' or 'BeautyPlace' model might be used here
-      // You might need to adjust this based on your exact model structure
-      // Let's try WellnessPlace first
-      return getModel('WellnessPlace') || getModel('BeautyPlace') || getModel('beautyProducer'); 
+    case 'WellnessProducer': // Traiter wellness
+      return getModel('WellnessPlace');
+    // Supprimer les cas wellnessProducer et beautyPlace redondants
     default:
       console.warn(`Unknown producer account type: ${accountType}, falling back to Producer`);
       return getModel('Producer');
@@ -40,28 +39,43 @@ const requireAuth = async (req, res, next) => {
   const token = authorization.split(' ')[1];
 
   try {
-    const { _id, accountType } = jwt.verify(token, process.env.JWT_SECRET);
+    // Utiliser 'id' au lieu de '_id' lors de la vérification
+    const { id, accountType } = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // DEBUG: Log decoded token info
+    console.log(`[requireAuth] RAW Decoded Payload:`, JSON.stringify({ id, accountType })); // Log ajusté
+    console.log(`[requireAuth] Token verified: id=${id}, accountType=${accountType}`); // Log ajusté
 
     // Attach user/producer info to request for later use
+    let userOrProducerData = null;
     if (accountType === 'user') {
       const User = getUserModel();
       if (!User) throw new Error('User model not available');
-      req.user = await User.findOne({ _id }).select('_id email'); // Fetch necessary user fields
-      if (!req.user) throw new Error('User not found');
-    } else if (['RestaurantProducer', 'LeisureProducer', 'WellnessProducer'].includes(accountType)) {
-      const ProducerModel = getProducerModelForType(accountType); // Use the helper logic
+      // Utiliser l'ID extrait pour la recherche, mais le champ dans MongoDB est toujours _id
+      userOrProducerData = await User.findOne({ _id: id }).select('_id email'); 
+      if (!userOrProducerData) throw new Error('User not found');
+      req.user = { id: id, accountType: 'user' }; // Utiliser l'ID extrait
+      req.userData = userOrProducerData; 
+    } else if (['RestaurantProducer', 'LeisureProducer', 'WellnessProducer'].includes(accountType)) { 
+      const ProducerModel = getProducerModelForType(accountType);
       if (!ProducerModel) throw new Error(`Producer model not available for type: ${accountType}`);
-      req.producer = await ProducerModel.findOne({ _id }).select('_id name lieu businessName type photo'); // Fetch necessary producer fields
-      if (!req.producer) throw new Error('Producer not found');
-      // Add producer type to request for easier checks
-      req.accountType = accountType;
+      // Utiliser l'ID extrait pour la recherche, mais le champ dans MongoDB est toujours _id
+      userOrProducerData = await ProducerModel.findOne({ _id: id }).select('_id name lieu businessName type photo'); 
+      if (!userOrProducerData) throw new Error('Producer not found');
+      req.user = { id: id, accountType: accountType }; // Utiliser l'ID extrait
+      req.producerData = userOrProducerData; 
+      req.accountType = accountType; 
     } else {
       throw new Error('Invalid account type in token');
     }
+    
+    console.log(`[requireAuth] Attaching req.user:`, JSON.stringify(req.user));
 
     next();
   } catch (error) {
     console.error('Auth Error:', error.message);
+    // Log the token causing the error for debugging (be careful in production)
+    // console.error('Token causing error:', token);
     res.status(401).json({ error: 'Request is not authorized' });
   }
 };
@@ -127,18 +141,27 @@ const optionalAuth = (req, res, next) => {
  */
 const checkProducerAccess = async (req, res, next) => {
   try {
+    // Vérifier si l'utilisateur est authentifié
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    // Si l'utilisateur est un utilisateur normal (pas un producteur), lui donner accès
+    if (req.user.accountType === 'user') {
+      console.log('[checkProducerAccess] User account type detected - granting access without producerId check');
+      return next();
+    }
+    
+    // Pour les producteurs, vérifier le producerId
     const { producerId } = req.params || req.body;
     
     if (!producerId) {
       return res.status(400).json({ message: 'Producer ID is required' });
     }
     
-    if (!req.user) {
-      return res.status(401).json({ message: 'Authentication required' });
-    }
-    
     // Allow access if the user is the producer
-    if (req.user._id.toString() === producerId.toString()) {
+    // Correction: Utiliser req.user.id au lieu de req.user._id
+    if (req.user.id.toString() === producerId.toString()) {
       return next();
     }
     

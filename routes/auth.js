@@ -5,29 +5,17 @@ const bcrypt = require('bcrypt');
 const mongoose = require('mongoose');
 const { sendPasswordResetEmail } = require('../services/emailService');
 const crypto = require('crypto');
-const authMiddleware = require('../middleware/auth'); // Import the authentication middleware
-const { OAuth2Client } = require('google-auth-library'); // Added for Google Sign-In
+const { requireAuth } = require('../middleware/authMiddleware');
+const { OAuth2Client } = require('google-auth-library');
+const { getModel } = require('../models');
 
 // Added: Google Client ID (should match the one used in frontend for backend verification - usually Web client ID)
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '429425452401-dibk2q2t0tlgpa2gpj2n2o8439qosdal.apps.googleusercontent.com';
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
-// Import database connections (adjust paths if necessary)
-const { choiceAppDb, restaurationDb, loisirsDb, beautyWellnessDb } = require('../index');
-
-// Import the model definition FUNCTIONS
-const createProducerModel = require('../models/Producer'); 
-const createLeisureProducerModel = require('../models/leisureProducer');
-const createWellnessPlaceModel = require('../models/WellnessPlace'); 
-
-// Compile models using the respective connections (if available)
-const Producer = restaurationDb ? createProducerModel(restaurationDb) : null;
-const LeisureProducer = loisirsDb ? createLeisureProducerModel(loisirsDb) : null;
-const WellnessPlace = beautyWellnessDb ? createWellnessPlaceModel(beautyWellnessDb) : null;
-
-// Modèles User/ResetToken (initialisés via la fonction initialize)
-let UserModel;
-let ResetToken;
+// Modèles User/ResetToken (access them via connection)
+// REMOVE: let UserModel;
+// REMOVE: let ResetToken;
 
 // Schémas pour les modèles
 const resetTokenSchema = new mongoose.Schema({
@@ -35,32 +23,6 @@ const resetTokenSchema = new mongoose.Schema({
   token: String,
   expires: Date,
 });
-
-// Initialisation des modèles
-const initializeModels = (db) => {
-  if (!db || !db.choiceAppDb) return;
-  
-  UserModel = db.choiceAppDb.model(
-    'User',
-    new mongoose.Schema({}, { strict: false }),
-    'Users'
-  );
-  
-  ResetToken = db.choiceAppDb.model(
-    'ResetToken',
-    resetTokenSchema,
-    'reset_tokens'
-  );
-};
-
-// Essayer d'initialiser immédiatement si global.db existe
-try {
-  if (global.db && global.db.choiceAppDb) {
-    initializeModels(global.db);
-  }
-} catch (error) {
-  console.warn('⚠️ Auth models initialization deferred: ' + error.message);
-}
 
 // Middleware d'authentification
 // const auth = async (req, res, next) => { ... };
@@ -71,43 +33,93 @@ try {
  * @access Public
  */
 router.post('/login', async (req, res) => {
+  const UserModel = getModel('User');
+  const ProducerModel = getModel('Producer'); // Obtenir le modèle Producer
+  const LeisureProducerModel = getModel('LeisureProducer'); // Obtenir le modèle LeisureProducer
+
+  if (!UserModel || !ProducerModel || !LeisureProducerModel) { // Vérifier les trois modèles
+    return res.status(500).json({ message: 'User, Producer, or LeisureProducer model not initialized.' });
+  }
+
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({ message: 'Email et mot de passe requis.' });
     }
-    
-    const user = await UserModel.findOne({ email });
-    
-    if (!user) {
-      return res.status(401).json({ message: 'Email ou mot de passe incorrect.' });
+
+    // 1. Chercher dans la collection User
+    let account = await UserModel.findOne({ email });
+    let accountType = 'user';
+    let isProducer = false;
+
+    // 2. Si non trouvé, chercher dans la collection Producer (Restaurant)
+    if (!account) {
+      account = await ProducerModel.findOne({ email });
+      if (account) {
+        accountType = 'RestaurantProducer'; // Définir le type correct
+        isProducer = true;
+        console.log(`[Login] Found as ${accountType}: ${email}`);
+      } else {
+        // 3. Si non trouvé, chercher dans la collection LeisureProducer
+        account = await LeisureProducerModel.findOne({ email });
+        if (account) {
+            accountType = 'LeisureProducer'; // Définir le type correct
+            isProducer = true;
+            console.log(`[Login] Found as ${accountType}: ${email}`);
+        } else {
+             console.log(`[Login] Email not found in User, Producer, or LeisureProducer collections: ${email}`);
+             return res.status(401).json({ message: 'Email ou mot de passe incorrect.' });
+        }
+      }
+    } else {
+       console.log(`[Login] Found as user: ${email}`);
     }
-    
-    // Vérification du mot de passe
-    const isMatch = await bcrypt.compare(password, user.password);
-    
+
+    // Vérification du mot de passe (utilise l'objet 'account' trouvé)
+    // Ajouter une vérification si le compte a un mot de passe (Google Auth n'en a pas)
+    if (!account.password) {
+        console.log(`[Login] Account found for ${email} but has no password (possibly Google Sign-In only).`);
+        return res.status(401).json({ message: 'Ce compte utilise Google Sign-In. Veuillez vous connecter via Google.' });
+    }
+    const isMatch = await bcrypt.compare(password, account.password);
+
     if (!isMatch) {
+      console.log(`[Login] Incorrect password for: ${email}`);
       return res.status(401).json({ message: 'Email ou mot de passe incorrect.' });
     }
-    
-    // Créer le token JWT
+
+    // Créer le token JWT avec les bonnes informations
+    // DEBUG: Log the payload before signing
+    console.log(`[Login] Creating JWT payload:`, { 
+      id: account._id,
+      email: account.email, 
+      accountType: accountType 
+    });
+    const tokenPayload = {
+      id: account._id,
+      email: account.email,
+      accountType: accountType
+    };
     const token = jwt.sign(
-      { id: user._id, email: user.email },
+      tokenPayload,
       process.env.JWT_SECRET || 'default_jwt_secret',
       { expiresIn: '7d' }
     );
     
-    // Masquer le mot de passe dans la réponse
-    const userResponse = { ...user.toObject() };
-    delete userResponse.password;
+    // Préparer la réponse
+    const responseAccount = { ...account.toObject() };
+    delete responseAccount.password;
+    
+    console.log(`[Login] Login successful for ${accountType}: ${email} (ID: ${account._id})`);
     
     res.status(200).json({
       message: 'Connexion réussie.',
       token,
-      user: userResponse,
-      userId: user._id.toString(),
-      accountType: user.accountType || 'user'
+      // Garder la structure cohérente : user contient les données, userId et accountType sont séparés
+      user: responseAccount, // Renommer peut-être en 'accountData'?
+      userId: account._id.toString(),
+      accountType: accountType
     });
   } catch (error) {
     console.error('❌ Erreur de connexion :', error);
@@ -121,6 +133,9 @@ router.post('/login', async (req, res) => {
  * @access Public
  */
 router.post('/register', async (req, res) => {
+  const UserModel = getModel('User');
+  if (!UserModel) return res.status(500).json({ message: 'User model not initialized.' });
+
   try {
     const { name, email, username, password } = req.body;
     
@@ -191,6 +206,9 @@ router.post('/register', async (req, res) => {
  * @access Public
  */
 router.post('/google/token', async (req, res) => {
+  const UserModel = getModel('User');
+  if (!UserModel) return res.status(500).json({ message: 'User model not initialized.' });
+
   const { idToken, email: googleEmail, name: googleName, photoUrl: googlePhotoUrl } = req.body;
 
   if (!idToken) {
@@ -443,10 +461,17 @@ router.get('/verify-email/:token', async (req, res) => {
 });
 
 // POST /api/auth/logout - Déconnexion
-router.post('/logout', authMiddleware, async (req, res) => {
+router.post('/logout', requireAuth, async (req, res) => {
+  const UserModel = getModel('User');
+  if (!UserModel) return res.status(500).json({ error: 'User model not initialized.' });
   try {
     // Mettre à jour le statut en ligne de l'utilisateur
-    await UserModel.findByIdAndUpdate(req.user.id, { isOnline: false });
+    if (req.user && req.user.id) { 
+      await UserModel.findByIdAndUpdate(req.user.id, { isOnline: false });
+      console.log(`[Logout] User ${req.user.id} set to offline.`);
+    } else {
+      console.warn('[Logout] User ID not found in req.user');
+    }
     
     res.status(200).json({ message: 'Déconnexion réussie' });
   } catch (error) {
@@ -456,8 +481,13 @@ router.post('/logout', authMiddleware, async (req, res) => {
 });
 
 // GET /api/auth/me - Obtenir l'utilisateur actuel
-router.get('/me', authMiddleware, async (req, res) => {
+router.get('/me', requireAuth, async (req, res) => {
+  const UserModel = getModel('User');
+  if (!UserModel) return res.status(500).json({ error: 'User model not initialized.' });
   try {
+    if (!req.user || !req.user.id) { 
+      return res.status(401).json({ error: 'Utilisateur non authentifié correctement' });
+    }
     const user = await UserModel.findById(req.user.id).select('-password');
     
     if (!user) {
@@ -572,13 +602,13 @@ router.post('/reset-password', async (req, res) => {
  * @desc Valide le token d'authentification actuel
  * @access Private (requires valid token)
  */
-router.get('/validate', authMiddleware, (req, res) => {
-  // If the middleware passes, the token is valid.
-  // req.user is populated by the authMiddleware and contains payload (id, accountType etc)
-  res.status(200).json({ message: 'Token is valid', user: req.user }); // Return the whole user payload
+router.get('/validate', requireAuth, (req, res) => {
+  // Si le middleware passe, le token est valide.
+  // req.user contient maintenant { id: ..., accountType: ... }
+  res.status(200).json({ message: 'Token is valid', user: req.user }); 
 });
 
-// Refactored Helper function to find producer by checking collections sequentially
+// --- Refactored Helper function to find producer using getModel --- 
 async function findProducerById(producerId) {
   if (!producerId || !mongoose.Types.ObjectId.isValid(producerId)) {
       console.warn(`⚠️ Invalid or missing Producer ID format: ${producerId}`);
@@ -592,29 +622,42 @@ async function findProducerById(producerId) {
 
   try {
     // 1. Check Restaurant Producers
-    if (Producer) {
-      producer = await Producer.findById(objectId).lean();
+    const ProducerModel = getModel('Producer');
+    if (ProducerModel) {
+      producer = await ProducerModel.findById(objectId).lean();
       if (producer) {
         dbName = 'restaurationDb';
         accountType = 'RestaurantProducer';
       }
+    } else {
+      console.warn('Auth.js: Producer model not available via getModel');
     }
 
-    // 2. Check Leisure Producers (only if not found above)
-    if (!producer && LeisureProducer) {
-      producer = await LeisureProducer.findById(objectId).lean();
-      if (producer) {
-        dbName = 'loisirsDb';
-        accountType = 'LeisureProducer';
+    // 2. Check Leisure Producers
+    if (!producer) {
+      const LeisureProducerModel = getModel('LeisureProducer');
+      if (LeisureProducerModel) {
+        producer = await LeisureProducerModel.findById(objectId).lean();
+        if (producer) {
+          dbName = 'loisirsDb';
+          accountType = 'LeisureProducer';
+        }
+      } else {
+        console.warn('Auth.js: LeisureProducer model not available via getModel');
       }
     }
 
-    // 3. Check Wellness Places (only if not found above)
-    if (!producer && WellnessPlace) {
-      producer = await WellnessPlace.findById(objectId).lean();
-      if (producer) {
-        dbName = 'beautyWellnessDb';
-        accountType = 'WellnessProducer';
+    // 3. Check Wellness Places
+    if (!producer) {
+      const WellnessPlaceModel = getModel('WellnessPlace');
+      if (WellnessPlaceModel) {
+        producer = await WellnessPlaceModel.findById(objectId).lean();
+        if (producer) {
+          dbName = 'beautyWellnessDb';
+          accountType = 'WellnessProducer';
+        }
+      } else {
+        console.warn('Auth.js: WellnessPlace model not available via getModel');
       }
     }
 
@@ -639,8 +682,7 @@ async function findProducerById(producerId) {
     }
 
   } catch (error) {
-     // Catch any unexpected DB errors during the search
-     console.error(`❌ Error finding producer ${producerId} across collections:`, error);
+     console.error(`❌ Error finding producer ${producerId} across collections (using getModel):`, error);
      return null;
   }
 }
@@ -656,19 +698,12 @@ router.post('/login-with-id', async (req, res) => {
   if (!producerId) {
     return res.status(400).json({ message: 'Producer ID manquant.' });
   }
-
-  // Ensure models are initialized
-  if (!Producer || !LeisureProducer || !WellnessPlace) {
-     console.error('❌ Producer models not initialized for login-with-id');
-     return res.status(500).json({ message: 'Erreur serveur: Modèles non initialisés.' });
-  }
+  
+  // No need to check individual DB connections here anymore
 
   try {
-    // Use the helper function to find the producer
-    const producerInfo = await findProducerById(producerId);
-
+    const producerInfo = await findProducerById(producerId); // Helper now uses getModel
     if (!producerInfo) {
-      // Return 404 specifically if the producer ID is not found in any collection
       return res.status(404).json({ message: 'Identifiant producteur introuvable.' });
     }
 
@@ -708,10 +743,3 @@ router.post('/login-with-id', async (req, res) => {
 
 // Exporter le router
 module.exports = router;
-module.exports.initialize = function(db) {
-  if (db && db.choiceAppDb) {
-    initializeModels(db);
-    console.log('✅ Auth models initialized');
-  }
-  return router;
-};

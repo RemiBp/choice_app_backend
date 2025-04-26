@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mapController = require('../controllers/mapController');
-const { authenticateJWT } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/authMiddleware');
 
 /**
  * Routes pour les fonctionnalités cartographiques
@@ -308,14 +308,14 @@ router.get('/leisure/events', mapController.getLeisureEvents);
 router.get('/leisure/categories', mapController.getLeisureCategories);
 router.get('/leisure/emotions', mapController.getLeisureEmotions);
 router.get('/leisure/rating-criteria', mapController.getLeisureRatingCriteria);
-router.get('/leisure/venues/:venueId/following-interests', authenticateJWT, mapController.getFollowingInterestsForVenue);
+router.get('/leisure/venues/:venueId/following-interests', requireAuth, mapController.getFollowingInterestsForVenue);
 
 // Autres routes
 router.get('/heatmap', mapController.getHeatmapData);
 
 // Route pour les signets
-router.get('/bookmarks/leisure', authenticateJWT, mapController.getUserLeisureBookmarks);
-router.post('/bookmarks/leisure', authenticateJWT, mapController.addLeisureBookmark);
-router.delete('/bookmarks/leisure/:venueId', authenticateJWT, mapController.removeLeisureBookmark);
+router.get('/bookmarks/leisure', requireAuth, mapController.getUserLeisureBookmarks);
+router.post('/bookmarks/leisure', requireAuth, mapController.addLeisureBookmark);
+router.delete('/bookmarks/leisure/:venueId', requireAuth, mapController.removeLeisureBookmark);
 
 module.exports = router; 

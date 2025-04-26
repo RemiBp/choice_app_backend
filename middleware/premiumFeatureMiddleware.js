@@ -1,13 +1,11 @@
 const mongoose = require('mongoose');
 // const { getProducerModel } = require('../utils/producerModelResolver'); // File doesn't exist
-const Subscription = require('../models/Subscription');
-const { createModel, databases } = require('../utils/modelCreator');
-
-// Placeholder: Need a way to access initialized producer models
-// This might need to be passed in or accessed via a central registry
-const RestaurantProducer = createModel(databases.RESTAURATION, 'Producer', 'producers'); // Example
-const LeisureProducer = createModel(databases.LOISIR, 'LeisureProducer', 'leisureProducers'); // Example
-const BeautyProducer = createModel(databases.BEAUTY_WELLNESS, 'BeautyProducer', 'beautyProducers'); // Example
+// const Subscription = require('../models/Subscription');
+// const { createModel, databases } = require('../utils/modelCreator');
+// const RestaurantProducer = createModel(databases.RESTAURATION, 'Producer', 'producers');
+// const LeisureProducer = createModel(databases.LOISIR, 'LeisureProducer', 'leisureProducers');
+// const BeautyProducer = createModel(databases.BEAUTY_WELLNESS, 'BeautyProducer', 'beautyProducers');
+const { getModel } = require('../models');
 
 /**
  * Middleware to check if a producer has access to a premium feature based on their subscription.
@@ -40,11 +38,18 @@ function requirePremiumFeature(requiredLevel) {
 
       console.log(`🔒 Checking premium feature access for producer ${producerId} (type: ${producerType}). Required level: ${requiredLevel} (${requiredLevelNum})`);
 
-      // Find the producer's subscription
-      const subscription = await Subscription.findOne({
+      // Use getModel to access Subscription
+      const SubscriptionModel = getModel('Subscription');
+      if (!SubscriptionModel) {
+        console.error('❌ requirePremiumFeature Error: Subscription model not initialized via getModel.');
+        return res.status(500).json({ message: 'Erreur interne: Modèle Subscription non initialisé.' });
+      }
+      
+      // Find the producer's subscription using the retrieved model
+      const subscription = await SubscriptionModel.findOne({
         producerId: producerId,
         producerModel: producerType // Match based on the producer type string
-      }).sort({ createdAt: -1 }); // Get the latest subscription if multiple exist
+      }).sort({ createdAt: -1 });
 
       let currentLevelNum = featureLevels.gratuit; // Default to lowest level
       let isActive = false;

@@ -1,15 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const Conversation = require('../models/conversation'); // Import du modèle
+const Conversation = require('../models/conversation');
 const producerController = require('../controllers/producerController');
-const { restaurationDb } = require('../index');
-const Producer = require('../models/Producer');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const getInteractionModel = require('../models/Interaction');
-const { choiceAppDb } = require('./index');
-const Interaction = getInteractionModel(choiceAppDb);
+const { getModel } = require('../models');
 
 /**
  * IMPORTANT: L'ordre des routes est crucial!
@@ -17,60 +14,6 @@ const Interaction = getInteractionModel(choiceAppDb);
  * les routes génériques avec paramètres comme "/:id" pour éviter les conflits.
  * Express lit les routes de haut en bas et utilise la première qui correspond.
  */
-
-// Connexion à la base Restauration_Officielle
-const producerDb = mongoose.createConnection(process.env.MONGO_URI, {
-  dbName: 'Restauration_Officielle',
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-
-// Initialiser le contrôleur producerController avec la connexion à la base de données
-producerController.initialize({ restaurationDb: producerDb });
-
-// Modèle pour la collection producers
-const ProducerSchema = new mongoose.Schema({
-  place_id: String,
-  name: String,
-  verified: Boolean,
-  photo: String,
-  description: String,
-  menu: Array,
-  address: String,
-  gps_coordinates: {
-    type: { type: String, enum: ['Point'] },
-    coordinates: [Number]
-  },
-  category: [String],
-  opening_hours: [String],
-  phone_number: String,
-  website: String,
-  notes_globales: {
-    service: Number,
-    lieu: Number,
-    portions: Number,
-    ambiance: Number
-  },
-  abonnés: Number,
-  photos: [String],
-  rating: Number,
-  price_level: Number,
-  promotion: {
-    active: Boolean,
-    discountPercentage: Number,
-    endDate: Date
-  },
-  followers: [String]
-});
-
-// Ajouter l'index géospatial
-ProducerSchema.index({ gps_coordinates: '2dsphere' });
-
-// Création du modèle
-const ProducerModel = producerDb.model('producer', ProducerSchema, 'producers');
-
-// TODO: Define a detailed schema for structured_data (Menus Globaux, Items Indépendants)
-//       within ProducerSchema for better validation, querying, and consistency.
 
 // Middleware d'authentification (à importer si nécessaire)
 const auth = async (req, res, next) => {
@@ -89,6 +32,8 @@ const auth = async (req, res, next) => {
  * @access  Public
  */
 router.get('/advanced-search', async (req, res) => {
+  const ProducerModel = getModel('Producer');
+  if (!ProducerModel) return res.status(500).json({ success: false, message: 'Producer model not initialized.'});
   try {
     // Vérifier si les index géospatiaux sont disponibles
     let hasGeoIndexes = false;
@@ -465,7 +410,7 @@ router.get('/advanced-search', async (req, res) => {
       const producerIdStr = String(producer._id);
       try {
         // Count total interests for this producer (type: 'save')
-        totalInterests = await Interaction.countDocuments({
+        totalInterests = await getInteractionModel(choiceAppDb).countDocuments({
           producerId: producerIdStr,
           producerType: 'restaurant',
           type: 'save'
@@ -475,7 +420,7 @@ router.get('/advanced-search', async (req, res) => {
       }
       try {
         // Count total choices for this producer (type: 'click')
-        totalChoices = await Interaction.countDocuments({
+        totalChoices = await getInteractionModel(choiceAppDb).countDocuments({
           producerId: producerIdStr,
           producerType: 'restaurant',
           type: 'click'
@@ -486,7 +431,7 @@ router.get('/advanced-search', async (req, res) => {
       // Count interests from users the current user is following
       if (userId && userFollowing.length > 0) {
         try {
-          followingInterestsCount = await Interaction.countDocuments({
+          followingInterestsCount = await getInteractionModel(choiceAppDb).countDocuments({
             producerId: producerIdStr,
             producerType: 'restaurant',
             type: 'save',
@@ -496,7 +441,7 @@ router.get('/advanced-search', async (req, res) => {
           console.error(`Erreur comptage Following Interests pour ${producer._id}: ${followingInterestErr.message}`);
         }
         try {
-          followingChoicesCount = await Interaction.countDocuments({
+          followingChoicesCount = await getInteractionModel(choiceAppDb).countDocuments({
             producerId: producerIdStr,
             producerType: 'restaurant',
             type: 'click',
@@ -541,6 +486,8 @@ router.get('/advanced-search', async (req, res) => {
 
 // GET /api/producers - Obtenir tous les restaurants avec pagination
 router.get('/', async (req, res) => {
+  const ProducerModel = getModel('Producer');
+  if (!ProducerModel) return res.status(500).send("Producer model not initialized");
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
@@ -589,7 +536,7 @@ router.get('/search', async (req, res) => {
       searchQuery.rating = { $gte: parseFloat(rating) };
     }
     
-    const producers = await ProducerModel.find(searchQuery).limit(50);
+    const producers = await getModel('Producer').find(searchQuery).limit(50);
     
     res.status(200).json(producers);
   } catch (error) {
@@ -601,7 +548,7 @@ router.get('/search', async (req, res) => {
 // GET /api/producers/featured - Obtenir les restaurants mis en avant
 router.get('/featured', async (req, res) => {
   try {
-    const featured = await ProducerModel.find({ featured: true }).limit(10);
+    const featured = await getModel('Producer').find({ featured: true }).limit(10);
     res.status(200).json(featured);
   } catch (error) {
     console.error('Erreur de récupération des restaurants en vedette:', error);
@@ -612,7 +559,7 @@ router.get('/featured', async (req, res) => {
 // GET /api/producers/by-place-id/:placeId - Obtenir un restaurant par place_id (Google Maps)
 router.get('/by-place-id/:placeId', async (req, res) => {
   try {
-    const producer = await ProducerModel.findOne({ place_id: req.params.placeId });
+    const producer = await getModel('Producer').findOne({ place_id: req.params.placeId });
     
     if (!producer) {
       return res.status(404).json({ error: 'Restaurant non trouvé' });
@@ -628,7 +575,7 @@ router.get('/by-place-id/:placeId', async (req, res) => {
 // GET /api/producers/category/:category - Obtenir les restaurants par catégorie
 router.get('/category/:category', async (req, res) => {
   try {
-    const producers = await ProducerModel.find({
+    const producers = await getModel('Producer').find({
       category: { $in: [req.params.category] }
     }).limit(50);
     
@@ -648,7 +595,7 @@ router.get('/nearby', async (req, res) => {
       return res.status(400).json({ error: 'Les coordonnées GPS sont requises (lat, lng)' });
     }
     
-    const producers = await ProducerModel.find({
+    const producers = await getModel('Producer').find({
       gps_coordinates: {
         $geoWithin: {
           $centerSphere: [
@@ -676,7 +623,7 @@ router.get('/:producerId/events', async (req, res) => {
     const { producerId } = req.params;
 
     // Find producer to validate it exists
-    const producer = await ProducerModel.findById(producerId);
+    const producer = await getModel('Producer').findById(producerId);
     
     if (!producer) {
       return res.status(404).json({ message: 'Producer not found' });
@@ -734,10 +681,10 @@ router.get('/:producerId/events', async (req, res) => {
 router.get('/:producerId/relations', producerController.getProducerRelations);
 
 // POST /api/producers/user/:userId/favorites - Ajouter un producteur aux favoris
-router.post('/user/:userId/favorites', producerController.addToFavorites);
+// router.post('/user/:userId/favorites', producerController.addToFavorites); // Likely missing too
 
 // DELETE /api/producers/user/:userId/favorites - Retirer un producteur des favoris
-router.delete('/user/:userId/favorites', producerController.removeFromFavorites);
+// router.delete('/user/:userId/favorites', producerController.removeFromFavorites);
 
 // Endpoint : Recherche de producteurs par mots-clés
 router.get('/search', async (req, res) => {
@@ -750,7 +697,7 @@ router.get('/search', async (req, res) => {
 
     console.log('🔍 Recherche pour le mot-clé :', query);
 
-    const producers = await ProducerModel.find({
+    const producers = await getModel('Producer').find({
       $or: [
         { name: { $regex: query, $options: 'i' } },
         { address: { $regex: query, $options: 'i' } },
@@ -786,7 +733,17 @@ router.get('/:id/location', producerController.getProducerLocationById);
  * @desc    Obtenir un producteur par son ID MongoDB
  * @access  Public
  */
-router.get('/:id', producerController.getProducerById);
+router.get('/:id', async (req, res) => {
+  const ProducerModel = getModel('Producer');
+  if (!ProducerModel) return res.status(500).send("Producer model not initialized");
+  try {
+    const producer = await ProducerModel.findById(req.params.id);
+    if (!producer) return res.status(404).json({ message: 'Producer not found' });
+    res.json(producer);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
 // POST /api/producers/:id/follow - Suivre un restaurant (nécessite authentification)
 router.post('/:id/follow', auth, async (req, res) => {
@@ -796,7 +753,7 @@ router.post('/:id/follow', auth, async (req, res) => {
       return res.status(400).json({ error: 'ID de restaurant invalide' });
     }
     
-    const producer = await ProducerModel.findById(req.params.id);
+    const producer = await getModel('Producer').findById(req.params.id);
     
     if (!producer) {
       return res.status(404).json({ error: 'Restaurant non trouvé' });
@@ -840,13 +797,13 @@ router.post('/conversations/new-message', async (req, res) => {
     const participants = [senderId, ...recipientIds];
 
     // Vérifie si une conversation existe déjà pour ces participants
-    let conversation = await Conversation.findOne({
+    let conversation = await getModel('Conversation').findOne({
       participants: { $all: participants, $size: participants.length },
     });
 
     // Si elle n'existe pas, la créer
     if (!conversation) {
-      conversation = new Conversation({
+      conversation = new getModel('Conversation')({
         participants,
         messages: [],
         lastUpdated: Date.now(),
@@ -873,7 +830,7 @@ router.post('/conversations/new-message', async (req, res) => {
 
     // Mettre à jour le champ `conversations` des producteurs concernés
     const updateProducerConversations = async (producerId) => {
-      await ProducerModel.findByIdAndUpdate(
+      await getModel('Producer').findByIdAndUpdate(
         producerId,
         { $addToSet: { conversations: conversation._id } }, // $addToSet évite les doublons
         { new: true }
@@ -1203,31 +1160,62 @@ router.post('/:id/posts', async (req, res) => {
       return res.status(404).json({ message: 'Producer not found' });
     }
 
-    // Create a new post in the Posts collection
-    // Assuming we have a Post model in the ChoiceApp database
-    const Post = choiceAppDb.model('Post', new mongoose.Schema({}, { strict: false }), 'posts');
+    // --- MODIFIED: Use getModel to fetch the Post model ---
+    const Post = getModel('Post'); // Assumes getModel is available and configured
+    if (!Post) {
+      console.error('Post model is not initialized');
+      return res.status(500).json({ message: 'Internal server error: Post model not available' });
+    }
     
-    const newPost = new Post({
+    // --- EXISTING: Create new post ---
+    const newPostData = {
+      author: { // Assuming the producer is the author
+        id: producer._id,
+        authorModel: 'Producer', // Match the enum in Post.js
+        name: producer.name,
+        avatar: producer.photo // Or another appropriate field
+      },
       producer_id: id,
-      producer_type: 'restaurant', // Default, can be changed based on producer type
+      producerType: 'Producer', // Assuming 'restaurant' producers use the 'Producer' model type
       producer_name: producer.name,
       producer_photo: producer.photo,
+      title: req.body.title || 'Post from ' + producer.name, // Added title, default if not provided
       content: content || '',
-      media_urls: media_urls || [],
+      media: media_urls ? media_urls.map(url => ({ type: 'image', url })) : [], // Adjusted media structure
       mentioned_users: mentioned_users || [],
       tagged_items: tagged_items || [],
       event_details: event_details || null,
-      likes: 0,
-      comments: [],
+      // likes: 0, // These are usually handled by interactions, not set on creation
+      // comments: [],
       created_at: new Date(),
-      updated_at: new Date()
-    });
+      updated_at: new Date(),
+      isProducerPost: true, // Set flag
+      isRestaurationProducer: true // Set flag based on producerType
+      // Add other necessary fields from Post.js schema
+    };
 
+    // --- ADJUSTED: Check if title and content are provided ---
+    // A post usually needs a title or content. Let's ensure at least one exists,
+    // unless it's purely a media post which might be okay depending on requirements.
+    if (!newPostData.title && !newPostData.content && newPostData.media.length === 0) {
+       return res.status(400).json({ message: 'Post requires a title, content, or media.' });
+    }
+
+
+    const newPost = new Post(newPostData);
     await newPost.save();
 
-    res.status(201).json({ 
-      message: 'Post created successfully', 
-      post: newPost 
+    // --- ADDED: Link post to producer ---
+    if (!producer.posts) {
+      producer.posts = []; // Initialize if it doesn't exist
+    }
+    producer.posts.push(newPost._id);
+    await producer.save(); // Save the updated producer document
+    // --- END ADDED ---
+
+    res.status(201).json({
+      message: 'Post created successfully',
+      post: newPost // Return the full post object
     });
   } catch (error) {
     console.error('Error creating post:', error);

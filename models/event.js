@@ -192,6 +192,7 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
     interestedUsers: [{ type: String }],
     interest_count: { type: Number, default: 0 },
     choice_count: { type: Number, default: 0 },
+    choiceUsers: [{ type: mongoose.Schema.Types.Mixed }],
     comments_count: { type: Number, default: 0 },
     commentaires: [{
       titre: String,
@@ -575,10 +576,10 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
   });
   
   // Ajouter des index pour optimiser les recherches
-  EventSchema.index({ location: '2dsphere' }); // Index géospatial pour les recherches de proximité
   EventSchema.index({ localisation: '2dsphere' }); // Index pour le format alternatif
   EventSchema.index({ start_date: 1 }); // Index pour les recherches par date
   EventSchema.index({ end_date: 1 });
+  EventSchema.index({ date: 1 }); // Ajouter un index pour le champ 'date' simple
   EventSchema.index({ category: 1 }); // Index pour les recherches par catégorie
   EventSchema.index({ catégorie: 1 }); // Pour le format original
   EventSchema.index({ 
@@ -1121,13 +1122,9 @@ const createEventModel = (connection, collectionName = 'Loisir_Paris_Evenements'
   };
 
   // Compiler le modèle
-  try {
-    // Essayer de récupérer un modèle existant
-    return connection.model('Event');
-  } catch (error) {
-    // Si le modèle n'existe pas, le créer
-    return connection.model('Event', EventSchema, collectionName);
-  }
+  const Event = connection.model('Event', EventSchema, collectionName);
+
+  return Event; // Retourner le modèle compilé
 };
 
 module.exports = createEventModel;

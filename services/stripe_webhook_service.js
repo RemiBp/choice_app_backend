@@ -190,35 +190,33 @@ async function handleSuccessfulPayment(paymentIntent) {
     }
   }
   // ---- Handle Appointment Booking Payment ----
-  else if (type === 'appointment_booking' && metadata.beautyProducerId && metadata.slotId) {
-    const { beautyProducerId, slotId } = metadata;
-    console.log(`Traitement du paiement de rendez-vous réussi pour le producteur de bien-être ${beautyProducerId}, créneau ${slotId}`);
+  else if (type === 'appointment_booking' && metadata.producerId && metadata.slotId) {
+    const { producerId, slotId } = metadata;
+    console.log(`Traitement du paiement de rendez-vous réussi pour le producteur (Wellness) ${producerId}, créneau ${slotId}`);
     
     try {
-      // Confirmer la réservation
-      const updateResult = await WellnessProducer.updateOne(
-        {
-          _id: beautyProducerId,
-          'appointment_system.slots._id': slotId,
-          'appointment_system.slots.payment_intent_id': paymentIntent.id
-        },
-        {
-          $set: {
-            'appointment_system.slots.$.confirmed': true,
-            'appointment_system.slots.$.payment_status': 'paid'
-          }
-        }
-      );
+      // Update the slot status in the WellnessPlace model
+      const wellness = await WellnessProducer.findById(producerId);
+      if (!wellness) {
+        console.error(`Producteur de bien-être non trouvé pour l'ID: ${producerId}`);
+        return;
+      }
       
-      if (updateResult.modifiedCount > 0) {
-        console.log(`✅ Rendez-vous confirmé pour le producteur de bien-être ${beautyProducerId}, créneau ${slotId}`);
-        
-        // TODO: Envoyer une notification de confirmation
+      // Mise à jour du statut du créneau
+      const updatedProducer = await wellness.updateOne(
+        { 'appointment_system.slots._id': slotId },
+        { $set: { 'appointment_system.slots.$.booked': true, 'appointment_system.slots.$.booked_by': metadata.userId } },
+        { new: true }
+      );
+
+      if (updatedProducer) {
+        console.log(`✅ Rendez-vous confirmé pour le producteur (Wellness) ${producerId}, créneau ${slotId}`);
+        // TODO: Notify user and producer (e.g., email, push notification)
       } else {
-        console.warn(`Créneau de rendez-vous ${slotId} pour le producteur de bien-être ${beautyProducerId} non mis à jour.`);
+        console.warn(`Créneau de rendez-vous ${slotId} pour le producteur (Wellness) ${producerId} non trouvé ou non mis à jour.`);
       }
     } catch (error) {
-      console.error(`Erreur lors de la confirmation du rendez-vous pour le producteur de bien-être ${beautyProducerId}, créneau ${slotId}:`, error);
+      console.error(`Erreur lors de la confirmation du rendez-vous pour le producteur (Wellness) ${producerId}, créneau ${slotId}:`, error);
     }
   }
   // ---- Handle Other Payment Types ----
@@ -233,37 +231,37 @@ async function handleSuccessfulPayment(paymentIntent) {
  */
 async function handleFailedPayment(paymentIntent) {
   const metadata = paymentIntent.metadata || {};
-  const { userId, producerId, type, beautyProducerId, slotId } = metadata;
+  const { userId, producerId, type, slotId } = metadata;
   
   // ---- Handle Failed Appointment Booking ----
-  if (type === 'appointment_booking' && beautyProducerId && slotId) {
-    console.log(`Paiement de rendez-vous échoué pour le producteur de bien-être ${beautyProducerId}, créneau ${slotId}`);
+  if (type === 'appointment_booking' && producerId && slotId) {
+    console.log(`Paiement de rendez-vous échoué pour le producteur (Wellness) ${producerId}, créneau ${slotId}`);
     
     try {
-      // Libérer le créneau horaire
-      const updateResult = await WellnessProducer.updateOne(
-        {
-          _id: beautyProducerId,
-          'appointment_system.slots._id': slotId
-        },
-        {
-          $set: {
-            'appointment_system.slots.$.confirmed': false,
-            'appointment_system.slots.$.payment_status': 'failed',
-            'appointment_system.slots.$.payment_intent_id': null,
-            'appointment_system.slots.$.booked': false,
-            'appointment_system.slots.$.user_id': null
-          }
+      // Update the slot status in the WellnessPlace model to make it available again
+      const wellness = await WellnessProducer.findById(producerId);
+      if (!wellness) {
+         console.error("❌ Modèle WellnessPlace non trouvé dans stripe_webhook_service (échec paiement)");
+         return;
+      }
+      try {
+        const updatedProducer = await wellness.updateOne(
+          { _id: producerId, 'appointment_system.slots._id': slotId, 'appointment_system.slots.booked_by': userId },
+          { $set: { 'appointment_system.slots.$.booked': false, 'appointment_system.slots.$.booked_by': null } },
+          { new: true }
+        );
+
+        if (updatedProducer) {
+          console.log(`✅ Créneau libéré pour le producteur (Wellness) ${producerId}, créneau ${slotId}`);
+          // TODO: Notify user about payment failure and slot release
+        } else {
+          console.warn(`Créneau ${slotId} pour le producteur (Wellness) ${producerId} non trouvé ou non mis à jour après échec du paiement.`);
         }
-      );
-      
-      if (updateResult.modifiedCount > 0) {
-        console.log(`✅ Créneau libéré pour le producteur de bien-être ${beautyProducerId}, créneau ${slotId}`);
-      } else {
-        console.warn(`Créneau ${slotId} pour le producteur de bien-être ${beautyProducerId} non mis à jour après échec du paiement.`);
+      } catch (error) {
+        console.error(`Erreur lors de la libération du créneau ${slotId} pour le producteur (Wellness) ${producerId}:`, error);
       }
     } catch (error) {
-      console.error(`Erreur lors de la libération du créneau ${slotId} pour le producteur de bien-être ${beautyProducerId}:`, error);
+      console.error(`Erreur lors de la confirmation du rendez-vous pour le producteur (Wellness) ${producerId}, créneau ${slotId}:`, error);
     }
   }
   // ---- Handle Failed Subscription Payment ----

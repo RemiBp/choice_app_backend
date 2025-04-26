@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const auth = require('../middleware/auth');
 const { createModel, databases } = require('../utils/modelCreator');
 
 // Créer les modèles directement
@@ -16,9 +15,9 @@ const initialize = (db) => {
   /**
    * @route GET /api/friends/map-activities/:userId
    * @desc Obtenir les choix et intérêts des followers pour la carte
-   * @access Private
+   * @access Public (Was Private)
    */
-  router.get('/map-activities/:userId', auth, async (req, res) => {
+  router.get('/map-activities/:userId', async (req, res) => {
     try {
       // Utiliser l'ID de l'utilisateur authentifié ou celui fourni dans l'URL
       const userId = req.user?.id || req.params.userId;
@@ -438,9 +437,9 @@ const initialize = (db) => {
   /**
    * @route POST /api/friends/follow
    * @desc Suivre un utilisateur
-   * @access Private
+   * @access Public (Was Private)
    */
-  router.post('/follow', auth, async (req, res) => {
+  router.post('/follow', async (req, res) => {
     try {
       if (!mongoose.connection.readyState) {
         return res.status(500).json({ message: 'La connexion à la base de données n\'est pas établie' });
@@ -500,9 +499,9 @@ const initialize = (db) => {
   /**
    * @route POST /api/friends/unfollow
    * @desc Ne plus suivre un utilisateur
-   * @access Private
+   * @access Public (Was Private)
    */
-  router.post('/unfollow', auth, async (req, res) => {
+  router.post('/unfollow', async (req, res) => {
     try {
       if (!mongoose.connection.readyState) {
         return res.status(500).json({ message: 'La connexion à la base de données n\'est pas établie' });
@@ -548,9 +547,9 @@ const initialize = (db) => {
   /**
    * @route GET /api/friends/:userId
    * @desc Obtenir les amis d'un utilisateur
-   * @access Private
+   * @access Public (Was Private)
    */
-  router.get('/:userId', auth, async (req, res) => {
+  router.get('/:userId', async (req, res) => {
     try {
       if (!mongoose.connection.readyState) {
         return res.status(500).json({ message: 'La connexion à la base de données n\'est pas établie' });
@@ -628,9 +627,9 @@ const initialize = (db) => {
   /**
    * @route GET /api/friends/following-interests
    * @desc Obtenir les choix et intérêts des utilisateurs suivis avec leur localisation
-   * @access Private
+   * @access Public (Was Private)
    */
-  router.get('/following-interests', auth, async (req, res) => {
+  router.get('/following-interests', async (req, res) => {
     try {
       // Utiliser l'ID de l'utilisateur authentifié ou celui fourni dans les paramètres
       const userId = req.user?.id || req.query.userId;
@@ -1135,7 +1134,199 @@ const initialize = (db) => {
     }
   });
 
+  /**
+   * @route GET /api/friends/feed/:userId
+   * @desc Obtenir les posts des amis d'un utilisateur
+   * @access Public (Was Private)
+   */
+  router.get('/feed/:userId', async (req, res) => {
+    try {
+      if (!mongoose.connection.readyState) {
+        return res.status(500).json({ message: 'La connexion à la base de données n\'est pas établie' });
+      }
+      
+      const { userId, limit = 20, fromDate } = req.query;
+      
+      if (!userId) {
+        return res.status(400).json({ message: 'userId requis.' });
+      }
+      
+      // Récupérer l'utilisateur et ses relations
+      const user = await User.findById(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+      }
+      
+      // Récupérer les IDs des amis
+      const friendIds = [
+        ...(user.following || []),
+        ...(user.followers || [])
+      ].filter((id, index, self) => 
+        // Supprimer les doublons
+        self.indexOf(id) === index
+      );
+      
+      // Récupérer les posts avec le modèle créé directement
+      let query = {
+        userId: { $in: friendIds }
+      };
+      
+      if (fromDate) {
+        query.timestamp = { $gte: new Date(fromDate) };
+      }
+      
+      const posts = await Post.find(query)
+        .sort({ timestamp: -1 })
+        .limit(parseInt(limit));
+        
+      // Enrichir avec les infos utilisateur
+      const enrichedPosts = await Promise.all(
+        posts.map(async (post) => {
+          const postUser = await User.findById(post.userId)
+            .select('_id name username profilePicture photo_url');
+            
+          return {
+            ...post.toObject(),
+            userName: postUser?.name || postUser?.username || 'Utilisateur',
+            userProfileImage: postUser?.profilePicture || postUser?.photo_url,
+          };
+        })
+      );
+      
+      res.status(200).json(enrichedPosts);
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des posts des amis :', error);
+      res.status(500).json({ message: 'Erreur interne du serveur.' });
+    }
+  });
+
+  /**
+   * @route GET /api/friends/suggestions/:userId
+   * @desc Obtenir des suggestions d'amis pour un utilisateur
+   * @access Public (Was Private)
+   */
+  router.get('/suggestions/:userId', async (req, res) => {
+    try {
+      if (!mongoose.connection.readyState) {
+        return res.status(500).json({ message: 'La connexion à la base de données n\'est pas établie' });
+      }
+      
+      const { userId, limit = 10 } = req.query;
+      
+      if (!userId) {
+        return res.status(400).json({ message: 'userId requis.' });
+      }
+      
+      // Récupérer l'utilisateur et ses relations
+      const user = await User.findById(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+      }
+      
+      // Récupérer les IDs des amis
+      const friendIds = [
+        ...(user.following || []),
+        ...(user.followers || [])
+      ].filter((id, index, self) => 
+        // Supprimer les doublons
+        self.indexOf(id) === index
+      );
+      
+      // Récupérer les utilisateurs à suggérer
+      const suggestedUsers = await User.find({ _id: { $nin: friendIds } })
+        .select('_id name username profilePicture photo_url location last_active interests following followers')
+        .limit(parseInt(limit));
+      
+      // Transformer pour le format attendu par le frontend
+      const formattedSuggestedUsers = suggestedUsers.map(u => ({
+        id: u._id,
+        name: u.name || u.username || 'Utilisateur',
+        username: u.username,
+        profileImage: u.profilePicture || u.photo_url,
+        location: u.location,
+        lastActive: u.last_active || new Date().toISOString(),
+        interests: u.interests || [],
+        isFollowing: user.following?.some(id => id.toString() === u._id.toString()) || false,
+        isFollower: user.followers?.some(id => id.toString() === u._id.toString()) || false,
+        // Calculer les intérêts communs
+        commonInterests: (u.interests || []).filter(interest => 
+          (user.interests || []).includes(interest)
+        ).length
+      }));
+      
+      res.status(200).json(formattedSuggestedUsers);
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des suggestions d\'amis :', error);
+      res.status(500).json({ message: 'Erreur interne du serveur.' });
+    }
+  });
+
+  /**
+   * @route POST /api/friends/request
+   * @desc Envoyer une demande d'ami à un utilisateur
+   * @access Public (Was Private)
+   */
+  router.post('/request', async (req, res) => {
+    try {
+      if (!mongoose.connection.readyState) {
+        return res.status(500).json({ message: 'La connexion à la base de données n\'est pas établie' });
+      }
+      
+      const { userId, friendId } = req.body;
+      
+      if (!userId || !friendId) {
+        return res.status(400).json({ message: 'userId et friendId requis.' });
+      }
+      
+      // Éviter de se suivre soi-même
+      if (userId === friendId) {
+        return res.status(400).json({ message: 'Vous ne pouvez pas vous suivre vous-même.' });
+      }
+      
+      // Vérifier l'existence de l'utilisateur
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+      }
+      
+      // Vérifier l'existence de l'ami
+      const friend = await User.findById(friendId);
+      if (!friend) {
+        return res.status(404).json({ message: 'Ami non trouvé.' });
+      }
+      
+      // Ajouter l'ami aux abonnements si pas déjà présent
+      if (!user.following) {
+        user.following = [];
+      }
+      
+      // Vérifier si déjà suivi
+      if (user.following.includes(friendId)) {
+        return res.status(400).json({ message: 'Vous suivez déjà cet utilisateur.' });
+      }
+      
+      user.following.push(friendId);
+      await user.save();
+      
+      // Ajouter l'utilisateur aux abonnés de l'ami
+      if (!friend.followers) {
+        friend.followers = [];
+      }
+      
+      friend.followers.push(userId);
+      await friend.save();
+      
+      res.status(200).json({ message: 'Utilisateur suivi avec succès.' });
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'envoi de la demande d\'ami :', error);
+      res.status(500).json({ message: 'Erreur interne du serveur.' });
+    }
+  });
+
   return router;
 };
 
-module.exports = { initialize }; 
+router.initialize = initialize;
+module.exports = router; 

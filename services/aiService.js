@@ -159,7 +159,7 @@ exports.fetchRecommendationsForProducer = async (producerId, producerType, conne
 
         let recommendations = [];
 
-        // --- Rule-Based Recommendation Engine ---
+        // --- Rule-Based Recommendation Engine --- 
 
         // 1. Photo Recommendation (if few photos)
         if (!producerData?.photos || producerData.photos.length < 5) {
@@ -190,7 +190,7 @@ exports.fetchRecommendationsForProducer = async (producerId, producerType, conne
                 impact: "Moyen",
                 effort: "Moyen"
             });
-        } else if (producerType === 'leisureProducer' && (!producerData?.events || producerData.events.length === 0)) {
+        } else if (producerType === 'leisureProducer' && (!producerData?.events || producerData.events.length === 0)) { 
             recommendations.push({
                 title: "Promouvoir un événement",
                 description: "Les événements attirent de nouveaux clients et boostent les réservations.",
@@ -223,7 +223,7 @@ exports.fetchRecommendationsForProducer = async (producerId, producerType, conne
                 effort: "Moyen"
             });
         }
-
+        
         // 5. Follower Engagement Recommendation
         // Ensure producerData and followers exist before checking length
         if (producerData?.followers && producerData.followers.length > 10) { // Example threshold
@@ -242,7 +242,7 @@ exports.fetchRecommendationsForProducer = async (producerId, producerType, conne
 
     } catch (error) {
         console.error(`Error fetching recommendations for producer ${producerId}:`, error);
-        return [];
+        return []; 
     }
 };
 
@@ -421,24 +421,35 @@ exports.processProducerQuery = async (producerId, producerTypeInput, message, co
     }
 };
 
-// --- Placeholder for getProducerInsights ---
+// --- Implementation for getProducerInsights ---
 /**
  * Generates general business insights for a producer using LLM.
+ * Reuses the processProducerQuery logic with a predefined query.
  * @param {string} producerId - The ID of the producer.
  * @param {object} connections - Object containing DB connections.
  * @returns {Promise<object>} - A promise resolving to an object { response: string, profiles: Array<object>, analysisResults: object|null }.
  */
 exports.getProducerInsights = async (producerId, connections) => {
      console.log(`[aiService] Generating insights for producer ${producerId}...`);
-     // TODO: Implement logic similar to processProducerQuery, but with a fixed prompt
-     // asking for general insights, KPI summary, and competitor overview.
-     // You can reuse detectProducerType, _fetchProducerData, fetchCompetitorsForProducer,
-     // build a specific prompt for insights, call OpenAI, parse, and format the response.
 
-     // For now, return a placeholder:
-     return {
-         response: "La génération d'insights automatiques est en cours de développement.",
-         profiles: [],
-         analysisResults: null
-     };
+     // Define the standard query for general insights
+     const insightQuery = "Donne-moi un aperçu de ma situation actuelle. Analyse ma performance, mes points forts et faibles par rapport à mes concurrents directs (si possible), et suggère quelques pistes d'amélioration clés.";
+
+     // Reuse the existing query processing function. It handles type detection, context fetching, LLM call, and response formatting.
+     // Pass null for producerType to let processProducerQuery handle detection.
+     try {
+          const result = await exports.processProducerQuery(producerId, null, insightQuery, connections);
+          console.log(`[aiService] Insights generation completed for producer ${producerId}.`);
+          return result; // Return the structured result from processProducerQuery
+     } catch (error) { // Catch errors specific to the insights generation flow if needed
+          console.error(`[aiService] Error generating insights specifically for producer ${producerId}:`, error);
+          // Return a standard error structure consistent with processProducerQuery's error handling
+    return {
+               response: "Désolé, une erreur est survenue lors de la génération de vos insights.",
+               profiles: [],
+               analysisResults: null,
+               // Optionally include error details for internal logging/debugging
+               // error: error.message
+          };
+     }
 };

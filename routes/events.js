@@ -3,7 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const eventController = require('../controllers/eventController');
 const createEventModel = require('../models/event');
-const auth = require('../middleware/auth');
+const { requireAuth } = require('../middleware/authMiddleware');
 
 // Variable to hold the connection to the Loisir&Culture database
 let loisirDb;
@@ -378,16 +378,80 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-router.post('/', auth, eventController.createEvent);
-router.put('/:id', auth, eventController.updateEvent);
-router.delete('/:id', auth, eventController.deleteEvent);
+router.post('/', requireAuth, async (req, res) => {
+  if (!['RestaurantProducer', 'LeisureProducer', 'WellnessProducer', 'admin'].includes(req.user.accountType)) {
+    return res.status(403).json({ message: 'Forbidden: Only producers or admins can create events' });
+  }
+
+  const eventData = req.body;
+  const event = new router.Event(eventData);
+
+  try {
+    await event.save();
+    res.status(201).json(event);
+  } catch (error) {
+    console.error('Erreur lors de la création de l\'événement:', error);
+    res.status(500).json({ error: 'Erreur lors de la création de l\'événement' });
+  }
+});
+
+router.put('/:eventId', requireAuth, async (req, res) => {
+  const { eventId } = req.params;
+  const EventModel = router.Event;
+
+  try {
+    const event = await EventModel.findById(eventId);
+
+    if (!event) {
+      return res.status(404).json({ error: 'Événement non trouvé' });
+    }
+
+    // Check if the user owns the event or is an admin
+    if (event.producerId.toString() !== req.user.id && req.user.accountType !== 'admin') {
+      return res.status(403).json({ message: 'Forbidden: You do not own this event.' });
+    }
+
+    const updatedData = req.body;
+    Object.assign(event, updatedData);
+
+    await event.save();
+    res.status(200).json(event);
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de l\'événement:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour de l\'événement' });
+  }
+});
+
+router.delete('/:eventId', requireAuth, async (req, res) => {
+  const { eventId } = req.params;
+  const EventModel = router.Event;
+
+  try {
+    const event = await EventModel.findById(eventId);
+
+    if (!event) {
+      return res.status(404).json({ error: 'Événement non trouvé' });
+    }
+
+    // Check if the user owns the event or is an admin
+    if (event.producerId.toString() !== req.user.id && req.user.accountType !== 'admin') {
+      return res.status(403).json({ message: 'Forbidden: You do not own this event.' });
+    }
+
+    await event.remove();
+    res.status(200).json({ message: 'Événement supprimé avec succès' });
+  } catch (error) {
+    console.error('Erreur lors de la suppression de l\'événement:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression de l\'événement' });
+  }
+});
 
 // Routes pour les favoris
-router.post('/user/:userId/favorites', auth, eventController.addToFavorites);
-router.delete('/user/:userId/favorites', auth, eventController.removeFromFavorites);
+router.post('/user/:userId/favorites', requireAuth, eventController.addToFavorites);
+router.delete('/user/:userId/favorites', requireAuth, eventController.removeFromFavorites);
 
 // POST /api/events/:id/interested - Marquer l'intérêt pour un événement
-router.post('/:id/interested', auth, async (req, res) => {
+router.post('/:id/interested', requireAuth, async (req, res) => {
   try {
     // Vérifier que le modèle Event est correctement initialisé
     if (!router.Event) {
@@ -432,7 +496,7 @@ router.post('/:id/interested', auth, async (req, res) => {
 });
 
 // POST /api/events/:id/choice - Marquer un événement comme un choix
-router.post('/:id/choice', auth, async (req, res) => {
+router.post('/:id/choice', requireAuth, async (req, res) => {
   try {
     // Vérifier que le modèle Event est correctement initialisé
     if (!router.Event) {
@@ -477,7 +541,7 @@ router.post('/:id/choice', auth, async (req, res) => {
 });
 
 // POST /api/events/generate - Générer des événements aléatoires pour les tests
-router.post('/generate', auth, async (req, res) => {
+router.post('/generate', requireAuth, async (req, res) => {
   try {
     // Vérifier que le modèle Event est correctement initialisé
     if (!router.Event) {
@@ -506,6 +570,31 @@ router.post('/generate', auth, async (req, res) => {
   } catch (error) {
     console.error('Erreur lors de la génération d\'événements:', error);
     res.status(500).json({ error: 'Erreur lors de la génération d\'événements' });
+  }
+});
+
+/**
+ * @route GET /api/events/my-participations
+ * @desc Get all events the current user is participating in
+ * @access Private (Authenticated User)
+ */
+router.get('/my-participations', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const EventModel = router.Event;
+
+  try {
+    const events = await EventModel.find({
+      $or: [
+        { participants: userId },
+        { 'participants.userId': userId }
+      ]
+    }).sort({ date_debut: 1 });
+
+    const processedEvents = events.map(event => router.normalizeEventData(event));
+    res.status(200).json(processedEvents);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des participations:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des participations' });
   }
 });
 

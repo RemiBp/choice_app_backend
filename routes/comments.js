@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const auth = require('../middleware/auth');
 const { User } = require('../models/UserModels')(mongoose.connection);
 
 // Modèle de commentaire (à créer si n'existe pas)

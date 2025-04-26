@@ -3,7 +3,6 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Conversation = require('../models/conversation'); // Import du modèle Conversation
 const LeisureProducer = require('../models/leisureProducer');
-const auth = require('../middleware/auth');
 
 // Connexion à la base Loisir&Culture pour les routes qui utilisent directement MongoDB
 let loisirDb;
@@ -285,7 +284,7 @@ router.get('/:id', async (req, res) => {
  * Suivre un producteur de loisirs
  * POST /api/leisureProducers/:id/follow
  */
-router.post('/:id/follow', auth, async (req, res) => {
+router.post('/:id/follow', async (req, res) => {
   try {
     const producer = await router.LeisureProducerModel.findById(req.params.id);
     
@@ -325,7 +324,7 @@ router.post('/:id/follow', auth, async (req, res) => {
  * Créer un nouveau producteur de loisirs
  * POST /api/leisureProducers
  */
-router.post('/', auth, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const producerData = req.body;
     
@@ -355,7 +354,7 @@ router.post('/', auth, async (req, res) => {
  * Mettre à jour un producteur de loisirs
  * PUT /api/leisureProducers/:id
  */
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const updateData = req.body;
     
@@ -389,7 +388,7 @@ router.put('/:id', auth, async (req, res) => {
  * Supprimer un producteur de loisirs
  * DELETE /api/leisureProducers/:id
  */
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     // Vérifier que le producteur existe
     const producer = await router.LeisureProducerModel.findById(req.params.id);
@@ -501,7 +500,7 @@ router.get('/:id/events', async (req, res) => {
  * Créer un nouvel événement pour un producteur de loisirs
  * POST /api/leisureProducers/:id/events
  */
-router.post('/:id/events', auth, async (req, res) => {
+router.post('/:id/events', async (req, res) => {
   try {
     const { id } = req.params;
     const eventData = req.body;
@@ -549,7 +548,7 @@ router.post('/:id/events', auth, async (req, res) => {
  * Mettre à jour un événement d'un producteur de loisirs
  * PUT /api/leisureProducers/:producerId/events/:eventId
  */
-router.put('/:producerId/events/:eventId', auth, async (req, res) => {
+router.put('/:producerId/events/:eventId', async (req, res) => {
   try {
     const { producerId, eventId } = req.params;
     const updateData = req.body;
@@ -598,7 +597,7 @@ router.put('/:producerId/events/:eventId', auth, async (req, res) => {
  * Supprimer un événement d'un producteur de loisirs
  * DELETE /api/leisureProducers/:producerId/events/:eventId
  */
-router.delete('/:producerId/events/:eventId', auth, async (req, res) => {
+router.delete('/:producerId/events/:eventId', async (req, res) => {
   try {
     const { producerId, eventId } = req.params;
     
@@ -645,7 +644,7 @@ router.delete('/:producerId/events/:eventId', auth, async (req, res) => {
  * Publier un événement (changer son statut)
  * POST /api/leisureProducers/:producerId/events/:eventId/publish
  */
-router.post('/:producerId/events/:eventId/publish', auth, async (req, res) => {
+router.post('/:producerId/events/:eventId/publish', async (req, res) => {
   try {
     const { producerId, eventId } = req.params;
     const { published = true } = req.body;

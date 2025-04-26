@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const auth = require('../middleware/auth');
+const { requireAuth } = require('../middleware/authMiddleware');
 const { choiceAppDb } = require('../index');
 
 // Schéma pour les badges
@@ -52,7 +52,7 @@ try {
  * @desc Récupérer tous les badges d'un utilisateur
  * @access Private
  */
-router.get('/users/:userId/badges', auth, async (req, res) => {
+router.get('/users/:userId/badges', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -98,7 +98,7 @@ router.get('/users/:userId/badges', auth, async (req, res) => {
  * @desc Récupérer toutes les actions d'un utilisateur
  * @access Private
  */
-router.get('/users/:userId/actions', auth, async (req, res) => {
+router.get('/users/:userId/actions', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -126,7 +126,7 @@ router.get('/users/:userId/actions', auth, async (req, res) => {
  * @desc Vérifier si l'utilisateur a débloqué de nouveaux badges
  * @access Private
  */
-router.post('/users/:userId/badges/check', auth, async (req, res) => {
+router.post('/users/:userId/badges/check', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     const { actionType } = req.body;
@@ -222,7 +222,7 @@ router.post('/users/:userId/badges/check', auth, async (req, res) => {
  * @desc Mettre à jour le statut d'un badge (marquer comme vu)
  * @access Private
  */
-router.put('/users/:userId/badges/:badgeId', auth, async (req, res) => {
+router.put('/users/:userId/badges/:badgeId', requireAuth, async (req, res) => {
   try {
     const { userId, badgeId } = req.params;
     const { isNew } = req.body;

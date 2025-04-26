@@ -2,33 +2,9 @@ const express = require('express');
 const router = express.Router();
 const analyticsController = require('../controllers/analyticsController');
 const mongoose = require('mongoose');
-const { createModel, databases } = require('../utils/modelCreator');
+const { getModel } = require('../models');
 const { requireAuth } = require('../middleware/authMiddleware');
 const requirePremiumFeature = require('../middleware/premiumFeatureMiddleware');
-
-// --- Require Schemas for direct use in this router if needed ---
-const ProfileViewSchema = require('../models/ProfileView');
-
-// --- Model Initialization --- 
-// Models needed directly in this router file (others are used in the controller)
-let ProfileView;
-let AnalyticsEvent; // Keep the generic event model too
-
-function initializeRouterModels() {
-    const { choiceAppDb } = require('../index'); // Get connections
-    if (choiceAppDb) {
-        ProfileView = createModel(choiceAppDb, 'ProfileView', 'profile_views', ProfileViewSchema);
-        // Initialize the generic AnalyticsEvent model too if needed by this router
-        AnalyticsEvent = createModel(choiceAppDb, 'AnalyticsEvent', 'analytics_events'); 
-        console.log("✅ Analytics Router Models Initialized (ProfileView, AnalyticsEvent)");
-    } else {
-        console.error("❌ choiceAppDb connection not available for Analytics Router Models");
-        ProfileView = AnalyticsEvent = null;
-    }
-}
-
-// Call initialization
-initializeRouterModels();
 
 /**
  * Routes pour les analytiques
@@ -37,13 +13,15 @@ initializeRouterModels();
 // POST /api/analytics/events - Enregistrer un événement d'analytics (Générique + ProfileView)
 router.post('/events', async (req, res) => {
   try {
-    // Check model initialization
-    if (!AnalyticsEvent || !ProfileView) {
-      initializeRouterModels(); // Attempt re-init
-      if (!AnalyticsEvent || !ProfileView) {
-         return res.status(500).json({ success: false, message: 'Router models not initialized' });
-      }
+    // --- Use getModel --- 
+    const AnalyticsEventModel = getModel('AnalyticsEvent');
+    const ProfileViewModel = getModel('ProfileView');
+    
+    if (!AnalyticsEventModel || !ProfileViewModel) {
+      console.error('Analytics Error: Models not initialized via getModel');
+      return res.status(500).json({ success: false, message: 'Analytics models not initialized' });
     }
+    // --- End Use getModel ---
 
     // Handle single event or batch from frontend queue
     if (req.body.events && Array.isArray(req.body.events)) {
@@ -80,10 +58,10 @@ router.post('/events', async (req, res) => {
 
         let genericResult, profileViewResult;
         if (eventsToInsert.length > 0) {
-            genericResult = await AnalyticsEvent.insertMany(eventsToInsert);
+            genericResult = await AnalyticsEventModel.insertMany(eventsToInsert);
         }
         if (profileViewsToInsert.length > 0) {
-            profileViewResult = await ProfileView.insertMany(profileViewsToInsert);
+            profileViewResult = await ProfileViewModel.insertMany(profileViewsToInsert);
         }
 
          res.status(200).json({ 
@@ -98,7 +76,7 @@ router.post('/events', async (req, res) => {
 
         // Specific handling for profile_view if sent individually
         if (type === 'profile_view' && data.profile_id && data.producer_type) {
-            const newProfileView = new ProfileView({
+            const newProfileView = new ProfileViewModel({
                 producerId: new mongoose.Types.ObjectId(data.profile_id),
                 onModel: data.producer_type, // Ensure this matches the enum in ProfileView schema
                 userId: data.userId ? new mongoose.Types.ObjectId(data.userId) : null,
@@ -112,10 +90,20 @@ router.post('/events', async (req, res) => {
             });
         } else {
             // Generic event saving
-            const newEvent = new AnalyticsEvent({
+            // Create a sanitized parameters object to avoid circular references
+            const safeParameters = { ...data }; // Shallow copy
+            // Remove potentially problematic fields if necessary (example)
+            // delete safeParameters.internalStateObject; 
+            
+            // Ensure userId and timestamp are not duplicated if they exist in data
+            const finalParameters = { ...safeParameters };
+            if (finalParameters.userId === undefined) finalParameters.userId = data.userId;
+            if (finalParameters.timestamp === undefined) finalParameters.timestamp = data.timestamp;
+            
+            const newEvent = new AnalyticsEventModel({
                 name: type,
-                userId: data.userId || 'anonymous',
-                parameters: data,
+                userId: data.userId || 'anonymous', 
+                parameters: finalParameters, // Use the sanitized/copied parameters
                 timestamp: new Date(data.timestamp || Date.now()),
             });
             savedEvent = await newEvent.save();
@@ -146,13 +134,13 @@ router.post('/events', async (req, res) => {
 
 // GET /api/analytics/events - Récupérer les événements analytics (Generic only for now)
 router.get('/events', async (req, res) => {
-   // This route currently only queries the generic AnalyticsEvent collection.
-   // Modify if needed to query ProfileViews or combine results.
    try {
-     if (!AnalyticsEvent) {
-       initializeRouterModels();
-       if (!AnalyticsEvent) return res.status(500).json({ message: 'Model not initialized' });
+     // --- Use getModel ---
+     const AnalyticsEventModel = getModel('AnalyticsEvent');
+     if (!AnalyticsEventModel) {
+       return res.status(500).json({ message: 'AnalyticsEvent model not initialized' });
      }
+     // --- End Use getModel ---
 
      const { userId, eventType, startDate, endDate, limit = 100, page = 1 } = req.query;
      const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -167,12 +155,12 @@ router.get('/events', async (req, res) => {
        if (endDate) query.timestamp.$lte = new Date(endDate);
      }
      
-     const events = await AnalyticsEvent.find(query)
+     const events = await AnalyticsEventModel.find(query)
        .sort({ timestamp: -1 })
        .skip(skip)
        .limit(parseInt(limit));
      
-     const total = await AnalyticsEvent.countDocuments(query);
+     const total = await AnalyticsEventModel.countDocuments(query);
      
      res.status(200).json({
        events,

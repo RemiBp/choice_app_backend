@@ -2,14 +2,14 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const { choiceAppDb } = require('../index');
-const auth = require('../middleware/auth');
+const { requireAuth } = require('../middleware/authMiddleware');
 
 /**
  * @route POST /api/sync/pending-actions
  * @desc Synchronise les actions en attente depuis le client
  * @access Private
  */
-router.post('/pending-actions', auth, async (req, res) => {
+router.post('/pending-actions', requireAuth, async (req, res) => {
   try {
     const { actions } = req.body;
     const userId = req.user.id;
@@ -98,7 +98,7 @@ router.post('/pending-actions', auth, async (req, res) => {
  * @desc Vérifie l'état de synchronisation d'un utilisateur
  * @access Private
  */
-router.get('/status', auth, async (req, res) => {
+router.get('/status', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     

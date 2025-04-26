@@ -4,7 +4,7 @@ const User = require('../models/User');
 const Post = require('../models/Post');
 const Producer = require('../models/Producer');
 const LeisureProducer = require('../models/leisureProducer');
-const BeautyProducer = require('../models/beautyProducer');
+const WellnessPlace = require('../models/WellnessPlace');
 const Event = require('../models/event');
 const { Conversation } = require('../models/conversation');
 const mongoose = require('mongoose');
@@ -79,7 +79,8 @@ router.get('/producer/:producerId', auth, async (req, res) => {
         Producer = require('../models/leisureProducer');
         break;
       case 'beauty':
-        Producer = require('../models/beautyProducer');
+      case 'wellness':
+        Producer = require('../models/WellnessPlace');
         break;
       default:
         Producer = require('../models/Producer');
@@ -111,9 +112,8 @@ router.get('/producer/:producerId', auth, async (req, res) => {
     // Statistiques spécifiques selon le type
     if (type === 'restaurant') {
       stats.menuItemsCount = producer.menu_items?.length || producer.menu?.length || 0;
-    } else if (type === 'beauty') {
+    } else if (type === 'beauty' || type === 'wellness') {
       stats.servicesCount = producer.services?.length || 0;
-      stats.appointmentsCount = producer.appointment_system?.slots?.length || 0;
     } else if (type === 'leisure') {
       stats.eventsCount = producer.evenements?.length || producer.nombre_evenements || 0;
     }
@@ -185,7 +185,7 @@ router.get('/global', auth, async (req, res) => {
       Post.countDocuments(),
       Producer.countDocuments(),
       LeisureProducer.countDocuments(),
-      BeautyProducer.countDocuments(),
+      WellnessPlace.countDocuments(),
       Event.countDocuments()
     ]);
     
@@ -248,7 +248,7 @@ router.get('/trending', async (req, res) => {
           .limit(limitNum)
           .select('_id lieu name photo adresse address catégorie category'),
         
-        BeautyProducer.find()
+        WellnessPlace.find()
           .sort({ abonnés: -1 })
           .limit(limitNum)
           .select('_id name photo address category rating')

@@ -1,20 +1,17 @@
 const mongoose = require('mongoose');
-const Producer = require('../models/Producer');
 const { UserChoice } = require('../models/User');
 const { createModel, databases } = require('../utils/modelCreator');
+const { getModel } = require('../models');
 
-// Initialiser les modèles directement avec notre utilitaire
-const WellnessPlace = createModel(
-  databases.BEAUTY_WELLNESS, 
-  'WellnessPlace', 
-  'WellnessPlaces'
-);
+const WellnessPlace = getModel('WellnessPlace');
+const BeautyPlace = getModel('BeautyPlace') || WellnessPlace;
 
-const BeautyPlace = createModel(
-  databases.BEAUTY_WELLNESS,
-  'BeautyPlace',
-  'BeautyPlaces'
-);
+function checkWellnessModels() {
+  if (!WellnessPlace || !BeautyPlace) {
+    console.error("❌ Erreur critique: Modèles WellnessPlace ou BeautyPlace non initialisés.");
+    throw new Error("Modèles Wellness/Beauty non initialisés.");
+  }
+}
 
 /**
  * Contrôleur pour gérer les producteurs de bien-être et les services associés
@@ -25,30 +22,22 @@ const wellnessController = {
    */
   getAllWellnessProducers: async (req, res) => {
     try {
-      // S'assurer que les modèles sont initialisés
-      if (!WellnessPlace) initialize();
+      checkWellnessModels();
 
-      // Paramètres de pagination
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 20;
       const skip = (page - 1) * limit;
 
-      // Filtres
       const filterParams = {};
       if (req.query.category) filterParams.category = req.query.category;
       if (req.query.tags) filterParams.tags = { $in: req.query.tags.split(',') };
       
-      // Filtrer seulement les producteurs dans la catégorie "wellness"
-      filterParams.type = "wellness";
-
-      // Obtenir les producteurs paginés
-      const producers = await Producer.find(filterParams)
+      const producers = await WellnessPlace.find(filterParams)
         .skip(skip)
         .limit(limit)
         .sort({ rating: -1 });
 
-      // Compter le nombre total de résultats pour la pagination
-      const totalProducers = await Producer.countDocuments(filterParams);
+      const totalProducers = await WellnessPlace.countDocuments(filterParams);
 
       res.status(200).json({
         producers,
@@ -71,30 +60,26 @@ const wellnessController = {
    */
   getWellnessProducerById: async (req, res) => {
     try {
-      // S'assurer que les modèles sont initialisés
-      if (!WellnessPlace) initialize();
+      checkWellnessModels();
 
       const { id } = req.params;
-      const producer = await Producer.findOne({ _id: id, type: "wellness" });
+      
+      let producer = await WellnessPlace.findById(id);
+      if (!producer && BeautyPlace !== WellnessPlace) { 
+        producer = await BeautyPlace.findById(id);
+      }
 
       if (!producer) {
-        // Chercher aussi dans WellnessPlace et BeautyPlace
-        const wellnessPlace = await WellnessPlace.findById(id);
-        if (wellnessPlace) {
-          return res.status(200).json(wellnessPlace);
-        }
-        
-        const beautyPlace = await BeautyPlace.findById(id);
-        if (beautyPlace) {
-          return res.status(200).json(beautyPlace);
-        }
-        
         return res.status(404).json({ message: 'Producteur wellness non trouvé' });
       }
 
       res.status(200).json(producer);
     } catch (error) {
       console.error('❌ Erreur dans getWellnessProducerById:', error);
+      
+      if (error.name === 'CastError') {
+        return res.status(400).json({ message: `Format de l'ID invalide: ${req.params.id}` });
+      }
       res.status(500).json({ message: 'Erreur lors de la récupération du producteur wellness', error: error.message });
     }
   },
@@ -104,37 +89,26 @@ const wellnessController = {
    */
   searchWellnessProducers: async (req, res) => {
     try {
-      // S'assurer que les modèles sont initialisés
-      if (!WellnessPlace) initialize();
+      checkWellnessModels();
 
       const { q, category, tags, page = 1, limit = 20 } = req.query;
       const skip = (parseInt(page) - 1) * parseInt(limit);
 
-      // Construire la requête de recherche
-      const searchQuery = {
-        type: "wellness"
-      };
+      const searchQuery = {};
 
-      // Recherche textuelle si query est fournie
       if (q) {
-        searchQuery.$or = [
-          { name: { $regex: q, $options: 'i' } },
-          { description: { $regex: q, $options: 'i' } },
-          { tags: { $regex: q, $options: 'i' } }
-        ];
+        searchQuery.$text = { $search: q };
       }
 
-      // Filtres supplémentaires
       if (category) searchQuery.category = category;
       if (tags) searchQuery.tags = { $in: tags.split(',') };
 
-      // Exécuter la recherche
-      const producers = await Producer.find(searchQuery)
+      const producers = await WellnessPlace.find(searchQuery)
         .skip(skip)
         .limit(parseInt(limit))
-        .sort({ rating: -1 });
+        .sort({ score: { $meta: "textScore" }, rating: -1 });
 
-      const totalProducers = await Producer.countDocuments(searchQuery);
+      const totalProducers = await WellnessPlace.countDocuments(searchQuery);
 
       res.status(200).json({
         producers,
@@ -157,8 +131,7 @@ const wellnessController = {
    */
   getNearbyWellnessProducers: async (req, res) => {
     try {
-      // S'assurer que les modèles sont initialisés
-      if (!WellnessPlace) initialize();
+      checkWellnessModels();
 
       const { lat, lng, radius = 5000, limit = 20, category, sousCategory, minRating, services } = req.query;
 
@@ -166,9 +139,8 @@ const wellnessController = {
         return res.status(400).json({ message: 'Les coordonnées (lat, lng) sont requises' });
       }
 
-      // Recherche géospatiale de base
       const geoQuery = {
-        location: {
+        "location.coordinates": {
           $nearSphere: {
             $geometry: {
               type: "Point",
@@ -179,17 +151,16 @@ const wellnessController = {
         }
       };
 
-      // Ajout des filtres supplémentaires
       if (category && category !== 'Tous') {
         geoQuery.category = category;
       }
       
       if (sousCategory) {
-        geoQuery.sousCategory = sousCategory;
+        geoQuery.sous_categorie = sousCategory;
       }
       
       if (minRating) {
-        geoQuery.rating = { $gte: parseFloat(minRating) };
+        geoQuery["rating.average"] = { $gte: parseFloat(minRating) };
       }
       
       let parsedServices = [];
@@ -197,25 +168,16 @@ const wellnessController = {
         try {
           parsedServices = JSON.parse(services);
           if (Array.isArray(parsedServices) && parsedServices.length > 0) {
-            geoQuery.services = { $in: parsedServices };
+            geoQuery["services.name"] = { $in: parsedServices };
           }
         } catch (e) {
           console.error('❌ Erreur parsing des services:', e);
         }
       }
 
-      // Exécuter les requêtes en parallèle sur les deux collections
-      const [wellnessPlaces, beautyPlaces, wellnessProducers] = await Promise.all([
-        WellnessPlace.find(geoQuery).limit(parseInt(limit)),
-        BeautyPlace.find(geoQuery).limit(parseInt(limit)),
-        Producer.find({
-          ...geoQuery,
-          type: "wellness"
-        }).limit(parseInt(limit))
-      ]);
-
-      // Fusionner les résultats et retourner
-      const allPlaces = [...wellnessPlaces, ...beautyPlaces, ...wellnessProducers];
+      const nearbyPlaces = await WellnessPlace.find(geoQuery).limit(parseInt(limit));
+      
+      const allPlaces = nearbyPlaces;
       
       res.status(200).json(allPlaces);
     } catch (error) {
@@ -229,25 +191,18 @@ const wellnessController = {
    */
   getWellnessServices: async (req, res) => {
     try {
+      checkWellnessModels();
       const { id } = req.params;
       
-      // Chercher dans les différentes collections
-      const producer = await Producer.findOne({ _id: id, type: "wellness" });
-      if (producer && producer.services && Array.isArray(producer.services)) {
-        return res.status(200).json(producer.services);
-      }
-      
-      const wellnessPlace = await WellnessPlace.findById(id);
-      if (wellnessPlace && wellnessPlace.services && Array.isArray(wellnessPlace.services)) {
-        return res.status(200).json(wellnessPlace.services);
-      }
-      
-      const beautyPlace = await BeautyPlace.findById(id);
-      if (beautyPlace && beautyPlace.services && Array.isArray(beautyPlace.services)) {
-        return res.status(200).json(beautyPlace.services);
+      let place = await WellnessPlace.findById(id).select('services');
+      if (!place && BeautyPlace !== WellnessPlace) { 
+        place = await BeautyPlace.findById(id).select('services');
       }
 
-      // Par défaut, retourner un tableau vide
+      if (place && place.services && Array.isArray(place.services)) {
+        return res.status(200).json(place.services);
+      }
+
       res.status(200).json([]);
     } catch (error) {
       console.error('❌ Erreur dans getWellnessServices:', error);
@@ -260,33 +215,26 @@ const wellnessController = {
    */
   getWellnessCategories: async (req, res) => {
     try {
-      // Récupérer les catégories depuis les différentes collections
       const [producerCategories, wellnessCategories, beautyCategories] = await Promise.all([
         Producer.distinct('category', { type: "wellness" }),
         WellnessPlace.distinct('category'),
         BeautyPlace.distinct('category')
       ]);
       
-      // Fusionner les catégories et sous-catégories
       const allCategories = new Set([...producerCategories, ...wellnessCategories, ...beautyCategories]);
       
-      // Structure à retourner (catégories et sous-catégories)
       const categoriesMap = {};
       
-      // Remplir la map avec les sous-catégories
       for (const category of allCategories) {
-        // Récupérer les sous-catégories pour cette catégorie
         const [producerSubCategories, wellnessSubCategories, beautySubCategories] = await Promise.all([
           Producer.distinct('sousCategory', { type: "wellness", category }),
           WellnessPlace.distinct('sousCategory', { category }),
           BeautyPlace.distinct('sousCategory', { category })
         ]);
         
-        // Fusionner les sous-catégories
         const subCategories = [...new Set([...producerSubCategories, ...wellnessSubCategories, ...beautySubCategories])];
         
-        // Ajouter à la map
-        categoriesMap[category] = subCategories.filter(Boolean); // Filtrer les valeurs null/undefined
+        categoriesMap[category] = subCategories.filter(Boolean);
       }
       
       res.status(200).json(categoriesMap);
@@ -303,15 +251,12 @@ const wellnessController = {
     try {
       const { userId } = req.params;
       
-      // Vérifier que l'utilisateur existe
       const user = await UserChoice.findById(userId);
       if (!user) {
         return res.status(404).json({ message: 'Utilisateur non trouvé' });
       }
 
-      // Si l'utilisateur a des producteurs favoris
       if (user.followingProducers && Array.isArray(user.followingProducers) && user.followingProducers.length > 0) {
-        // Récupérer tous les producteurs wellness favoris
         const favoriteProducers = await Producer.find({
           _id: { $in: user.followingProducers },
           type: "wellness"
@@ -320,7 +265,6 @@ const wellnessController = {
         return res.status(200).json(favoriteProducers);
       }
 
-      // Par défaut, retourner un tableau vide
       res.status(200).json([]);
     } catch (error) {
       console.error('❌ Erreur dans getUserFavoriteWellnessProducers:', error);
@@ -340,8 +284,7 @@ const wellnessController = {
         return res.status(400).json({ message: 'Photos doit être un tableau de URLs' });
       }
       
-      // Chercher le producteur dans les différentes collections
-      let producer = await Producer.findOne({ _id: id, type: "wellness" });
+      let producer = await WellnessPlace.findById(id);
       if (producer) {
         producer.photos = photos;
         await producer.save();
@@ -381,8 +324,7 @@ const wellnessController = {
         return res.status(400).json({ message: 'photoUrls doit être un tableau de URLs' });
       }
       
-      // Chercher le producteur dans les différentes collections
-      let producer = await Producer.findOne({ _id: id, type: "wellness" });
+      let producer = await WellnessPlace.findById(id);
       if (producer) {
         producer.photos = [...(producer.photos || []), ...photoUrls];
         await producer.save();
@@ -417,8 +359,7 @@ const wellnessController = {
     try {
       const { id, photoUrl } = req.params;
       
-      // Chercher le producteur dans les différentes collections
-      let producer = await Producer.findOne({ _id: id, type: "wellness" });
+      let producer = await WellnessPlace.findById(id);
       if (producer && producer.photos) {
         producer.photos = producer.photos.filter(photo => photo !== photoUrl);
         await producer.save();
@@ -458,8 +399,7 @@ const wellnessController = {
         return res.status(400).json({ message: 'Services doit être un tableau' });
       }
       
-      // Chercher le producteur dans les différentes collections
-      let producer = await Producer.findOne({ _id: id, type: "wellness" });
+      let producer = await WellnessPlace.findById(id);
       if (producer) {
         producer.services = services;
         await producer.save();
@@ -495,8 +435,7 @@ const wellnessController = {
       const { id } = req.params;
       const { notes } = req.body;
       
-      // Chercher le producteur dans les différentes collections
-      let producer = await Producer.findOne({ _id: id, type: "wellness" });
+      let producer = await WellnessPlace.findById(id);
       if (producer) {
         producer.notes = notes;
         await producer.save();
@@ -529,33 +468,29 @@ const wellnessController = {
    */
   updateWellnessProducer: async (req, res) => {
     try {
+      checkWellnessModels();
       const { id } = req.params;
       const updateData = req.body;
 
-      // Valider que l'ID est un ObjectId valide
       if (!mongoose.isValidObjectId(id)) {
         return res.status(400).json({ message: 'ID invalide' });
       }
 
-      // Retirer les champs non modifiables ou potentiellement dangereux
       delete updateData._id; 
       delete updateData.created_at; 
-      delete updateData.type; // Le type ne devrait pas changer
-      delete updateData.rating; // La note est généralement calculée
-      delete updateData.reviews; // Les avis sont gérés par d'autres routes
-      delete updateData.choice_count; // Compteurs gérés par le système
+      delete updateData.type;
+      delete updateData.rating;
+      delete updateData.reviews;
+      delete updateData.choice_count;
       delete updateData.interest_count;
       delete updateData.favorite_count;
       delete updateData.choiceUsers;
       delete updateData.interestedUsers;
       delete updateData.favorites;
-      // On ne met pas à jour les photos ici, elles ont leurs propres routes
       delete updateData.photos; 
       delete updateData.images;
       delete updateData.profilePhoto;
 
-      // Gérer les mises à jour imbriquées (contact, location)
-      // On utilise $set pour éviter de remplacer tout l'objet si seulement un sous-champ est envoyé
       const updatePayload = {};
       for (const key in updateData) {
         if (key === 'contact' && typeof updateData.contact === 'object') {
@@ -564,48 +499,131 @@ const wellnessController = {
           }
         } else if (key === 'location' && typeof updateData.location === 'object') {
           for (const locationKey in updateData.location) {
-            // Ne pas permettre la modification directe des coordonnées ou du type Point ici
             if (locationKey !== 'coordinates' && locationKey !== 'type') {
               updatePayload[`location.${locationKey}`] = updateData.location[locationKey];
             }
           }
         } else if (key === 'services' && Array.isArray(updateData.services)) {
-          // Valider la structure des services si nécessaire avant de mettre à jour
           updatePayload[key] = updateData.services; 
         } else if (key === 'business_hours' && typeof updateData.business_hours === 'object') {
-           updatePayload[key] = updateData.business_hours; // Remplacer les horaires
+           updatePayload[key] = updateData.business_hours;
         } else if (key !== 'services' && key !== 'business_hours') {
-          // Mettre à jour les champs simples directement
           updatePayload[key] = updateData[key];
         }
       }
 
-      // Ajouter la date de mise à jour
       updatePayload.updated_at = new Date();
 
-      // Essayer de trouver et mettre à jour dans BeautyPlaces (via WellnessPlace model)
-      const updatedProducer = await WellnessPlace.findByIdAndUpdate(
+      const updatedPlace = await WellnessPlace.findByIdAndUpdate(
         id,
         { $set: updatePayload },
-        { new: true, runValidators: true } // new: retourne le doc mis à jour, runValidators: active les validations du schéma
+        { new: true, runValidators: true }
       );
 
-      if (!updatedProducer) {
+      if (!updatedPlace) {
         return res.status(404).json({ message: 'Producteur wellness non trouvé' });
       }
 
       console.log(`✅ Producteur wellness ${id} mis à jour.`);
-      res.status(200).json(updatedProducer);
+      res.status(200).json(updatedPlace);
 
     } catch (error) {
       console.error('❌ Erreur dans updateWellnessProducer:', error);
-       // Gérer les erreurs de validation Mongoose
-       if (error.name === 'ValidationError') {
+      
+      if (error.name === 'ValidationError') {
          return res.status(400).json({ message: 'Erreur de validation', errors: error.errors });
        }
       res.status(500).json({ message: 'Erreur lors de la mise à jour du producteur wellness', error: error.message });
     }
   },
+
+  /**
+   * Ajouter ou mettre à jour un service pour un producteur
+   */
+  upsertWellnessService: async (req, res) => {
+    try {
+      checkWellnessModels();
+      const { id } = req.params;
+      const serviceData = req.body;
+
+      if (!serviceData || !serviceData.name || !serviceData.price) {
+        return res.status(400).json({ message: 'Données de service invalides (nom et prix requis)' });
+      }
+
+      const place = await WellnessPlace.findById(id);
+
+      if (!place) {
+        return res.status(404).json({ message: 'Producteur wellness non trouvé' });
+      }
+
+      const existingServiceIndex = place.services.findIndex(s => s.name === serviceData.name);
+
+      if (existingServiceIndex > -1) {
+        place.services[existingServiceIndex] = { ...place.services[existingServiceIndex], ...serviceData };
+      } else {
+        place.services.push(serviceData);
+      }
+
+      await place.save();
+      res.status(200).json(place.services);
+    } catch (error) {
+      console.error('❌ Erreur dans upsertWellnessService:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'ajout/mise à jour du service wellness', error: error.message });
+    }
+  },
+
+  /**
+   * Supprimer un service d'un producteur
+   */
+  deleteWellnessService: async (req, res) => {
+    try {
+      checkWellnessModels();
+      const { id, serviceName } = req.params;
+
+      if (!serviceName) {
+        return res.status(400).json({ message: 'Nom du service requis pour la suppression' });
+      }
+
+      const place = await WellnessPlace.findById(id);
+
+      if (!place) {
+        return res.status(404).json({ message: 'Producteur wellness non trouvé' });
+      }
+
+      const initialLength = place.services.length;
+      place.services = place.services.filter(s => s.name !== serviceName);
+
+      if (place.services.length === initialLength) {
+        return res.status(404).json({ message: `Service "${serviceName}" non trouvé pour ce producteur` });
+      }
+
+      await place.save();
+      res.status(200).json({ message: `Service "${serviceName}" supprimé avec succès` });
+    } catch (error) {
+      console.error('❌ Erreur dans deleteWellnessService:', error);
+      res.status(500).json({ message: 'Erreur lors de la suppression du service wellness', error: error.message });
+    }
+  },
+
+  /**
+   * Supprimer un producteur de bien-être
+   */
+  deleteWellnessProducer: async (req, res) => {
+    try {
+      checkWellnessModels();
+      const { id } = req.params;
+
+      const deletedPlace = await WellnessPlace.findByIdAndDelete(id);
+
+      if (!deletedPlace) {
+        return res.status(404).json({ message: 'Producteur wellness non trouvé' });
+      }
+      res.status(200).json({ message: 'Producteur wellness supprimé avec succès' });
+    } catch (error) {
+      console.error('❌ Erreur dans deleteWellnessProducer:', error);
+      res.status(500).json({ message: 'Erreur lors de la suppression du producteur wellness', error: error.message });
+    }
+  }
 };
 
 module.exports = wellnessController; 

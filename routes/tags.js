@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const auth = require('../middleware/auth'); // Middleware d'authentification
-const { createModel, databases } = require('../utils/modelCreator');
+const { requireAuth } = require('../middleware/authMiddleware'); // Middleware d'authentification
+const { getModel } = require('../models'); // Assuming models/index.js exports getModel
 
 // Schéma pour les tags
 const tagSchema = new mongoose.Schema({
@@ -38,48 +38,25 @@ const contactTagAssociationSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// Créer les modèles directement
-const Tag = createModel(databases.CHOICE_APP, 'Tag', 'tags', tagSchema);
-const ContactTag = createModel(databases.CHOICE_APP, 'ContactTag', 'ContactTags', contactTagSchema);
-const ContactTagAssociation = createModel(databases.CHOICE_APP, 'ContactTagAssociation', 'ContactTagAssociations', contactTagAssociationSchema);
-
-// Initialisation des modèles - maintenant supprimée car on crée les modèles directement
-// Non utilisé, mais gardé pour compatibilité
-const initialize = (db) => {
-  // Rien à faire ici maintenant
-};
-
-// Connexions aux DBs (alternative à createModel si vous préférez)
-const choiceAppDb = mongoose.connection.useDb('choice_app');
-const restaurationDb = mongoose.connection.useDb('Restauration_Officielle');
-const loisirDb = mongoose.connection.useDb('Loisir&Culture');
-const beautyWellnessDb = mongoose.connection.useDb('Beauty_Wellness');
-
-// Modèles
-const User = choiceAppDb.model('User', new mongoose.Schema({}, { strict: false }), 'Users');
-const Restaurant = restaurationDb.model('Restaurant', new mongoose.Schema({}, { strict: false }), 'producers');
-const LeisureProducer = loisirDb.model('LeisureProducer', new mongoose.Schema({}, { strict: false }), 'Loisir_Paris_Producers');
-const Event = loisirDb.model('Event', new mongoose.Schema({}, { strict: false }), 'Loisir_Paris_Evenements');
-const BeautyPlace = beautyWellnessDb.model('BeautyPlace', new mongoose.Schema({}, { strict: false }), 'BeautyPlaces');
-const WellnessPlace = beautyWellnessDb.model('WellnessPlace', new mongoose.Schema({}, { strict: false }), 'WellnessPlaces');
-
 // Helper pour obtenir le bon modèle basé sur le type d'entité
 const getModelByType = (type) => {
+  // Use the central getModel function
   switch (type) {
     case 'user':
-      return User;
+      return getModel('User'); 
     case 'restaurant':
-      return Restaurant;
+      return getModel('Producer'); // Use the correct name 'Producer'
     case 'leisureProducer':
-      return LeisureProducer;
+      return getModel('LeisureProducer');
     case 'event':
-      return Event;
+      return getModel('Event');
     case 'beautyPlace':
-      return BeautyPlace;
+      return getModel('BeautyPlace'); 
     case 'wellnessPlace':
-      return WellnessPlace;
+      return getModel('WellnessPlace'); 
     // Ajoutez d'autres types si nécessaire
     default:
+      console.warn(`getModelByType called with unknown type: ${type}`);
       return null;
   }
 };
@@ -91,6 +68,9 @@ const getModelByType = (type) => {
  */
 router.get('/', async (req, res) => {
   try {
+    const TagModel = getModel('Tag'); // Get Tag model here
+    if (!TagModel) return res.status(500).json({ message: 'Tag model not initialized.' });
+
     const { type, limit = 100, search } = req.query;
     
     let query = { isActive: true };
@@ -106,7 +86,7 @@ router.get('/', async (req, res) => {
     }
     
     // Récupérer les tags
-    const tags = await Tag.find(query)
+    const tags = await TagModel.find(query)
       .sort({ count: -1 }) // Trier par popularité
       .limit(parseInt(limit));
     
@@ -126,7 +106,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const tag = await Tag.findById(id);
+    const tag = await getModel('Tag').findById(id);
     
     if (!tag) {
       return res.status(404).json({ message: 'Tag non trouvé.' });
@@ -144,7 +124,7 @@ router.get('/:id', async (req, res) => {
  * @desc Créer un nouveau tag
  * @access Private (admin)
  */
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const { name, type, icon, color, parentId } = req.body;
     
@@ -153,7 +133,7 @@ router.post('/', async (req, res) => {
     }
     
     // Vérifier si le tag existe déjà
-    const existingTag = await Tag.findOne({ name, type });
+    const existingTag = await getModel('Tag').findOne({ name, type });
     
     if (existingTag) {
       return res.status(400).json({ message: 'Ce tag existe déjà.' });
@@ -161,7 +141,7 @@ router.post('/', async (req, res) => {
     
     // Vérifier si le parent existe si spécifié
     if (parentId) {
-      const parentTag = await Tag.findById(parentId);
+      const parentTag = await getModel('Tag').findById(parentId);
       
       if (!parentTag) {
         return res.status(400).json({ message: 'Tag parent non trouvé.' });
@@ -169,7 +149,7 @@ router.post('/', async (req, res) => {
     }
     
     // Créer le nouveau tag
-    const newTag = new Tag({
+    const newTag = new getModel('Tag')({
       name,
       type,
       icon,
@@ -194,13 +174,13 @@ router.post('/', async (req, res) => {
  * @desc Mettre à jour un tag
  * @access Private (admin)
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, type, icon, color, parentId, isActive } = req.body;
     
     // Vérifier si le tag existe
-    const tag = await Tag.findById(id);
+    const tag = await getModel('Tag').findById(id);
     
     if (!tag) {
       return res.status(404).json({ message: 'Tag non trouvé.' });
@@ -229,7 +209,7 @@ router.put('/:id', async (req, res) => {
  * @desc Supprimer un tag
  * @access Private (admin)
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -238,7 +218,7 @@ router.delete('/:id', async (req, res) => {
     
     if (deactivateOnly === 'true') {
       // Désactiver le tag plutôt que le supprimer
-      const result = await Tag.findByIdAndUpdate(id, { isActive: false }, { new: true });
+      const result = await getModel('Tag').findByIdAndUpdate(id, { isActive: false }, { new: true });
       
       if (!result) {
         return res.status(404).json({ message: 'Tag non trouvé.' });
@@ -248,7 +228,7 @@ router.delete('/:id', async (req, res) => {
     }
     
     // Supprimer définitivement le tag
-    const result = await Tag.findByIdAndDelete(id);
+    const result = await getModel('Tag').findByIdAndDelete(id);
     
     if (!result) {
       return res.status(404).json({ message: 'Tag non trouvé.' });
@@ -266,7 +246,7 @@ router.delete('/:id', async (req, res) => {
  * @desc Incrémenter le compteur d'un tag
  * @access Private
  */
-router.post('/increment', async (req, res) => {
+router.post('/increment', requireAuth, async (req, res) => {
   try {
     const { tagIds } = req.body;
     
@@ -276,7 +256,7 @@ router.post('/increment', async (req, res) => {
     
     // Incrémenter le compteur pour chaque tag
     const updatePromises = tagIds.map(tagId => 
-      Tag.findByIdAndUpdate(tagId, { $inc: { count: 1 } }, { new: true })
+      getModel('Tag').findByIdAndUpdate(tagId, { $inc: { count: 1 } }, { new: true })
     );
     
     const results = await Promise.all(updatePromises);
@@ -295,11 +275,44 @@ router.post('/increment', async (req, res) => {
 });
 
 /**
+ * @route POST /api/tags/decrement
+ * @desc Décrémenter le compteur d'un tag
+ * @access Private
+ */
+router.post('/decrement', requireAuth, async (req, res) => {
+  try {
+    const { tagIds } = req.body;
+    
+    if (!tagIds || !Array.isArray(tagIds)) {
+      return res.status(400).json({ message: 'Liste de tagIds requise.' });
+    }
+    
+    // Décrémenter le compteur pour chaque tag
+    const updatePromises = tagIds.map(tagId => 
+      getModel('Tag').findByIdAndUpdate(tagId, { $inc: { count: -1 } }, { new: true })
+    );
+    
+    const results = await Promise.all(updatePromises);
+    
+    // Filtrer les résultats null (tags non trouvés)
+    const validResults = results.filter(r => r !== null);
+    
+    res.status(200).json({
+      message: `${validResults.length} tag(s) décrémenté(s) avec succès.`,
+      updatedTags: validResults
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la décrémentation des tags:', error);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
+
+/**
  * @route POST /api/tags/bulk
  * @desc Créer plusieurs tags en une seule opération
  * @access Private (admin)
  */
-router.post('/bulk', async (req, res) => {
+router.post('/bulk', requireAuth, async (req, res) => {
   try {
     const { tags } = req.body;
     
@@ -326,7 +339,7 @@ router.post('/bulk', async (req, res) => {
     }));
     
     // Insérer les tags
-    const result = await Tag.insertMany(tagsToInsert, { ordered: false });
+    const result = await getModel('Tag').insertMany(tagsToInsert, { ordered: false });
     
     res.status(201).json({
       message: `${result.length} tag(s) créé(s) avec succès.`,
@@ -347,11 +360,20 @@ router.post('/bulk', async (req, res) => {
 });
 
 /**
- * @route GET /api/contact-tags
+ * @route GET /api/tags/entity/:entityType/:entityId
+ * @desc Récupérer les tags associés à une entité
+ * @access Public (or Private depending on use case - leaving public for now)
+ */
+router.get('/entity/:entityType/:entityId', async (req, res) => {
+  // ... route logic ...
+});
+
+/**
+ * @route GET /api/tags/contact-tags
  * @desc Récupérer tous les tags de contacts pour un utilisateur
  * @access Private
  */
-router.get('/contact-tags', async (req, res) => {
+router.get('/contact-tags', requireAuth, async (req, res) => {
   try {
     const userId = req.user?.id;
 
@@ -360,13 +382,13 @@ router.get('/contact-tags', async (req, res) => {
     }
 
     // Rechercher les tags de contacts de l'utilisateur
-    const contactTags = await ContactTag.find({ 
+    const contactTags = await getModel('ContactTag').find({ 
       userId,
       isActive: true 
     }).sort({ name: 1 });
 
     // Rechercher les associations entre tags et contacts
-    const associations = await ContactTagAssociation.find({ userId });
+    const associations = await getModel('ContactTagAssociation').find({ userId });
 
     res.status(200).json({
       tags: contactTags,
@@ -379,11 +401,11 @@ router.get('/contact-tags', async (req, res) => {
 });
 
 /**
- * @route POST /api/contact-tags/sync
+ * @route POST /api/tags/contact-tags/sync
  * @desc Synchroniser un tag de contact
  * @access Private
  */
-router.post('/contact-tags/sync', async (req, res) => {
+router.post('/contact-tags/sync', requireAuth, async (req, res) => {
   try {
     const { tag } = req.body;
     const userId = req.user?.id;
@@ -397,7 +419,7 @@ router.post('/contact-tags/sync', async (req, res) => {
     }
 
     // Vérifier si le tag existe déjà
-    let existingTag = await ContactTag.findOne({ 
+    let existingTag = await getModel('ContactTag').findOne({ 
       userId,
       id: tag.id 
     });
@@ -413,7 +435,7 @@ router.post('/contact-tags/sync', async (req, res) => {
       await existingTag.save();
     } else {
       // Créer un nouveau tag
-      existingTag = new ContactTag({
+      existingTag = new getModel('ContactTag')({
         ...tag,
         userId,
         createdAt: new Date(),
@@ -434,11 +456,11 @@ router.post('/contact-tags/sync', async (req, res) => {
 });
 
 /**
- * @route DELETE /api/contact-tags/:id
+ * @route DELETE /api/tags/contact-tags/:id
  * @desc Supprimer un tag de contact
  * @access Private
  */
-router.delete('/contact-tags/:id', async (req, res) => {
+router.delete('/contact-tags/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -448,7 +470,7 @@ router.delete('/contact-tags/:id', async (req, res) => {
     }
 
     // Supprimer le tag
-    const result = await ContactTag.findOneAndDelete({ 
+    const result = await getModel('ContactTag').findOneAndDelete({ 
       userId,
       id 
     });
@@ -458,7 +480,7 @@ router.delete('/contact-tags/:id', async (req, res) => {
     }
 
     // Supprimer toutes les associations liées à ce tag
-    await ContactTagAssociation.deleteMany({ 
+    await getModel('ContactTagAssociation').deleteMany({ 
       userId,
       tagId: id 
     });
@@ -471,11 +493,11 @@ router.delete('/contact-tags/:id', async (req, res) => {
 });
 
 /**
- * @route POST /api/contact-tags/association
+ * @route POST /api/tags/contact-tags/association
  * @desc Ajouter une association tag-contact
  * @access Private
  */
-router.post('/contact-tags/association', async (req, res) => {
+router.post('/contact-tags/association', requireAuth, async (req, res) => {
   try {
     const { contactId, tagId } = req.body;
     const userId = req.user?.id;
@@ -489,7 +511,7 @@ router.post('/contact-tags/association', async (req, res) => {
     }
 
     // Vérifier si l'association existe déjà
-    const existingAssociation = await ContactTagAssociation.findOne({ 
+    const existingAssociation = await getModel('ContactTagAssociation').findOne({ 
       userId,
       contactId,
       tagId 
@@ -503,7 +525,7 @@ router.post('/contact-tags/association', async (req, res) => {
     }
 
     // Créer nouvelle association
-    const newAssociation = new ContactTagAssociation({
+    const newAssociation = new getModel('ContactTagAssociation')({
       userId,
       contactId,
       tagId,
@@ -523,11 +545,11 @@ router.post('/contact-tags/association', async (req, res) => {
 });
 
 /**
- * @route DELETE /api/contact-tags/association
+ * @route DELETE /api/tags/contact-tags/association
  * @desc Supprimer une association tag-contact
  * @access Private
  */
-router.delete('/contact-tags/association', async (req, res) => {
+router.delete('/contact-tags/association', requireAuth, async (req, res) => {
   try {
     const { contactId, tagId } = req.body;
     const userId = req.user?.id;
@@ -541,7 +563,7 @@ router.delete('/contact-tags/association', async (req, res) => {
     }
 
     // Supprimer l'association
-    const result = await ContactTagAssociation.findOneAndDelete({ 
+    const result = await getModel('ContactTagAssociation').findOneAndDelete({ 
       userId,
       contactId,
       tagId 
@@ -559,92 +581,204 @@ router.delete('/contact-tags/association', async (req, res) => {
 });
 
 /**
- * @route POST /api/tags
- * @desc Ajouter un tag à une entité (User, Producer, Event, etc.)
- * @access Private (authentification requise)
- * @body { entityType: string, entityId: string, tag: string }
+ * @route POST /api/tags/:tagId/associate
+ * @desc Ajouter une association tag-contact
+ * @access Private
  */
-router.post('/', auth, async (req, res) => {
-  const { entityType, entityId, tag } = req.body;
-
-  if (!entityType || !entityId || !tag) {
-    return res.status(400).json({ message: 'entityType, entityId et tag sont requis.' });
-  }
-
-  const Model = getModelByType(entityType);
-  if (!Model) {
-    return res.status(400).json({ message: 'Type d\'entité invalide.' });
-  }
-
+router.post('/:tagId/associate', requireAuth, async (req, res) => {
   try {
-    const entity = await Model.findById(entityId);
-    if (!entity) {
-      return res.status(404).json({ message: 'Entité non trouvée.' });
+    const { contactId } = req.body;
+    const tagId = req.params.tagId;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentification requise' });
     }
 
-    // Ajouter le tag à la liste (en évitant les doublons)
-    // Assurez-vous que le champ 'tags' existe dans vos modèles !
-    const result = await Model.findByIdAndUpdate(
-      entityId,
-      { $addToSet: { tags: tag } }, // $addToSet évite les doublons
-      { new: true, upsert: false } // new: true retourne le document mis à jour
-    ).select('tags'); // Sélectionne seulement le champ tags pour la réponse
+    if (!contactId || !tagId) {
+      return res.status(400).json({ message: 'ContactId et tagId sont requis.' });
+    }
+
+    // Vérifier si l'association existe déjà
+    const existingAssociation = await getModel('ContactTagAssociation').findOne({ 
+      userId,
+      contactId,
+      tagId 
+    });
+
+    if (existingAssociation) {
+      return res.status(200).json({ 
+        message: 'Association déjà existante',
+        association: existingAssociation
+      });
+    }
+
+    // Créer nouvelle association
+    const newAssociation = new getModel('ContactTagAssociation')({
+      userId,
+      contactId,
+      tagId,
+      createdAt: new Date()
+    });
+
+    await newAssociation.save();
+
+    res.status(201).json({
+      message: 'Association créée avec succès',
+      association: newAssociation
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la création de l\'association:', error);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
+
+/**
+ * @route DELETE /api/tags/:tagId/dissociate
+ * @desc Supprimer une association tag-contact
+ * @access Private
+ */
+router.delete('/:tagId/dissociate', requireAuth, async (req, res) => {
+  try {
+    const { contactId } = req.body;
+    const tagId = req.params.tagId;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentification requise' });
+    }
+
+    if (!contactId || !tagId) {
+      return res.status(400).json({ message: 'ContactId et tagId sont requis.' });
+    }
+
+    // Supprimer l'association
+    const result = await getModel('ContactTagAssociation').findOneAndDelete({ 
+      userId,
+      contactId,
+      tagId 
+    });
+
+    if (!result) {
+      return res.status(404).json({ message: 'Association non trouvée.' });
+    }
+
+    res.status(200).json({ message: 'Association supprimée avec succès.' });
+  } catch (error) {
+    console.error('❌ Erreur lors de la suppression de l\'association:', error);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
+  }
+});
+
+/**
+ * @route POST /api/tags/contacts/add
+ * @desc Ajouter un tag à un contact
+ * @access Private
+ */
+router.post('/contacts/add', requireAuth, async (req, res) => {
+  try {
+    const { contactId, tagId } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentification requise' });
+    }
+
+    if (!contactId || !tagId) {
+      return res.status(400).json({ message: 'ContactId et tagId sont requis.' });
+    }
+
+    // Vérifier si le contact existe
+    const contact = await getModel('User').findById(contactId);
+    if (!contact) {
+      return res.status(404).json({ message: 'Contact non trouvé.' });
+    }
+
+    // Vérifier si le tag existe
+    const tag = await getModel('Tag').findById(tagId);
+    if (!tag) {
+      return res.status(404).json({ message: 'Tag non trouvé.' });
+    }
+
+    // Ajouter le tag au contact
+    const result = await getModel('User').findByIdAndUpdate(
+      contactId,
+      { $addToSet: { tags: tagId } },
+      { new: true }
+    ).select('tags');
 
     res.status(200).json({ 
       message: 'Tag ajouté avec succès', 
-      entityType,
-      entityId,
+      contactId,
       tags: result ? result.tags : []
     });
-
   } catch (error) {
-    console.error(`Erreur lors de l'ajout du tag à ${entityType} ${entityId}:`, error);
+    console.error('❌ Erreur lors de l\'ajout du tag au contact:', error);
     res.status(500).json({ message: 'Erreur interne du serveur.', error: error.message });
   }
 });
 
 /**
- * @route DELETE /api/tags
- * @desc Supprimer un tag d'une entité
+ * @route DELETE /api/tags/contacts/remove
+ * @desc Supprimer un tag d'un contact
  * @access Private
- * @body { entityType: string, entityId: string, tag: string }
  */
-router.delete('/', auth, async (req, res) => {
-  const { entityType, entityId, tag } = req.body;
-
-  if (!entityType || !entityId || !tag) {
-    return res.status(400).json({ message: 'entityType, entityId et tag sont requis.' });
-  }
-
-  const Model = getModelByType(entityType);
-  if (!Model) {
-    return res.status(400).json({ message: 'Type d\'entité invalide.' });
-  }
-
+router.delete('/contacts/remove', requireAuth, async (req, res) => {
   try {
-    const entity = await Model.findById(entityId);
-    if (!entity) {
-      return res.status(404).json({ message: 'Entité non trouvée.' });
+    const { contactId, tagId } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentification requise' });
     }
 
-    // Supprimer le tag de la liste
-    // Assurez-vous que le champ 'tags' existe dans vos modèles !
-    const result = await Model.findByIdAndUpdate(
-      entityId,
-      { $pull: { tags: tag } }, // $pull supprime l'élément du tableau
-      { new: true, upsert: false }
+    if (!contactId || !tagId) {
+      return res.status(400).json({ message: 'ContactId et tagId sont requis.' });
+    }
+
+    // Supprimer le tag du contact
+    const result = await getModel('User').findByIdAndUpdate(
+      contactId,
+      { $pull: { tags: tagId } },
+      { new: true }
     ).select('tags');
 
     res.status(200).json({ 
       message: 'Tag supprimé avec succès', 
-      entityType,
-      entityId,
+      contactId,
       tags: result ? result.tags : []
     });
-
   } catch (error) {
-    console.error(`Erreur lors de la suppression du tag de ${entityType} ${entityId}:`, error);
+    console.error('❌ Erreur lors de la suppression du tag du contact:', error);
     res.status(500).json({ message: 'Erreur interne du serveur.', error: error.message });
+  }
+});
+
+/**
+ * @route GET /api/tags/contacts/user
+ * @desc Récupérer les tags d'un utilisateur
+ * @access Private
+ */
+router.get('/contacts/user', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentification requise' });
+    }
+
+    // Récupérer les tags de l'utilisateur
+    const tags = await getModel('Tag').find({
+      userId,
+      isActive: true
+    }).sort({ name: 1 });
+
+    res.status(200).json({
+      tags: tags
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la récupération des tags de l\'utilisateur:', error);
+    res.status(500).json({ message: 'Erreur interne du serveur.' });
   }
 });
 

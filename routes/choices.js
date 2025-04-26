@@ -10,8 +10,11 @@ const LeisureEventSchema = new mongoose.Schema({}, { strict: false });
 // const WellnessPlaceSchema = new mongoose.Schema({}, { strict: false }); // REMOVED
 
 // Initialisation des modèles qui sera faite une fois les connexions prêtes
-let User, Restaurant, LeisureEvent;
-// let WellnessPlace; // REMOVED
+let User, LeisureEvent;
+let Producer;
+let LeisureProducer;
+let WellnessPlace;
+// let Restaurant; // REMOVE: Variable pour modèle conflictuel supprimée
 
 // Fonction d'initialisation du router à appeler après la connexion MongoDB
 const initialize = (connections) => {
@@ -32,12 +35,8 @@ const initialize = (connections) => {
   }
 
   if (restaurationDb) {
-    try {
-      Restaurant = restaurationDb.model('Restaurant');
-    } catch (e) {
-      Restaurant = restaurationDb.model('Restaurant', RestaurantSchema, 'producers');
-      console.log('✅ Modèle Restaurant initialisé pour la collection \'producers\'');
-    }
+    // Get the correct Producer model
+    Producer = restaurationDb.model('Producer');
   }
 
   if (loisirsDb) {
@@ -49,7 +48,6 @@ const initialize = (connections) => {
     }
   }
 
-  /* --- REMOVED WellnessPlace initialization ---
   if (beautyWellnessDb) {
     try {
       WellnessPlace = beautyWellnessDb.model('WellnessPlace');
@@ -57,7 +55,6 @@ const initialize = (connections) => {
       WellnessPlace = beautyWellnessDb.model('WellnessPlace', WellnessPlaceSchema, 'WellnessPlaces');
     }
   }
-  --- END REMOVED --- */
 
   console.log('✅ Models de choices initialisés avec succès');
 };
@@ -84,22 +81,12 @@ router.post('/verify', async (req, res) => {
     });
   }
   
-  // Défensive: modèles bien initialisés ?
-  console.log(`🔄 État des modèles: User=${!!User}, Restaurant=${!!Restaurant}, LeisureEvent=${!!LeisureEvent}` /* REMOVED WellnessPlace */);
+  // Vérification des modèles initialisés (supprimer la référence à Restaurant)
+  console.log(`🔄 État des modèles: User=${!!User}, Producer=${!!Producer}, LeisureEvent=${!!LeisureEvent}`);
   
-  // MODE DÉMO: Acceptons temporairement toutes les validations pour déboguer
-  // Décommenter en production après avoir résolu le problème
-  /*
-  if (!User) return res.status(500).json({ verified: false, message: 'Modèle User non initialisé' });
-  if (locationType === 'restaurant' && !Restaurant)
-    return res.status(500).json({ verified: false, message: 'Modèle Restaurant non initialisé' });
-  if (locationType === 'event' && !LeisureEvent)
-    return res.status(500).json({ verified: false, message: 'Modèle LeisureEvent non initialisé' });
-  */
-  
-  // Si les modèles ne sont pas initialisés, on accepte en mode démo pour pouvoir continuer les tests
-  if (!User || (locationType === 'restaurant' && !Restaurant) || 
-      (locationType === 'event' && !LeisureEvent)) { // REMOVED WellnessPlace check
+  // Supprimer la vérification pour Restaurant dans le mode démo
+  if (!User || (locationType === 'restaurant' && !Producer) || 
+      (locationType === 'event' && !LeisureEvent)) { 
     console.log('⚠️ Certains modèles ne sont pas initialisés, validation acceptée en mode démo');
     return res.status(200).json({ 
       verified: true,
@@ -143,7 +130,8 @@ router.post('/verify', async (req, res) => {
     let venueName = '';
     
     if (locationType === 'restaurant') {
-      venue = await Restaurant.findById(locationId);
+      if (!Producer) return res.status(500).json({ verified: false, message: 'Modèle Producer non initialisé' });
+      venue = await Producer.findById(locationId);
     } else if (locationType === 'event') {
       venue = await LeisureEvent.findById(locationId);
     } else if (locationType === 'wellness') {
@@ -345,9 +333,9 @@ router.post('/', async (req, res) => {
     let venueName = '';
     
     if (locationType === 'restaurant') {
-      console.log('👨‍🍳 Recherche du restaurant:', locationId);
-      if (!Restaurant) return res.status(500).json({ success: false, message: 'Modèle Restaurant non initialisé' });
-      venue = await Restaurant.findById(locationId);
+      console.log('👨‍🍳 Recherche du restaurant (Producer):', locationId);
+      if (!Producer) return res.status(500).json({ success: false, message: 'Modèle Producer non initialisé' });
+      venue = await Producer.findById(locationId);
       if (venue) {
         venueName = venue.name;
       }
@@ -441,9 +429,9 @@ router.post('/', async (req, res) => {
     // Ajouter également une référence dans la collection du lieu/événement
     try {
       if (locationType === 'restaurant') {
-        if (!Restaurant) return res.status(500).json({ success: false, message: 'Modèle Restaurant non initialisé' });
-        console.log('🍔 Mise à jour du restaurant:', locationId);
-        await Restaurant.findByIdAndUpdate(
+        if (!Producer) return res.status(500).json({ success: false, message: 'Modèle Producer non initialisé' });
+        console.log('🍔 Mise à jour du Producer:', locationId);
+        await Producer.findByIdAndUpdate(
           locationId,
           { 
             $addToSet: { 

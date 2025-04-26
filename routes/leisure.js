@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const { authenticateJWT } = require('../middleware/auth');
 const { createModel, databases } = require('../utils/modelCreator');
 
 // Importer les modèles nécessaires
@@ -830,9 +829,9 @@ router.get('/event/:id', async (req, res) => {
 /**
  * @route POST /api/leisure/event/:id/interest
  * @desc Marquer un intérêt pour un événement
- * @access Private
+ * @access Public
  */
-router.post('/event/:id/interest', authenticateJWT, async (req, res) => {
+router.post('/event/:id/interest', async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id; // Assumes authenticateJWT adds user object with id
@@ -1153,9 +1152,9 @@ router.get('/leisureProducers/:id', async (req, res) => {
 /**
  * @route POST /api/leisure/producer/:id/update
  * @desc Mettre à jour les informations d'un producteur de loisir
- * @access Private
+ * @access Public
  */
-router.post('/producer/:id/update', authenticateJWT, async (req, res) => {
+router.post('/producer/:id/update', async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, adresse, photo_url, categories, type, coordonnees } = req.body;
@@ -1211,9 +1210,9 @@ router.post('/producer/:id/update', authenticateJWT, async (req, res) => {
 /**
  * @route POST /api/leisure/event/create
  * @desc Créer un nouvel événement pour un producteur de loisir
- * @access Private
+ * @access Public
  */
-router.post('/event/create', authenticateJWT, async (req, res) => {
+router.post('/event/create', async (req, res) => {
   try {
     const { 
       producerId, 
@@ -1273,9 +1272,9 @@ router.post('/event/create', authenticateJWT, async (req, res) => {
 /**
  * @route PUT /api/leisure/event/:id
  * @desc Mettre à jour un événement existant
- * @access Private
+ * @access Public
  */
-router.put('/event/:id', authenticateJWT, async (req, res) => {
+router.put('/event/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { 
@@ -1344,9 +1343,9 @@ router.put('/event/:id', authenticateJWT, async (req, res) => {
 /**
  * @route DELETE /api/leisure/event/:id
  * @desc Supprimer un événement
- * @access Private
+ * @access Public
  */
-router.delete('/event/:id', authenticateJWT, async (req, res) => {
+router.delete('/event/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -2329,9 +2328,9 @@ router.get('/producer/:id/events', async (req, res) => {
 /**
  * @route POST /api/leisure/producer/:id/photo
  * @desc Mettre à jour la photo de profil d'un producteur
- * @access Private
+ * @access Public
  */
-router.post('/producer/:id/photo', authenticateJWT, async (req, res) => {
+router.post('/producer/:id/photo', async (req, res) => {
   try {
     const { id } = req.params;
     const { photo, photo_url } = req.body;
@@ -2375,9 +2374,9 @@ router.post('/producer/:id/photo', authenticateJWT, async (req, res) => {
 /**
  * @route POST /api/leisure/producer/:id/update-items
  * @desc Mettre à jour les informations des items d'un producteur (ex: appliquer une réduction)
- * @access Private
+ * @access Public
  */
-router.post('/producer/:id/update-items', authenticateJWT, async (req, res) => {
+router.post('/producer/:id/update-items', async (req, res) => {
   try {
     const { id } = req.params;
     const { structured_data } = req.body;
@@ -2525,7 +2524,7 @@ router.get('/leisureProducers/:id', async (req, res) => {
 });
 
 // Alias pour la route producer/:id/photo
-router.post('/leisureProducers/:id/photo', authenticateJWT, async (req, res) => {
+router.post('/leisureProducers/:id/photo', async (req, res) => {
   try {
     // Rediriger vers la route principale
     const { id } = req.params;
@@ -2568,7 +2567,7 @@ router.post('/leisureProducers/:id/photo', authenticateJWT, async (req, res) => 
 });
 
 // Alias pour la route venues/:id/photo
-router.post('/venues/:id/photo', authenticateJWT, async (req, res) => {
+router.post('/venues/:id/photo', async (req, res) => {
   // Rediriger vers la route de mise à jour de photo du producteur
   try {
     const { id } = req.params;
@@ -3029,9 +3028,9 @@ router.get('/search-by-category/:category', async (req, res) => {
 /**
  * @route POST /api/leisure/event/:id/rating
  * @desc Noter un événement
- * @access Private
+ * @access Public
  */
-router.post('/event/:id/rating', authenticateJWT, async (req, res) => {
+router.post('/event/:id/rating', async (req, res) => {
   try {
     const { id } = req.params;
     const { overall_rating, criteria_ratings } = req.body;

@@ -1,36 +1,64 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const auth = require('../middleware/auth');
-// Import database connections if needed (assuming they are exported from index.js or db/config.js)
-const { restaurationDb, loisirsDb, beautyWellnessDb } = require('../index'); // Adjust path if necessary
+const { requireAuth } = require('../middleware/authMiddleware');
+// REMOVE: Direct DB connection import
+// const { restaurationDb, loisirsDb, beautyWellnessDb } = require('../index'); 
+// --- ADD: Import central model getter --- 
+const { getModel } = require('../models'); 
 
-// --- Helper Function to find Producer across DBs ---
+// --- Helper Function to find Producer across DBs using getModel --- 
 async function findProducerById(producerId) {
   if (!mongoose.Types.ObjectId.isValid(producerId)) {
     return null;
   }
   
-  // Potential models (adjust names if needed)
-  const Producer = restaurationDb?.models?.Producer || restaurationDb?.model('Producer');
-  const LeisureProducer = loisirsDb?.models?.LeisureProducer || loisirsDb?.model('LeisureProducer');
-  const WellnessProducer = beautyWellnessDb?.models?.WellnessProducer || beautyWellnessDb?.model('WellnessProducer'); // Adjust model name if necessary
-
   let producer = null;
-  if (Producer) {
-    producer = await Producer.findById(producerId).select('subscription name lieu photo').lean();
-    if (producer) return { ...producer, producerType: 'restaurant' };
+  let producerType = null;
+  const objectId = new mongoose.Types.ObjectId(producerId);
+
+  try {
+    // 1. Check Restaurant Producers
+    const ProducerModel = getModel('Producer');
+    if (ProducerModel) {
+      producer = await ProducerModel.findById(objectId).select('subscription name lieu photo').lean();
+      if (producer) producerType = 'restaurant';
+    } else {
+      console.warn('PremiumFeatures: Producer model not available via getModel');
+    }
+    
+    // 2. Check Leisure Producers
+    if (!producer) {
+      const LeisureProducerModel = getModel('LeisureProducer');
+      if (LeisureProducerModel) {
+         producer = await LeisureProducerModel.findById(objectId).select('subscription name lieu photo').lean();
+         if (producer) producerType = 'leisure';
+      } else {
+         console.warn('PremiumFeatures: LeisureProducer model not available via getModel');
+      }
+    }
+    
+    // 3. Check Wellness Producers (Assuming model name is WellnessPlace)
+    if (!producer) {
+      const WellnessPlaceModel = getModel('WellnessPlace'); 
+      if (WellnessPlaceModel) {
+         producer = await WellnessPlaceModel.findById(objectId).select('subscription name lieu photo').lean(); 
+         if (producer) producerType = 'wellness'; // Or 'wellnessPlace' depending on your convention
+      } else {
+         console.warn('PremiumFeatures: WellnessPlace model not available via getModel');
+      }
+    }
+
+    if (producer) {
+      return { ...producer, producerType };
+    }
+    
+  } catch (error) {
+    console.error(`Error finding producer ${producerId} in premium_features/findProducerById:`, error);
+    // Don't throw, just return null
   }
-  if (LeisureProducer) {
-    producer = await LeisureProducer.findById(producerId).select('subscription name lieu photo').lean();
-    if (producer) return { ...producer, producerType: 'leisure' };
-  }
-  if (WellnessProducer) {
-    producer = await WellnessProducer.findById(producerId).select('subscription name lieu photo').lean(); // Adjust field names if needed
-    if (producer) return { ...producer, producerType: 'wellness' };
-  }
-  
-  return null; // Not found in any DB
+
+  return null; // Not found or error occurred
 }
 // --- End Helper Function ---
 
@@ -94,7 +122,7 @@ const featuresBySubscriptionLevel = {
  * @desc Obtenir les informations d'abonnement pour un producteur (using Producer model)
  * @access Private (Assumes auth middleware runs before this)
  */
-router.get('/subscription-info/:producerId', auth, async (req, res) => {
+router.get('/subscription-info/:producerId', requireAuth, async (req, res) => {
   try {
     const { producerId } = req.params;
 
@@ -139,7 +167,7 @@ router.get('/subscription-info/:producerId', auth, async (req, res) => {
  * @desc Vérifier si un producteur a accès à une fonctionnalité premium (using Producer model)
  * @access Private (Assumes auth middleware runs before this)
  */
-router.get('/can-access/:producerId/:featureId', auth, async (req, res) => {
+router.get('/can-access/:producerId/:featureId', requireAuth, async (req, res) => {
   try {
     const { producerId, featureId } = req.params;
 

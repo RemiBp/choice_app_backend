@@ -3,6 +3,12 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const modelRegistry = require('../models/index');
 
+// Stockage des connexions spécifiques une fois créées
+let choiceAppConnectionInstance = null;
+let restoConnectionInstance = null;
+let loisirsConnectionInstance = null;
+let beautyConnectionInstance = null;
+
 // Configuration des connexions à la base de données
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017';
 const DB_NAME = process.env.DB_NAME || 'Restauration_Officielle';
@@ -44,6 +50,12 @@ const connectToMongoDB = async () => {
       setTimeout(connectToMongoDB, 5000);
     });
     
+    // Après une connexion réussie, réinitialiser les instances stockées
+    choiceAppConnectionInstance = null;
+    restoConnectionInstance = null;
+    loisirsConnectionInstance = null;
+    beautyConnectionInstance = null;
+    
     return mongoose.connection;
   } catch (error) {
     console.error('❌ Erreur initiale lors de la connexion à MongoDB:', error.message);
@@ -56,13 +68,37 @@ const connectToMongoDB = async () => {
   }
 };
 
-// Accès aux connexions spécifiques des bases de données
-const getChoiceAppConnection = () => mongoose.connection.useDb('choice_app');
-const getRestoConnection = () => mongoose.connection.useDb('Restauration_Officielle');
-const getLoisirsConnection = () => mongoose.connection.useDb('Loisir&Culture');
-const getBeautyConnection = () => mongoose.connection.useDb('Beauty_Wellness');
+// Accès aux connexions spécifiques des bases de données (MODIFIÉ)
+const getChoiceAppConnection = () => {
+  if (!choiceAppConnectionInstance && mongoose.connection.readyState === 1) {
+    console.log('🔌 Création/Stockage de l\'instance de connexion choice_app');
+    choiceAppConnectionInstance = mongoose.connection.useDb('choice_app');
+  }
+  return choiceAppConnectionInstance;
+};
+const getRestoConnection = () => {
+  if (!restoConnectionInstance && mongoose.connection.readyState === 1) {
+    console.log('🔌 Création/Stockage de l\'instance de connexion Restauration_Officielle');
+    restoConnectionInstance = mongoose.connection.useDb('Restauration_Officielle');
+  }
+  return restoConnectionInstance;
+};
+const getLoisirsConnection = () => {
+  if (!loisirsConnectionInstance && mongoose.connection.readyState === 1) {
+    console.log('🔌 Création/Stockage de l\'instance de connexion Loisir&Culture');
+    loisirsConnectionInstance = mongoose.connection.useDb('Loisir&Culture');
+  }
+  return loisirsConnectionInstance;
+};
+const getBeautyConnection = () => {
+  if (!beautyConnectionInstance && mongoose.connection.readyState === 1) {
+    console.log('🔌 Création/Stockage de l\'instance de connexion Beauty_Wellness');
+    beautyConnectionInstance = mongoose.connection.useDb('Beauty_Wellness');
+  }
+  return beautyConnectionInstance;
+};
 
-// Fonction d'initialisation des modèles - à appeler au démarrage de l'application
+// Fonction d'initialisation des modèles (utilise les getters modifiés)
 const initializeModels = async () => {
   console.log('🚀 Initialisation des modèles MongoDB...');
   

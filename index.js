@@ -27,6 +27,7 @@ const dbConfig = require('./db/config');
 const http = require('http');
 const { Server } = require("socket.io");
 const InteractionModelFactory = require('./models/Interaction'); // Import the factory
+const producerController = require('./controllers/producerController'); // <-- ADD THIS IMPORT
 
 // Chargement des variables d'environnement
 require('dotenv').config();
@@ -116,39 +117,54 @@ app.use(express.urlencoded({ extended: true }));
 // ADDED: Import and initialize Push Notification Service
 const pushNotificationService = require('./services/pushNotificationService');
 
-// Initialisations asynchrones
-const initializeApp = async () => {
+// --- START SERVER FUNCTION ---
+async function startServer() {
   try {
-    // ADDED: Initialize Firebase Admin
-    pushNotificationService.initializeFirebase();
+    console.log("⏳ Initialisation de l'application...");
 
-    // Établir la connexion MongoDB
+    // 1. Initialize Firebase Admin
+    console.log("🔥 Initialisation de Firebase Admin...");
+    pushNotificationService.initializeFirebase();
+    console.log("✅ Firebase Admin initialisé.");
+
+    // 2. Connect to MongoDB
+    console.log("🔌 Connexion à MongoDB...");
     await dbConfig.connectToMongoDB();
-    
-    // Initialiser les modèles de base de données
+    console.log("✅ Connexion MongoDB établie.");
+
+    // 3. Initialize Database Models (CRUCIAL: MUST COMPLETE BEFORE ROUTES)
+    console.log("🧱 Initialisation des modèles Mongoose...");
     const modelsInitialized = await dbConfig.initializeModels();
     if (!modelsInitialized) {
-      console.error('❌ Échec de l\'initialisation des modèles, le serveur pourrait ne pas fonctionner correctement');
+      console.error("❌ Échec critique de l'initialisation des modèles. Arrêt.");
+      process.exit(1); // Stop if models fail
     }
+    console.log('✅ Modèles Mongoose initialisés.');
 
-    // Exposer les connexions aux bases de données pour les modules qui les importent
-    // C'est important de le faire après l'initialisation des modèles
-    // Correction: Get connections directly from dbConfig after models are initialized
-    exports.choiceAppDb = dbConfig.getChoiceAppConnection();
-    exports.restaurationDb = dbConfig.getRestoConnection();
-    exports.loisirsDb = dbConfig.getLoisirsConnection();
-    exports.beautyWellnessDb = dbConfig.getBeautyConnection();
-
-    // --- Register Interaction Model --- 
-    if (exports.choiceAppDb) {
-      InteractionModelFactory(exports.choiceAppDb); // Register Interaction model on choiceAppDb
-      console.log('✅ Interaction model registered on choiceAppDb');
+    // 4. Register Interaction Model (Depends on choiceAppDb being ready from initializeModels)
+    console.log("💬 Enregistrement du modèle Interaction...");
+    const choiceAppDbConnection = dbConfig.getChoiceAppConnection();
+    if (choiceAppDbConnection) {
+      InteractionModelFactory(choiceAppDbConnection);
+      console.log('✅ Modèle Interaction enregistré sur choiceAppDb.');
     } else {
-      console.error('❌ choiceAppDb connection not available, Interaction model cannot be registered.');
+      console.error('❌ Connexion choiceAppDb non disponible. Le modèle Interaction ne peut pas être enregistré.');
+      // Decide if this is critical enough to stop the server
+      // process.exit(1);
     }
-    // --- End Register Interaction Model ---
 
-    // Routes API - chargées après l'initialisation des modèles
+    // --- Configure Express Middlewares AFTER DB/Models Init ---
+    console.log("⚙️ Configuration des middlewares Express...");
+    app.use(cors());
+    app.use(helmet());
+    app.use(morgan('dev'));
+    // Increase payload limits if necessary
+    app.use(express.json({ limit: '50mb' }));
+    app.use(express.urlencoded({ limit: '50mb', extended: true }));
+    console.log("✅ Middlewares Express configurés.");
+
+    // --- Require Routes AFTER DB/Models Init ---
+    console.log('🔄 Chargement des définitions de routes API...');
     const usersRoutes = require('./routes/users');
     const authRoutes = require('./routes/auth');
     const producersRoutes = require('./routes/producers');
@@ -160,309 +176,128 @@ const initializeApp = async () => {
     const statsRoutes = require('./routes/stats');
     const unifiedRoutes = require('./routes/unified');
     const newuserRoutes = require('./routes/newuser');
-    const aiRoutes = require('./routes/ai'); // Routes pour l'IA avec accès MongoDB
-    const leisureProducersRoutes = require('./routes/leisureProducers'); // Routes pour les producteurs de loisirs
-    const finderRoutes = require('./routes/finder'); // Routes pour le finder universel
-    const locationHistoryRoutes = require('./routes/location-history'); // Routes pour la vérification de l'historique des visites
-    const friendsRoutesModule = require('./routes/friends'); // Routes pour les amis et leurs activités
-    const translationsRoutes = require('./routes/translations'); // Routes pour les traductions et l'internationalisation
-    const producerFeedRoutes = require('./routes/producerFeed'); // Routes pour le feed des producteurs
-    const growthAnalyticsRoutes = require('./routes/growthAnalytics'); // Routes pour les analyses de croissance
+    const aiRoutes = require('./routes/ai');
+    const leisureProducersRoutes = require('./routes/leisureProducers');
+    const wellnessRoutes = require('./routes/wellness');
+    const finderRoutes = require('./routes/finder');
+    const locationHistoryRoutes = require('./routes/location-history');
+    const friendsRoutesModule = require('./routes/friends');
+    const translationsRoutes = require('./routes/translations');
+    const producerFeedRoutes = require('./routes/producerFeed');
+    const growthAnalyticsRoutes = require('./routes/growthAnalytics');
     const conversationsRoutes = require('./routes/conversations');
     const dataIngestionRoutes = require('./routes/dataIngestion');
     const producerActionsRoutes = require('./routes/producerActions');
-    const analyticsRoutes = require('./routes/analytics'); // Use the updated routes
-    const interactionsRoutes = require('./routes/interactions'); // Import interactions route
-    const subscriptionRoutes = require('./routes/subscription'); // Import subscription routes
-    const premiumFeaturesRoutes = require('./routes/premium_features'); // Import premium features routes
-    const tagsRoutes = require('./routes/tags'); // Importe la nouvelle route
+    const analyticsRoutes = require('./routes/analytics');
+    const interactionsRoutes = require('./routes/interactions');
+    const subscriptionRoutes = require('./routes/subscription');
+    const premiumFeaturesRoutes = require('./routes/premium_features');
+    const tagsRoutes = require('./routes/tags');
     const searchRoutes = require('./routes/searchRoutes');
-    const stripeWebhooksRoutes = require('./routes/stripe_webhooks'); // Nouvelle route unifiée pour les webhooks
-    const offerRoutes = require('./routes/offers'); // <-- Import offer routes
-    const heatmapRoutes = require('./routes/heatmap'); // <-- AJOUTER CET IMPORT
-    
-    // --- Initialize Routes that require DB Connections ---
-    // Correction: Use the connection objects obtained directly from dbConfig
-    const connections = { 
-      choiceAppDb: exports.choiceAppDb, // Use connection from dbConfig
-      restaurationDb: exports.restaurationDb, // Use connection from dbConfig
-      loisirsDb: exports.loisirsDb, // Use connection from dbConfig
-      beautyWellnessDb: exports.beautyWellnessDb // Use connection from dbConfig
-    };
+    const stripeWebhooksRoutes = require('./routes/stripe_webhooks');
+    const offerRoutes = require('./routes/offers');
+    const heatmapRoutes = require('./routes/heatmap');
+    console.log('✅ Définitions de routes API chargées.');
 
-    // Add a check to ensure connections are valid Mongoose connection objects
-    for (const [key, conn] of Object.entries(connections)) {
-      if (!conn || typeof conn.model !== 'function') {
-        console.error(`❌ Invalid connection object for ${key}. Aborting initialization.`);
-        throw new Error(`Invalid Mongoose connection object for ${key}`);
-      }
-    }
-    console.log('✅ Verified database connection objects for route initialization.');
-
-    if (typeof choicesRoutes.initialize === 'function') {
-      choicesRoutes.initialize(connections);
-      console.log('✅ choicesRoutes initialized');
-    } else {
-      console.error('❌ choicesRoutes does not have an initialize function');
-    }
-    
-    if (typeof eventsRoutes.initialize === 'function') {
-      eventsRoutes.initialize(connections.loisirsDb);
-      console.log('✅ eventsRoutes initialized');
-    }
-    if (typeof leisureProducersRoutes.initialize === 'function') {
-      leisureProducersRoutes.initialize(connections.loisirsDb);
-       console.log('✅ leisureProducersRoutes initialized');
-    }
-     if (typeof finderRoutes.initialize === 'function') {
-      finderRoutes.initialize(connections.loisirsDb);
-      console.log('✅ finderRoutes initialized');
-    }
-    if (friendsRoutesModule && typeof friendsRoutesModule.initialize === 'function') {
-       friendsRoutesModule.initialize(connections.choiceAppDb); // Assuming it only needs choiceAppDb
-       console.log('✅ friendsRoutesModule initialized');
-     }
-     
-    // Initialiser d'autres routes qui pourraient en avoir besoin...
-    // e.g., if producersRoutes needs initialization:
-    // if (producersRoutes && typeof producersRoutes.initialize === 'function') {
-    //   producersRoutes.initialize(connections); 
-    //   console.log('✅ producersRoutes initialized');
-    // }
-    // --- End Route Initialization ---
-
-    // Vérifier que les routes sont bien des fonctions middleware
-    const routeModules = {
-      usersRoutes, authRoutes, producersRoutes, eventsRoutes, preferencesRoutes, paymentsRoutes, postsRoutes, choicesRoutes, statsRoutes, 
-      unifiedRoutes, newuserRoutes, aiRoutes, leisureProducersRoutes, finderRoutes,
-      locationHistoryRoutes, translationsRoutes, producerFeedRoutes, growthAnalyticsRoutes,
-      conversationsRoutes,
-      dataIngestionRoutes,
-      producerActionsRoutes,
-      analyticsRoutes,
-      interactionsRoutes, // Add to verification
-      subscriptionRoutes, // Add to verification
-      premiumFeaturesRoutes, // Add to verification
-      tagsRoutes, // Add to verification
-      searchRoutes, // Add to verification
-      stripeWebhooksRoutes, // Add to verification
-      offerRoutes, // Add to verification
-      heatmapRoutes // Add to verification
-    };
-    
-    let allRoutesValid = true;
-    for (const [name, route] of Object.entries(routeModules)) {
-      // Added support for both direct function exports and router object exports
-      if (typeof route !== 'function' && !(route && route.router && typeof route.router === 'function')) {
-        console.error(`❌ ${name} is not a function or object with router function`);
-        allRoutesValid = false;
-      }
-    }
-    
-    // Vérifier spécifiquement le module friends
-    if (!(friendsRoutesModule && typeof friendsRoutesModule.initialize === 'function')) {
-      console.error('❌ friendsRoutesModule.initialize is not a function');
-      allRoutesValid = false;
-    }
-    
-    if (!allRoutesValid) {
-      console.error('❌ Une ou plusieurs routes sont invalides, arrêt du serveur');
-      process.exit(1);
-    }
-
-    // Routes sans parsing JSON brut pour les webhooks Stripe (évite de parser le corps de la requête)
-    app.use('/api/webhooks/stripe', stripeWebhooksRoutes);
-
-    // Routes qui nécessitent le body parsing
+    // --- Mount Routes AFTER DB/Models Init ---
+    console.log('🚀 Montage des routes API sur les endpoints...');
     app.use('/api/users', usersRoutes);
     app.use('/api/auth', authRoutes);
-    app.use('/api/payments', paymentsRoutes);
-    app.use('/api/subscription', subscriptionRoutes);
-
-    // Routes principales
     app.use('/api/producers', producersRoutes);
     app.use('/api/events', eventsRoutes);
-    // Redirection de /api/evenements vers /api/events pour compatibilité
-    app.use('/api/evenements', eventsRoutes);
+    app.use('/api/preferences', preferencesRoutes);
+    app.use('/api/payments', paymentsRoutes);
     app.use('/api/posts', postsRoutes);
-    app.use('/api/choices', choicesRoutes);
+    // Use router property if exported that way
+    if (choicesRoutes && typeof choicesRoutes.router === 'function') {
+        app.use('/api/choices', choicesRoutes.router);
+    } else if (typeof choicesRoutes === 'function') {
+        app.use('/api/choices', choicesRoutes);
+    } else { console.error('❌ Invalid choicesRoutes type'); }
+
     app.use('/api/stats', statsRoutes);
     app.use('/api/unified', unifiedRoutes);
     app.use('/api/newuser', newuserRoutes);
-    app.use('/api/feed', postsRoutes);
-    app.use('/api/leisure', require('./routes/leisure'));
-    app.use('/api/analytics', analyticsRoutes); // Use the updated routes
-    app.use('/api/ai', aiRoutes.router); // Always use .router with the new export format
-    app.use('/api/leisureProducers', leisureProducersRoutes); // Routes pour les producteurs de loisirs
-    app.use('/api/finder', finderRoutes); // Routes pour le finder universel
-    app.use('/api/location-history', locationHistoryRoutes); // Routes pour la vérification de l'historique des visites
-    app.use('/api/translations', translationsRoutes); // Routes pour les traductions et l'internationalisation
-    app.use('/api/friends', friendsRoutesModule.initialize(exports.choiceAppDb)); // Routes pour les amis et leurs activités
-    app.use('/api/producer-feed', producerFeedRoutes); // Routes pour le feed des producteurs
-    app.use('/api/growth-analytics', growthAnalyticsRoutes); // Routes pour les analyses de croissance
+
+    if (aiRoutes && typeof aiRoutes.router === 'function') {
+        app.use('/api/ai', aiRoutes.router);
+    } else if (typeof aiRoutes === 'function') {
+        app.use('/api/ai', aiRoutes);
+    } else { console.error('❌ Invalid aiRoutes type'); }
+
+    app.use('/api/leisure-producers', leisureProducersRoutes); // Note: Changed endpoint for clarity
+    app.use('/api/wellness', wellnessRoutes); // <-- ADDED WELLNESS ROUTE USAGE
+    app.use('/api/finder', finderRoutes);
+    app.use('/api/location-history', locationHistoryRoutes);
+
+    if (friendsRoutesModule && typeof friendsRoutesModule.router === 'function') {
+        app.use('/api/friends', friendsRoutesModule.router);
+    } else { console.error('❌ Invalid friendsRoutes type'); }
+
+    app.use('/api/translations', translationsRoutes);
+    app.use('/api/producer-feed', producerFeedRoutes);
+    app.use('/api/growth-analytics', growthAnalyticsRoutes);
     app.use('/api/conversations', conversationsRoutes);
-    app.use('/api/ingest', dataIngestionRoutes);
+    app.use('/api/ingestion', dataIngestionRoutes);
     app.use('/api/producer-actions', producerActionsRoutes);
-    app.use('/api/interactions', interactionsRoutes); // Mount interactions route
-    app.use('/api/premium-features', premiumFeaturesRoutes); // Mount premium features routes
-    app.use('/api/tags', tagsRoutes); // Utilise la nouvelle route
+    app.use('/api/analytics', analyticsRoutes);
+    app.use('/api/interactions', interactionsRoutes);
+    app.use('/api/subscription', subscriptionRoutes);
+    app.use('/api/premium-features', premiumFeaturesRoutes);
+    app.use('/api/tags', tagsRoutes);
     app.use('/api/search', searchRoutes);
-    app.use('/api/offers', offerRoutes); // <-- Register offer routes
-    app.use('/api/heatmap', heatmapRoutes); // <-- AJOUTER CE MONTAGE
-    
-    // Ajouter les routes pour beauty et wellness
-    app.use('/api/beauty_places', require('./routes/beautyPlaces')); 
-    app.use('/api/beauty', require('./routes/beautyProducers')); 
-    
-    // Ajouter TOUTES les routes manquantes
-    try {
-      // Routes pour les appels (vidéo, audio)
-      app.use('/api/call', require('./routes/call'));
-      
-      // Routes pour le calendrier
-      app.use('/api/calendar', require('./routes/calendar'));
-      
-      // Routes pour les préférences (déjà importées via preferencesRoutes)
-      app.use('/api/preferences', preferencesRoutes);
-      
-      // Routes pour les paiements (déjà importées via paymentsRoutes)
-      app.use('/api/payments', paymentsRoutes);
-      
-      // Routes peut-être requises par le frontend mais non déclarées
-      app.use('/api/notifications', require('./routes/notifications'));
-      app.use('/api/chat', require('./routes/chat'));
-      // app.use('/api/messages', require('./routes/messages')); // Commented out - Causes startup error, functionality in conversations.js
-      // app.use('/api/reels', require('./routes/reels'));
-      // app.use('/api/booking', require('./routes/booking'));
-      // app.use('/api/favorites', require('./routes/favorites'));
-      // app.use('/api/reviews', require('./routes/reviews'));
-      // app.use('/api/menu', require('./routes/menu'));
-      // app.use('/api/items', require('./routes/items'));
-      // app.use('/api/upload', require('./routes/upload'));
-      // app.use('/api/filters', require('./routes/filters'));
-      // app.use('/api/restaurants', require('./routes/restaurants'));
-      // app.use('/api/wellnessProducers', require('./routes/wellnessProducers'));
-      
-      console.log('✅ Routes supplémentaires chargées avec succès');
-    } catch (error) {
-      console.warn('⚠️ Certaines routes n\'ont pas pu être chargées :', error.message);
-      // En mode développement, afficher les détails pour faciliter le débogage
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('Détails de l\'erreur:', error);
-      }
-    }
-    
-    // Créer une route de fallback pour les anciennes versions de l'app et la compatibilité
-    app.use('/api/:service/advanced-search', (req, res) => {
-      console.log(`Redirection de /api/${req.params.service}/advanced-search vers le bon endpoint`);
-      
-      // Rediriger vers les endpoints appropriés en fonction du service
-      const service = req.params.service;
-      if (service === 'producers') {
-        // Rediriger vers les restaurants par défaut (compatibilité ancienne app)
-        res.redirect(307, `/api/restaurants/search?${new URLSearchParams(req.query).toString()}`);
-      } else if (service === 'beauty' || service === 'wellness') {
-        // Rediriger vers beauty_places pour les requêtes beauty/wellness
-        res.redirect(307, `/api/beauty_places/search?${new URLSearchParams(req.query).toString()}`);
-      } else if (service === 'leisure') {
-        // Rediriger vers leisureProducers pour les requêtes loisirs
-        res.redirect(307, `/api/leisureProducers/search?${new URLSearchParams(req.query).toString()}`);
-      } else {
-        // Endpoint par défaut ou non pris en charge
-        res.status(404).json({ error: `Service '${service}' non pris en charge pour la recherche avancée` });
-      }
-    });
+    app.use('/stripe-webhooks', stripeWebhooksRoutes); // No /api prefix for webhooks typically
+    app.use('/api/offers', offerRoutes);
+    app.use('/api/heatmap', heatmapRoutes);
+    console.log('✅ Routes API montées.');
 
-    // Initialisation des modèles qui nécessitent une connexion à la base de données
-    if (exports.loisirsDb) {
-      // Initialiser les routes qui ont besoin d'une fonction d'initialisation
-      if (typeof eventsRoutes.initialize === 'function') {
-        eventsRoutes.initialize(exports.loisirsDb);
-        console.log('✅ Routes events initialisées avec la base de données Loisir&Culture');
-      }
-      
-      if (typeof leisureProducersRoutes.initialize === 'function') {
-        leisureProducersRoutes.initialize(exports.loisirsDb);
-        console.log('✅ Routes leisureProducers initialisées avec la base de données Loisir&Culture');
-      }
-      
-      if (typeof finderRoutes.initialize === 'function') {
-        finderRoutes.initialize(exports.loisirsDb);
-        console.log('✅ Routes finder initialisées avec la base de données Loisir&Culture');
-      }
-    } else {
-      console.warn('⚠️ Base de données Loisir&Culture non disponible, certaines routes ne fonctionneront pas correctement');
+    // --- Static files serving (Optional) ---
+    if (process.env.NODE_ENV === 'production' || process.env.SERVE_FRONTEND === 'true') {
+        console.log('📁 Service des fichiers statiques du frontend activé...');
+        const frontendPath = path.join(__dirname, '..', 'frontend', 'build', 'web');
+        console.log(`   Chemin du frontend: ${frontendPath}`);
+        if (require('fs').existsSync(frontendPath)) {
+            app.use(express.static(frontendPath));
+            // Catch-all route for SPA history mode
+            app.get('*', (req, res, next) => {
+                // Avoid catching API routes
+                if (req.path.startsWith('/api/') || req.path.startsWith('/stripe-webhooks')) {
+                   return next();
+                }
+                res.sendFile(path.resolve(frontendPath, 'index.html'));
+            });
+            console.log("✅ Service des fichiers statiques configuré.");
+        } else {
+            console.warn("⚠️ Répertoire build du frontend non trouvé. Assurez-vous d'avoir build le frontend (flutter build web).");
+        }
     }
 
-    // Importer le contrôleur de statistiques
-    const statsController = require('./controllers/statsController');
-
-    // Initialiser le contrôleur de statistiques avec les connexions
-    statsController.initialize({ restaurationDb: exports.restaurationDb });
-
-    // Route de test pour vérifier que le serveur fonctionne
-    app.get('/api/ping', (req, res) => {
-      res.json({ message: 'Server is running!', timestamp: new Date().toISOString() });
-    });
-    
-    // Middleware pour gérer les erreurs
-    app.use((err, req, res, next) => {
-      console.error('❌ Erreur Express:', err);
-      res.status(500).json({ error: 'Server error', details: err.message });
-    });
-
-    // Servir le frontend (React/Flutter Web) en production
-    if (process.env.NODE_ENV === 'production') {
-      app.use(express.static(path.join(__dirname, '../frontend/build')));
-      app.get('*', (req, res) => {
-        res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
-      });
-    }
-
-    // ADD HERE: Initialize AI models after aiRoutes is loaded
-    // Initialize AI models if the function exists
-    if (aiRoutes.initializeModels) {
-      try {
-        await aiRoutes.initializeModels();
-        console.log('✅ AI models initialized successfully');
-      } catch (error) {
-        console.error('❌ Failed to initialize AI models:', error);
-        // Don't fail the whole server, just this route may not work correctly
-        console.warn('⚠️ AI routes may not function correctly');
-      }
-    } else {
-      console.warn('⚠️ aiRoutes.initializeModels function not found');
-    }
-
-    // Démarrage du serveur - MODIFIED: Use http server instead of app
+    // --- Start HTTP Server ---
     server.listen(PORT, HOST, () => {
-      console.log(`✅ Serveur démarré sur le port ${PORT} (host: ${HOST})`);
-      console.log(`✅ WebSocket Server listening...`);
-      console.log(`API disponible à l'adresse: http://${HOST === '0.0.0.0' ? 'VOTRE_IP_LOCALE' : HOST}:${PORT}/api`);
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('⚙️ Running in development mode');
-      } else {
-        console.log('⚙️ Running in production mode');
-      }
+      console.log(`
+✨ Serveur démarré et écoutant sur http://${HOST}:${PORT}`);
+      console.log(`   Mode: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`   WebSocket: Activé`);
+      console.log("🎉 Initialisation de l'application terminée avec succès.");
     });
+
   } catch (error) {
-    console.error('❌ Erreur critique lors de l\'initialisation du serveur:', error);
-    process.exit(1);
+    console.error("❌ Erreur critique lors de l'initialisation de l'application:", error);
+    process.exit(1); // Stop the application on critical initialization error
   }
-};
+}
 
-// Lancer l'initialisation
-initializeApp().catch(err => {
-  console.error('❌ Erreur critique lors du démarrage:', err);
-  process.exit(1);
-});
-
-// Gestion des erreurs non interceptées
+// --- Global Error Handlers ---
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  // Consider logging more details or exiting gracefully in production
 });
 
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
+  // It's generally recommended to exit after an uncaught exception
+  process.exit(1);
 });
+
+// --- Launch the server initialization ---
+startServer();

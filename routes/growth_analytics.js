@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const auth = require('../middleware/auth');
+const { requireAuth } = require('../middleware/authMiddleware');
 
 // MongoDB connections
 const { choiceAppDb, restaurationDb, loisirDb, beautyWellnessDb } = require('../index');
@@ -11,7 +11,7 @@ const { choiceAppDb, restaurationDb, loisirDb, beautyWellnessDb } = require('../
  * @desc Get overview of producer growth metrics
  * @access Private
  */
-router.get('/:producerId/overview', auth, async (req, res) => {
+router.get('/:producerId/overview', requireAuth, async (req, res) => {
   try {
     const { producerId } = req.params;
     const { period = '30' } = req.query; // Default to 30 days
@@ -68,7 +68,7 @@ router.get('/:producerId/overview', auth, async (req, res) => {
  * @desc Get trend data for a producer
  * @access Private
  */
-router.get('/:producerId/trends', auth, async (req, res) => {
+router.get('/:producerId/trends', requireAuth, async (req, res) => {
   try {
     const { producerId } = req.params;
     const { period = '90' } = req.query; // Default to 90 days
@@ -104,7 +104,7 @@ router.get('/:producerId/trends', auth, async (req, res) => {
  * @desc Get growth recommendations for a producer
  * @access Private
  */
-router.get('/:producerId/recommendations', auth, async (req, res) => {
+router.get('/:producerId/recommendations', requireAuth, async (req, res) => {
   try {
     const { producerId } = req.params;
     

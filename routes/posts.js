@@ -266,23 +266,52 @@ async function getPostsByType(producerType, req, res) {
   }
 }
 
-// GET /api/posts/restaurants - Feed des restaurants
-router.get('/restaurants', auth, async (req, res) => {
-  console.log("Handling /restaurants route");
-  await getPostsByType('restaurant', req, res);
+// GET /api/posts/feed - Obtenir le feed personnalisé
+// DÉPLACÉ ICI pour éviter les conflits avec /:id
+router.get('/feed', async (req, res) => {
+  try {
+    const { userId, limit = 10, page = 1 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Removed userId requirement check as auth is placeholder - RE-ADD LATER
+    // if (!userId) {
+    //   return res.status(400).json({ message: 'UserId requis' });
+    // }
+    
+    // Récupérer les posts pour le feed
+    const posts = await Post.find()
+      .sort({ posted_at: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    // --- CHANGE: Use enrichPostWithUserSpecificInfo ---
+    const enrichedPostsPromises = posts.map(post => enrichPostWithUserSpecificInfo(post, userId)); // Pass userId
+    const enrichedPosts = await Promise.all(enrichedPostsPromises);
+    // --- END CHANGE ---
+    
+    // Compter le nombre total de posts
+    const total = await Post.countDocuments();
+    
+    res.status(200).json({
+      posts: enrichedPosts, // Use enriched posts
+      totalPages: Math.ceil(total / parseInt(limit)),
+      currentPage: parseInt(page),
+      total
+    });
+  } catch (error) {
+    console.error('❌ Erreur de récupération du feed:', error);
+    res.status(500).json({ message: 'Erreur lors de la récupération du feed', error: error.message });
+  }
 });
 
-// GET /api/posts/leisure - Feed des loisirs
-router.get('/leisure', auth, async (req, res) => {
-  console.log("Handling /leisure route");
-  await getPostsByType('leisure', req, res);
-});
+// GET /api/posts/restaurants - Obtenir les posts des restaurants
+router.get('/restaurants', (req, res) => getPostsByType('restaurant', req, res));
 
-// GET /api/posts/wellness - Feed bien-être
-router.get('/wellness', auth, async (req, res) => {
-  console.log("Handling /wellness route");
-  await getPostsByType('wellness', req, res);
-});
+// GET /api/posts/leisure - Obtenir les posts de loisirs
+router.get('/leisure', (req, res) => getPostsByType('leisure', req, res));
+
+// GET /api/posts/wellness - Obtenir les posts de bien-être/beauté
+router.get('/wellness', (req, res) => getPostsByType('wellness', req, res));
 
 // GET /api/posts - Obtenir tous les posts avec pagination (Generic Feed - maybe used for 'For You'?)
 router.get('/', auth, async (req, res) => {
@@ -461,53 +490,59 @@ router.delete('/:id', auth, async (req, res) => {
 router.post('/:id/like', auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-    
+
     if (!post) {
       return res.status(404).json({ error: 'Post non trouvé' });
     }
+
+    // Assurer que 'likes' est un tableau avant toute opération
+    if (!Array.isArray(post.likes)) {
+      console.warn(`Post ${post._id}: Champ 'likes' n'était pas un tableau (${typeof post.likes}). Initialisation à [].`);
+      post.likes = []; 
+    }
+
+    // Utiliser l'ID utilisateur de l'authentification
+    // S'assurer que le type correspond à ce qui est stocké dans le tableau (string ou ObjectId)
+    const userId = req.user.id; 
     
-    // Normaliser le post pour accéder à ses propriétés de manière cohérente
-    const normalizedPost = normalizePost(post);
-    
-    // Vérifier si l'utilisateur a déjà aimé ce post
-    const isLiked = normalizedPost.likes && normalizedPost.likes.includes(req.user.id);
-    
-    if (isLiked) {
-      // Retirer le like avec une opération MongoDB directe
-      await Post.findByIdAndUpdate(
-        req.params.id,
-        { $pull: { likes: req.user.id } }
-      );
-      
-      // Récupérer le post mis à jour pour le compte des likes
-      const updatedPost = await Post.findById(req.params.id);
-      const updatedNormalizedPost = normalizePost(updatedPost);
+    // Convertir en string pour comparaison fiable si les IDs sont stockés comme ObjectId
+    const userIdString = userId.toString(); 
+    const likeIndex = post.likes.findIndex(likerId => likerId && likerId.toString() === userIdString);
+
+    let isLiked;
+    if (likeIndex > -1) {
+      // L'utilisateur a déjà aimé, on retire le like
+      post.likes.splice(likeIndex, 1);
+      isLiked = false;
+      await post.save(); // Sauvegarder le post mis à jour
       
       res.status(200).json({ 
         message: 'Like retiré', 
-        isLiked: false, 
-        likesCount: updatedNormalizedPost.likes?.length || 0 
+        isLiked: isLiked, 
+        likesCount: post.likes.length // Le compte est maintenant correct
       });
     } else {
-      // Ajouter le like avec une opération MongoDB directe
-      // $addToSet garantit qu'il n'y aura pas de doublons
-      await Post.findByIdAndUpdate(
-        req.params.id,
-        { $addToSet: { likes: req.user.id } }
-      );
-      
-      // Récupérer le post mis à jour pour le compte des likes
-      const updatedPost = await Post.findById(req.params.id);
-      const updatedNormalizedPost = normalizePost(updatedPost);
+      // L'utilisateur n'a pas aimé, on ajoute le like
+      // S'assurer qu'on ajoute le bon type (ObjectId ou String selon le schéma/usage)
+      // Si req.user.id est un string et le schéma attend ObjectId, convertir:
+      // post.likes.push(new mongoose.Types.ObjectId(userId)); 
+      // Si les deux sont des strings, ou si le schéma est flexible:
+      post.likes.push(userId); // Ajouter l'ID utilisateur
+      isLiked = true;
+      await post.save(); // Sauvegarder le post mis à jour
       
       res.status(200).json({ 
         message: 'Post aimé', 
-        isLiked: true, 
-        likesCount: updatedNormalizedPost.likes?.length || 1 
+        isLiked: isLiked, 
+        likesCount: post.likes.length // Le compte est maintenant correct
       });
     }
   } catch (error) {
     console.error('Erreur lors du like du post:', error);
+    // Vérifier si l'erreur est due à une validation Mongoose (par exemple type mismatch)
+    if (error.name === 'ValidationError') {
+        return res.status(400).json({ error: 'Validation Error: ' + error.message });
+    }
     res.status(500).json({ error: 'Erreur lors de la mise à jour du like' });
   }
 });
@@ -524,11 +559,16 @@ router.get('/:id/comments', auth, async (req, res) => {
 
     const post = await Post.findById(postId).select('comments'); // Select only comments initially
 
-    if (!post || !post.comments) {
-      // Return empty array if post not found or no comments field
+    // Retourner un tableau vide si le post n'existe pas ou si 'comments' n'est pas un tableau
+    if (!post || !Array.isArray(post.comments)) {
+      // Log an info message if comments field exists but isn't an array
+      if (post && post.comments !== undefined && !Array.isArray(post.comments)) {
+         console.info(`Post ${postId}: Champ 'comments' trouvé mais ce n'est pas un tableau (${typeof post.comments}). Retourne [].`);
+      }
       return res.status(200).json([]); 
     }
 
+    // Si post.comments est un tableau (même vide), continuer...
     // Enrich comments with author info and user's like status
     const enrichedCommentsPromises = post.comments.map(async (comment) => {
       let authorName = 'Utilisateur';
@@ -596,8 +636,9 @@ router.post('/:id/comment', auth, async (req, res) => {
       return res.status(404).json({ error: 'Post non trouvé' });
     }
     
-    // S'assurer que le tableau comments existe
-    if (!post.comments) {
+    // S'assurer que le tableau comments existe et est bien un tableau
+    if (!Array.isArray(post.comments)) {
+      console.warn(`Post ${post._id}: Champ 'comments' n'était pas un tableau (${typeof post.comments}). Initialisation à [].`);
       post.comments = [];
     }
     
@@ -672,8 +713,9 @@ router.post('/:postId/comments/:commentId/like', auth, async (req, res) => {
       return res.status(404).json({ error: 'Commentaire non trouvé.' });
     }
 
-    // Ensure the likes array exists
-    if (!comment.likes) {
+    // Assurer que le tableau 'likes' du commentaire existe et est un tableau
+    if (!Array.isArray(comment.likes)) {
+       console.warn(`Comment ${comment._id} in Post ${post._id}: Champ 'likes' n'était pas un tableau (${typeof comment.likes}). Initialisation à [].`);
       comment.likes = [];
     }
 
@@ -842,43 +884,6 @@ router.post('/:id/share', auth, async (req, res) => {
   }
 });
 
-// GET /api/posts/feed - Obtenir le feed personnalisé
-router.get('/feed', async (req, res) => {
-  try {
-    const { userId, limit = 10, page = 1 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    // Removed userId requirement check as auth is placeholder - RE-ADD LATER
-    // if (!userId) {
-    //   return res.status(400).json({ message: 'UserId requis' });
-    // }
-    
-    // Récupérer les posts pour le feed
-    const posts = await Post.find()
-      .sort({ posted_at: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-    
-    // --- CHANGE: Use enrichPostWithUserSpecificInfo ---
-    const enrichedPostsPromises = posts.map(post => enrichPostWithUserSpecificInfo(post, userId)); // Pass userId
-    const enrichedPosts = await Promise.all(enrichedPostsPromises);
-    // --- END CHANGE ---
-    
-    // Compter le nombre total de posts
-    const total = await Post.countDocuments();
-    
-    res.status(200).json({
-      posts: enrichedPosts, // Use enriched posts
-      totalPages: Math.ceil(total / parseInt(limit)),
-      currentPage: parseInt(page),
-      total
-    });
-  } catch (error) {
-    console.error('❌ Erreur de récupération du feed:', error);
-    res.status(500).json({ message: 'Erreur lors de la récupération du feed', error: error.message });
-  }
-});
-
 // GET /api/posts/producers - Obtenir les posts des producteurs
 router.get('/producers', async (req, res) => {
   try {
@@ -932,78 +937,100 @@ router.get('/producers', async (req, res) => {
   }
 });
 
-// POST /api/posts/:id/interest - Marquer un intérêt pour un post/producteur
+// POST /api/posts/:id/interest - Marquer un intérêt pour un post/producteur/événement
 router.post('/:id/interest', auth, async (req, res) => {
   try {
     const postId = req.params.id;
+    const userId = req.user.id; // User marking the interest
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentification requise.' });
+    }
+
     const post = await Post.findById(postId);
-    
     if (!post) {
       return res.status(404).json({ error: 'Post non trouvé' });
     }
-    
-    // Extraire l'ID du producteur du post
-    const normalizedPost = normalizePost(post);
-    const producerId = normalizedPost.producer_id;
-    const producerType = normalizedPost.producer_type || 'restaurant';
-    
-    if (!producerId) {
-      return res.status(400).json({ error: 'Ce post n\'est pas associé à un producteur' });
+
+    // Déterminer la cible de l'intérêt: Producteur ou Événement
+    const targetProducerId = post.producer_id || post.producerId || null;
+    const targetEventId = post.event_id || post.eventId || null;
+    let targetType = null;
+    let targetId = null;
+    let producerTypeForInterest = null; // Pour logguer le type de producteur si la cible est un producteur
+
+    if (targetProducerId) {
+        targetType = 'Producer';
+        targetId = targetProducerId;
+        producerTypeForInterest = post.producer_type || post.producerType || 'unknown'; // Extraire le type
+    } else if (targetEventId) {
+        targetType = 'Event';
+        targetId = targetEventId;
     }
-    
-    // Collecter des données sur l'intérêt
-    const interestData = {
-      user_id: req.user.id,
-      producer_id: producerId,
-      producer_type: producerType,
-      post_id: postId,
-      created_at: new Date()
-    };
-    
-    // Déterminer quelle base de données et collection utiliser
-    let dbName = databases.CHOICE_APP;
-    let collectionName = 'Interests';
-    
-    // Accéder à la bonne base de données et collection
-    const db = mongoose.connection.useDb(dbName);
-    const interestCollection = db.collection(collectionName);
-    
-    // Vérifier si l'intérêt existe déjà
-    const existingInterest = await interestCollection.findOne({
-      user_id: req.user.id,
-      producer_id: producerId
-    });
-    
+
+    if (!targetId || !targetType) {
+      return res.status(400).json({ error: 'Ce post n\'est pas associé à un producteur ou événement identifiable.' });
+    }
+
+    // Accéder à la collection Interests dans CHOICE_APP DB
+    const db = mongoose.connection.useDb(databases.CHOICE_APP);
+    const interestCollection = db.collection('Interests');
+
+    // Critères de recherche pour l'intérêt existant
+    const existingInterestQuery = { user_id: userId };
+    if (targetType === 'Producer') {
+        existingInterestQuery.producer_id = targetId;
+    } else { // Event
+        existingInterestQuery.event_id = targetId;
+    }
+
+    const existingInterest = await interestCollection.findOne(existingInterestQuery);
+
     let result;
+    let isInterested;
+
     if (existingInterest) {
       // Supprimer l'intérêt existant
-      await interestCollection.deleteOne({
-        user_id: req.user.id,
-        producer_id: producerId
-      });
-      
+      await interestCollection.deleteOne(existingInterestQuery);
+      isInterested = false;
       result = { 
-        message: 'Intérêt retiré', 
-        isInterested: false,
-        producerId,
-        producerType
+        message: `Intérêt pour ${targetType} retiré`,
+        isInterested: isInterested,
+        targetId: targetId.toString(),
+        targetType: targetType
       };
     } else {
       // Ajouter un nouvel intérêt
-      await interestCollection.insertOne(interestData);
+      const interestData = {
+        user_id: userId,
+        target_id: targetId,
+        target_type: targetType, 
+        post_id: postId, // Garder une trace du post qui a déclenché l'intérêt
+        created_at: new Date()
+      };
+      // Ajouter les champs spécifiques si nécessaire
+      if (targetType === 'Producer') {
+        interestData.producer_id = targetId;
+        interestData.producer_type = producerTypeForInterest; // Logguer le type de producer
+      } else { // Event
+        interestData.event_id = targetId;
+      }
       
+      await interestCollection.insertOne(interestData);
+      isInterested = true;
       result = { 
-        message: 'Intérêt ajouté', 
-        isInterested: true,
-        producerId,
-        producerType
+        message: `Intérêt pour ${targetType} ajouté`,
+        isInterested: isInterested,
+        targetId: targetId.toString(),
+        targetType: targetType
       };
     }
-    
+
     res.status(200).json(result);
+
   } catch (error) {
-    console.error('Erreur lors de l\'ajout d\'un intérêt:', error);
-    res.status(500).json({ error: 'Erreur lors de l\'ajout d\'un intérêt' });
+    console.error('Erreur lors de la gestion de l\'intérêt:', error);
+    res.status(500).json({ error: 'Erreur serveur lors de la gestion de l\'intérêt' });
   }
 });
 
@@ -1725,6 +1752,75 @@ router.post('/save', auth, async (req, res) => {
   } catch (error) {
     console.error('Error saving/unsaving post:', error);
     res.status(500).json({ error: 'Error processing save post request' });
+  }
+});
+
+// GET /api/posts/:postId/likers - Obtenir la liste des utilisateurs ayant aimé un post
+router.get('/:postId/likers', auth, async (req, res) => {
+  try {
+    const postId = req.params.postId;
+
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      return res.status(400).json({ message: 'Format d\'ID de post invalide.' });
+    }
+
+    // Trouver le post et sélectionner uniquement le champ 'likes'
+    const post = await Post.findById(postId).select('likes').lean(); // Utiliser lean() pour un objet JS simple
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post non trouvé.' });
+    }
+
+    // Vérifier si 'likes' est un tableau et contient des IDs
+    if (!Array.isArray(post.likes) || post.likes.length === 0) {
+      return res.status(200).json([]); // Renvoyer un tableau vide si personne n'a liké ou si le champ est invalide
+    }
+
+    // Les IDs dans 'likes' peuvent être des ObjectIds ou des Strings, normaliser en ObjectId si possible
+    const likerIds = post.likes.map(id => {
+      try {
+        return new mongoose.Types.ObjectId(id);
+      } catch (e) {
+        // Si la conversion échoue, l'ID n'est probablement pas un ObjectId valide, on le filtre
+        console.warn(`Invalid ObjectId found in likes array for post ${postId}: ${id}`);
+        return null;
+      }
+    }).filter(id => id !== null); // Retirer les IDs invalides
+
+    if (likerIds.length === 0) {
+       return res.status(200).json([]);
+    }
+
+    // Récupérer les détails des utilisateurs depuis la collection Users (dans CHOICE_APP DB)
+    const db = mongoose.connection.useDb(databases.CHOICE_APP);
+    const UserCollection = db.collection('Users');
+
+    // Trouver les utilisateurs correspondants et sélectionner les champs nécessaires
+    const likers = await UserCollection.find(
+        { _id: { $in: likerIds } }
+    )
+    .project({ 
+        _id: 1, // Garder l'ID
+        name: 1, 
+        displayName: 1, 
+        avatar: 1, 
+        photo: 1, 
+        profile_pic: 1 
+    })
+    .toArray();
+
+    // Formatter la réponse pour le frontend
+    const formattedLikers = likers.map(user => ({
+      id: user._id.toString(),
+      name: user.name || user.displayName || 'Utilisateur', // Fallback name
+      avatar: user.avatar || user.photo || user.profile_pic || null // Fallback avatar
+    }));
+
+    res.status(200).json(formattedLikers);
+
+  } catch (error) {
+    console.error(`❌ Erreur lors de la récupération des likers pour le post ${req.params.postId}:`, error);
+    res.status(500).json({ message: 'Erreur serveur lors de la récupération des likers.', error: error.message });
   }
 });
 

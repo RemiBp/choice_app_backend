@@ -11,7 +11,7 @@ const LeisureProducer = loisirsDb?.models?.LeisureProducer;
 const WellnessProducer = beautyWellnessDb?.models?.WellnessProducer; // Adjust model name if necessary
 
 // Middleware d'authentification (à importer si nécessaire)
-const auth = require('../middleware/auth');
+const { requireAuth } = require('../middleware/authMiddleware');
 
 // --- Helper Function to find Producer across DBs --- 
 async function findProducerById(producerId) {
@@ -62,7 +62,7 @@ async function findProducerById(producerId) {
 
 // POST /api/payments/create-payment-intent - Créer une intention de paiement
 // Ensure metadata includes producerId, producerType (if known), and newLevel for subscriptions
-router.post('/create-payment-intent', auth, async (req, res) => {
+router.post('/create-payment-intent', requireAuth, async (req, res) => {
   try {
     const { amount, currency = 'eur', description, metadata = {}, payment_method_types = ['card'] } = req.body;
     
@@ -157,7 +157,7 @@ router.post('/setup-intent', async (req, res) => {
 });
 
 // POST /api/payments/book-appointment - Réserver un rendez-vous
-router.post('/book-appointment', auth, async (req, res) => {
+router.post('/book-appointment', requireAuth, async (req, res) => {
   const BeautyProducerModel = beautyWellnessDb?.models?.WellnessProducer || beautyWellnessDb?.model('WellnessProducer');
   if (!BeautyProducerModel) {
       return res.status(500).json({ error: 'BeautyProducer model not available' });
@@ -283,7 +283,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 });
 
 // GET /api/payments/transaction-history/:producerId - Récupérer l'historique des transactions
-router.get('/transaction-history/:producerId', auth, async (req, res) => { // Added auth middleware
+router.get('/transaction-history/:producerId', requireAuth, async (req, res) => { // Added auth middleware
   try {
     const { producerId } = req.params;
     

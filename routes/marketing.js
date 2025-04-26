@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const auth = require('../middleware/auth');
+const { requireAuth } = require('../middleware/authMiddleware');
 const { choiceAppDb } = require('../index');
 
 // Schema pour les campagnes marketing
@@ -46,7 +46,7 @@ try {
  * @desc Récupérer les campagnes marketing d'un producteur
  * @access Private
  */
-router.get('/campaigns', auth, async (req, res) => {
+router.get('/campaigns', requireAuth, async (req, res) => {
   try {
     const { producerId } = req.query;
     
@@ -71,7 +71,7 @@ router.get('/campaigns', auth, async (req, res) => {
  * @desc Récupérer les détails d'une campagne
  * @access Private
  */
-router.get('/campaigns/:campaignId', auth, async (req, res) => {
+router.get('/campaigns/:campaignId', requireAuth, async (req, res) => {
   try {
     const { campaignId } = req.params;
     
@@ -94,7 +94,7 @@ router.get('/campaigns/:campaignId', auth, async (req, res) => {
  * @desc Créer une nouvelle campagne marketing
  * @access Private
  */
-router.post('/campaigns', auth, async (req, res) => {
+router.post('/campaigns', requireAuth, async (req, res) => {
   try {
     const {
       producerId,
@@ -143,7 +143,7 @@ router.post('/campaigns', auth, async (req, res) => {
  * @desc Annuler une campagne
  * @access Private
  */
-router.post('/campaigns/:campaignId/cancel', auth, async (req, res) => {
+router.post('/campaigns/:campaignId/cancel', requireAuth, async (req, res) => {
   try {
     const { campaignId } = req.params;
     
@@ -176,7 +176,7 @@ router.post('/campaigns/:campaignId/cancel', auth, async (req, res) => {
  * @desc Récupérer les statistiques d'une campagne
  * @access Private
  */
-router.get('/campaigns/:campaignId/stats', auth, async (req, res) => {
+router.get('/campaigns/:campaignId/stats', requireAuth, async (req, res) => {
   try {
     const { campaignId } = req.params;
     
@@ -212,7 +212,7 @@ router.get('/campaigns/:campaignId/stats', auth, async (req, res) => {
  * @desc Récupérer les types de campagnes disponibles
  * @access Private
  */
-router.get('/campaign-types', auth, async (req, res) => {
+router.get('/campaign-types', requireAuth, async (req, res) => {
   try {
     const { producerType } = req.query;
     
@@ -272,7 +272,7 @@ router.get('/campaign-types', auth, async (req, res) => {
  * @desc Récupérer les audiences disponibles pour le ciblage
  * @access Private
  */
-router.get('/target-audiences', auth, async (req, res) => {
+router.get('/target-audiences', requireAuth, async (req, res) => {
   try {
     const { producerType } = req.query;
     

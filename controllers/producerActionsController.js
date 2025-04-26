@@ -1,13 +1,12 @@
 const pushNotificationService = require('../services/pushNotificationService');
 const pushLogService = require('../services/pushLogService');
-const { createModel, databases } = require('../utils/modelCreator');
+const { createModel, databases, getModel } = require('../utils/modelCreator');
 const mongoose = require('mongoose');
 
 // --- Define Producer Models (Simplified for finding name) ---
 // Need these to potentially include producer name in the notification
 const RestaurantProducer = createModel(databases.RESTAURATION, 'RestaurationProducerSimple', 'producers', null, { strict: false });
 const LeisureProducer = createModel(databases.LOISIR, 'LoisirProducerSimple', 'Loisir_Paris_Producers', null, { strict: false });
-const BeautyProducer = createModel(databases.BEAUTY_WELLNESS, 'BeautyProducerSimple', 'BeautyPlaces', null, { strict: false });
 const WellnessProducer = createModel(databases.BEAUTY_WELLNESS, 'WellnessProducerSimple', 'WellnessPlaces', null, { strict: false });
 
 // Helper to find any producer by ID and get basic info (like name)
@@ -20,9 +19,6 @@ async function findProducerName(producerId) {
 
     producer = await LeisureProducer.findById(producerId).select('lieu').lean();
     if (producer) return producer.lieu || 'un lieu de loisir';
-
-    producer = await BeautyProducer.findById(producerId).select('name').lean();
-    if (producer) return producer.name || 'un lieu de beauté';
 
     producer = await WellnessProducer.findById(producerId).select('name').lean();
     if (producer) return producer.name || 'un lieu de bien-être';

@@ -32,15 +32,17 @@ const {
   logUserQuery
 } = require('../services/aiDataService');
 const aiController = require('../controllers/aiController');
+const aiService = require('../services/aiService'); // Assurez-vous que ce service est importé
 
 // DEFENSIVE CHECKS - Before using aiController in routes
 if (!aiController.getRecommendations) {
   console.error('❌ aiController.getRecommendations is undefined! Check your export in aiController.js');
-  throw new Error('aiController.getRecommendations is undefined! Check your export in aiController.js');
 }
 if (!aiController.handleProducerQuery) {
   console.error('❌ aiController.handleProducerQuery is undefined! Check your export in aiController.js');
-  throw new Error('aiController.handleProducerQuery is undefined! Check your export in aiController.js');
+}
+if (!aiController.handleGetInsights) {
+  console.error('❌ aiController.handleGetInsights is undefined! Check your export in aiController.js');
 }
 
 // --- Correct Model Loading ---
@@ -408,17 +410,23 @@ router.post('/user/query', async (req, res) => {
 /** @route POST /api/ai/producer-query */
 router.post('/producer-query', requireAuth, checkProducerAccess, checkAIService, async (req, res) => {
   try {
-    const { producerId, query, producerType } = req.body; // producerType might be optional if aiDataService can detect it
+    const { producerId, query, producerType } = req.body;
 
     if (!producerId || !query) {
       return res.status(400).json({ success: false, message: 'Les paramètres producerId et query sont requis' });
     }
-    
+
     console.log(`🔍 [Route] Traitement requête producteur: "${query}" (ID: ${producerId}, Type: ${producerType || 'auto'})`);
 
-    // Call the advanced processor from aiDataService
-    // Pass producerType explicitly if available, otherwise let the service detect it.
-    const result = await processProducerQuery(query, producerId, producerType);
+    // --- MODIFIED: Appel à aiService.processProducerQuery --- 
+    // Note: Assuming aiService has the connections passed during initialization or globally accessible
+    // If not, you might need to pass db connections here or refactor service initialization.
+    const connections = { // Assuming global db connections are available
+        restaurationDb: db.getRestaurationDb(),
+        loisirsDb: db.getLoisirsDb(),
+        beautyWellnessDb: db.getBeautyWellnessDb()
+    };
+    const result = await aiService.processProducerQuery(producerId, producerType, query, connections);
 
     console.log(`📊 [Route] Résultats requête producteur - ${result.profiles?.length || 0} profils extraits (Intent: ${result.intent || 'N/A'})`);
 
@@ -445,6 +453,12 @@ router.post('/producer-query', requireAuth, checkProducerAccess, checkAIService,
     } else if (error.code === 'invalid_api_key' || error.message.includes('Incorrect API key')) {
         statusCode = 503; errorMessage = "Erreur configuration AI (Clé API?).";
         console.error("❗ Possible OpenAI API Key issue.");
+    } else if (error.message.includes("Producteur non trouvé")) {
+        statusCode = 404; // Not Found
+        errorMessage = error.message;
+    } else if (error.message.includes("Type de producteur non supporté")) {
+        statusCode = 400; // Bad Request
+        errorMessage = error.message;
     }
     // Respond with structured error
     return res.status(statusCode).json({ 
@@ -545,28 +559,73 @@ if (requireAuth && checkProducerAccess && aiController.getRecommendations) {
   );
 }
 
-if (requireAuth && checkProducerAccess && aiController.handleProducerQuery) {
-  router.post('/producer-query', requireAuth, checkProducerAccess, aiController.handleProducerQuery);
-} else {
-  console.error('❌ SKIPPING route /producer-query due to missing dependencies:', 
-    !requireAuth ? 'requireAuth middleware, ' : '',
-    !checkProducerAccess ? 'checkProducerAccess middleware, ' : '',
-    !aiController.handleProducerQuery ? 'aiController.handleProducerQuery handler' : ''
-  );
-}
-
 // --- NEW: Route for Producer Insights ---
 /**
- * @route GET /api/ai/producer/insights/:producerId
- * @description Retrieves general insights, KPIs, and competitor overview for a producer.
- * @access Private (Producer only)
+ * @route GET /api/ai/producer-insights/:producerId
+ * @description Récupère les insights générés par l'IA pour un producteur spécifique.
+ * @access Private (Producer)
  */
-router.get(
-  '/producer/insights/:producerId',
+router.get('/producer-insights/:producerId', 
   requireAuth, // Ensure user is logged in
-  // No need for checkProducerAccess if we verify ID match in controller
-  aiController.handleGetInsights // Use the new controller function
+  // Assuming the controller checks if req.user.id matches producerId
+  // If more complex access checks needed, add middleware like checkProducerAccess
+  aiController.handleGetInsights // Point to the new controller method
 );
+
+// --- NOUVELLE ROUTE: Détection du type de producteur par ID --- 
+/**
+ * @route GET /api/ai/detect-producer-type/:id
+ * @description Détecte le type d'un producteur (restaurant, leisure, etc.) basé sur son ID.
+ * @access Public (ou requireAuth si nécessaire)
+ */
+router.get('/detect-producer-type/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ success: false, message: "L'ID du producteur est requis." });
+    }
+
+    console.log(`🔍 Détection du type pour l'ID: ${id}`);
+
+    // Assurez-vous que les connexions DB sont disponibles
+    const connections = {
+      restaurationDb: db.getRestaurationDb(),
+      loisirsDb: db.getLoisirsDb(),
+      beautyWellnessDb: db.getBeautyWellnessDb()
+    };
+    if (!connections.restaurationDb || !connections.loisirsDb || !connections.beautyWellnessDb) {
+         console.error("❌ Connexions DB manquantes pour detectProducerType route.");
+         return res.status(500).json({ success: false, message: "Erreur interne du serveur (DB)." });
+    }
+
+    // Appel de la fonction de service pour détecter le type
+    const detectedType = await aiService.detectProducerType(id, connections);
+
+    if (detectedType) {
+      console.log(`✅ Type détecté pour ${id}: ${detectedType}`);
+      return res.json({ success: true, producerId: id, producerType: detectedType });
+    } else {
+      console.log(`⚠️ Aucun type trouvé pour ${id}`);
+      return res.status(404).json({ success: false, producerId: id, message: "Type de producteur non trouvé pour cet ID." });
+    }
+
+  } catch (error) {
+    console.error('❌ Erreur lors de la détection du type de producteur:', error);
+    let statusCode = 500;
+    let errorMessage = "Erreur lors de la détection du type.";
+    // Gérer les erreurs spécifiques (ex: ID invalide)
+    if (error.name === 'CastError') {
+        statusCode = 400;
+        errorMessage = "Format d'ID invalide.";
+    }
+    return res.status(statusCode).json({ 
+      success: false, 
+      producerId: req.params.id, 
+      error: errorMessage, 
+      message: "Une erreur est survenue lors de la détection du type." 
+    });
+  }
+});
 
 // Updated module exports to ensure router is properly exposed as Express middleware
 module.exports = {

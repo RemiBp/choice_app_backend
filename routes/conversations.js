@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const auth = require('../middleware/auth');
+const { requireAuth } = require('../middleware/authMiddleware'); // Correct import
 const { sendNotificationEmail } = require('../services/emailService');
 const { createModel, databases } = require('../utils/modelCreator');
 const Message = require('../models/message');
@@ -26,7 +26,7 @@ const BeautyProducer = createModel(databases.BEAUTY_WELLNESS, 'BeautyProducer', 
  * @desc Récupérer les conversations d'un utilisateur
  * @access Private
  */
-router.get('/', auth, async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     
@@ -72,7 +72,7 @@ router.get('/', auth, async (req, res) => {
  * @desc Récupérer les messages d'une conversation
  * @access Private
  */
-router.get('/:conversationId/messages', auth, async (req, res) => {
+router.get('/:conversationId/messages', requireAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const userId = req.user.id;
@@ -527,7 +527,7 @@ router.post('/:conversationId/send', async (req, res) => {
  * @desc Créer une nouvelle conversation
  * @access Private
  */
-router.post('/create', auth, async (req, res) => {
+router.post('/create', requireAuth, async (req, res) => {
   try {
     const { participantIds, isGroupChat, groupName, groupImage } = req.body;
     
@@ -1122,7 +1122,7 @@ router.post('/create-or-get-conversation', async (req, res) => {
  * @desc Vérifier si une conversation existe déjà entre deux utilisateurs, sinon en créer une nouvelle
  * @access Private
  */
-router.post('/check-or-create', auth, async (req, res) => {
+router.post('/check-or-create', requireAuth, async (req, res) => {
   try {
     const { senderId, recipientId } = req.body;
     
@@ -1214,7 +1214,7 @@ router.post('/check-or-create', auth, async (req, res) => {
  * @desc Marquer tous les messages d'une conversation comme lus (double coche bleue)
  * @access Private
  */
-router.put('/:conversationId/read', auth, async (req, res) => {
+router.put('/:conversationId/read', requireAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const userId = req.user.id;
@@ -1660,7 +1660,7 @@ router.get('/tags/search', async (req, res) => {
  * @desc Add participants to an existing group conversation
  * @access Private (Requires auth and potentially check if user is in the group)
  */
-router.post('/:conversationId/participants', auth, async (req, res) => {
+router.post('/:conversationId/participants', requireAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const { participantIds } = req.body; // Expecting an array of user IDs to add
@@ -1743,7 +1743,7 @@ router.post('/:conversationId/participants', auth, async (req, res) => {
  * @desc Remove a participant from a group conversation
  * @access Private (Requires auth and potentially check if requester can remove members)
  */
-router.delete('/:conversationId/participants/:participantId', auth, async (req, res) => {
+router.delete('/:conversationId/participants/:participantId', requireAuth, async (req, res) => {
   try {
     const { conversationId, participantId } = req.params;
     const requesterId = req.user.id; // ID of the user making the request
@@ -2076,7 +2076,7 @@ router.post('/:id/read', async (req, res) => {
 });
 
 // --- AJOUT : Route GET pour marquer une conversation comme lue (compatible avec frontend) ---
-router.get('/:id/read', auth, async (req, res) => {
+router.get('/:id/read', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
@@ -2188,7 +2188,7 @@ router.post('/:id/participants', async (req, res) => {
 });
 
 // Amélioration de la route de suppression de participant
-router.delete('/:conversationId/participants/:participantId', auth, async (req, res) => {
+router.delete('/:conversationId/participants/:participantId', requireAuth, async (req, res) => {
   try {
     const { conversationId, participantId } = req.params;
     const userId = req.user.id; // Utilisateur actuel
@@ -2240,7 +2240,7 @@ router.delete('/:conversationId/participants/:participantId', auth, async (req, 
 });
 
 // Ajouter une route pour récupérer les participants d'une conversation avec leurs infos complètes
-router.get('/:conversationId/participants', auth, async (req, res) => {
+router.get('/:conversationId/participants', requireAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const userId = req.user.id;
@@ -2297,7 +2297,7 @@ router.get('/:conversationId/participants', auth, async (req, res) => {
 
 // --- AJOUT : Support pour les GIFs dans les messages ---
 // Ajouter dans le middleware de création de message
-router.post('/:conversationId/messages', auth, async (req, res) => {
+router.post('/:conversationId/messages', requireAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const { content, userId: senderId, contentType = 'text', gifUrl } = req.body;
@@ -2331,7 +2331,7 @@ router.post('/:conversationId/messages', auth, async (req, res) => {
  * @desc Obtenir ou créer une conversation entre un utilisateur et un producteur
  * @access Private
  */
-router.get('/with-producer/:producerId', auth, async (req, res) => {
+router.get('/with-producer/:producerId', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { producerId } = req.params;
@@ -2449,7 +2449,7 @@ router.get('/with-producer/:producerId', auth, async (req, res) => {
  * @desc Démarre une conversation avec un restaurant ou autre établissement via la recherche unifiée
  * @access Private
  */
-router.post('/start-with-business', auth, async (req, res) => {
+router.post('/start-with-business', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { businessType, businessId, message } = req.body;
@@ -2621,7 +2621,7 @@ router.post('/start-with-business', auth, async (req, res) => {
  * @desc Envoyer un message avec média (image, vidéo, audio, document)
  * @access Private
  */
-router.post('/:conversationId/media', auth, async (req, res) => {
+router.post('/:conversationId/media', requireAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const userId = req.user.id;
@@ -2728,7 +2728,7 @@ router.post('/:conversationId/media', auth, async (req, res) => {
  * @desc Réagir à un message avec un emoji
  * @access Private
  */
-router.post('/messages/:messageId/react', auth, async (req, res) => {
+router.post('/messages/:messageId/react', requireAuth, async (req, res) => {
   try {
     const { messageId } = req.params;
     const userId = req.user.id;
@@ -2806,7 +2806,7 @@ router.post('/messages/:messageId/react', auth, async (req, res) => {
  * @desc Supprimer une réaction d'un message
  * @access Private
  */
-router.delete('/messages/:messageId/react', auth, async (req, res) => {
+router.delete('/messages/:messageId/react', requireAuth, async (req, res) => {
   try {
     const { messageId } = req.params;
     const userId = req.user.id;

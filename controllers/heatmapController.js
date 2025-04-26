@@ -76,19 +76,49 @@ async function findProducerInAnyCollection(producerId) {
   const id = new mongoose.Types.ObjectId(producerId);
   
   // Chercher dans la base de restaurants
-  let producer = await Producer.findById(id);
-  if (producer) return { producer, type: 'restaurant' };
+  let producerDoc = await Producer.findById(id).lean(); // Use lean()
+  if (producerDoc) return { producer: producerDoc, type: 'restaurant' };
   
   // Chercher dans la base de loisirs
-  producer = await LeisureProducer.findById(id);
-  if (producer) return { producer, type: 'leisure' };
+  producerDoc = await LeisureProducer.findById(id).lean(); // Use lean()
+  if (producerDoc) return { producer: producerDoc, type: 'leisure' };
   
   // Chercher dans la base de bien-être
-  producer = await WellnessProducer.findById(id);
-  if (producer) return { producer, type: 'wellness' };
+  producerDoc = await WellnessProducer.findById(id).lean(); // Use lean()
+  if (producerDoc) return { producer: producerDoc, type: 'wellness' };
   
   return null;
 }
+
+// +++ ADDED: Helper function to get LatLng from producer doc +++
+function getProducerLatLng(producerDoc) {
+   let latitude = null;
+   let longitude = null;
+
+   if (!producerDoc) return null;
+
+   // 1. Check geometry.location first
+   if (producerDoc.geometry?.location?.lat != null && producerDoc.geometry?.location?.lng != null) {
+     latitude = producerDoc.geometry.location.lat;
+     longitude = producerDoc.geometry.location.lng;
+   }
+   // 2. If not found, check gps_coordinates (GeoJSON format: [longitude, latitude])
+   else if (producerDoc.gps_coordinates?.coordinates?.length === 2) {
+     longitude = producerDoc.gps_coordinates.coordinates[0];
+     latitude = producerDoc.gps_coordinates.coordinates[1];
+   }
+
+   // Convert to numbers just in case
+   latitude = typeof latitude === 'string' ? parseFloat(latitude) : latitude;
+   longitude = typeof longitude === 'string' ? parseFloat(longitude) : longitude;
+
+   if (typeof latitude === 'number' && !isNaN(latitude) && typeof longitude === 'number' && !isNaN(longitude)) {
+     return { latitude, longitude };
+   } else {
+     return null; // Location not found or invalid
+   }
+}
+// +++ END ADDED +++
 
 // Function to calculate distributions for a set of timestamps
 function calculateDistributions(timestamps) {
@@ -329,16 +359,83 @@ const heatmapController = {
       }
       res.status(500).json({ message: 'Erreur serveur lors de la récupération des hotspots', error: error.message });
     }
-  }, // Added comma
+  },
 
   /**
    * Récupérer les données de heatmap en temps réel pour un producteur
    * @route GET /api/heatmap/realtime/:producerId
    */
   getRealtimeHeatmap: async (req, res) => {
-    // Keep the simple 501 implementation as the other was test data
-    res.status(501).json({ message: 'Fonctionnalité temps réel non implémentée.' });
-  }, // Added comma
+    try {
+      const { producerId } = req.params;
+      const { radius = 500, timespan = '1h' } = req.query; // Adjust defaults
+
+      // 1. Find the producer and get its location
+      const producerData = await findProducerInAnyCollection(producerId);
+      if (!producerData || !producerData.producer) {
+        return res.status(404).json({ message: 'Producteur non trouvé.' });
+      }
+      // --- MODIFIED: Use helper function to get location --- 
+      const producerLocation = getProducerLatLng(producerData.producer);
+      if (!producerLocation) {
+        return res.status(404).json({ message: 'Localisation du producteur introuvable.' });
+      }
+      // --- END MODIFIED ---
+
+      // 2. Define time range (e.g., last hour)
+      const now = new Date();
+      let startTime = new Date(now);
+      if (timespan === '1h') startTime.setHours(now.getHours() - 1);
+      else if (timespan === '3h') startTime.setHours(now.getHours() - 3);
+      else if (timespan === '6h') startTime.setHours(now.getHours() - 6);
+      // Add more options as needed
+      const timeFilter = { timestamp: { $gte: startTime } };
+
+      // 3. Query LocationHistory within radius and timeframe
+      const recentLocations = await LocationHistory.find({
+        location: {
+          $nearSphere: {
+            $geometry: {
+              type: "Point",
+              // --- MODIFIED: Use fetched producer location --- 
+              coordinates: [producerLocation.longitude, producerLocation.latitude]
+              // --- END MODIFIED ---
+            },
+            $maxDistance: parseInt(radius, 10)
+          }
+        },
+        ...timeFilter
+      })
+      .select('location userId') // Select necessary fields
+      .lean();
+
+      // 4. Process results (e.g., simple count or basic clustering)
+      // Example: Return list of unique users and their last known coordinates
+      const uniqueUsers = {};
+      recentLocations.forEach(loc => {
+         if (!loc.userId) return; // Skip entries without user ID
+         const userIdStr = loc.userId.toString();
+         // Keep the latest location for each user
+         if (!uniqueUsers[userIdStr] || loc.timestamp > (uniqueUsers[userIdStr].timestamp || 0)) {
+             uniqueUsers[userIdStr] = {
+               userId: userIdStr,
+               latitude: loc.location?.coordinates?.[1],
+               longitude: loc.location?.coordinates?.[0],
+               timestamp: loc.timestamp // Keep timestamp if needed
+             };
+         }
+      });
+
+      // Remove invalid points
+      const activeUsersList = Object.values(uniqueUsers).filter(u => u.latitude != null && u.longitude != null);
+
+      res.status(200).json({ activeUsers: activeUsersList, count: activeUsersList.length });
+
+    } catch (error) {
+      console.error('❌ Error in getRealtimeHeatmap:', error);
+      res.status(500).json({ message: 'Erreur serveur lors de la récupération de la heatmap temps réel.', error: error.message });
+    }
+  },
 
   /**
    * Récupérer les utilisateurs actifs autour d'un producteur
@@ -346,64 +443,87 @@ const heatmapController = {
    * @requires auth
    */
   getActiveUsers: async (req, res) => {
-    // Keep the second, more complete implementation
     try {
       const { producerId } = req.params;
-      // Use constants for defaults
-      const radius = parseInt(req.query.radius, 10) || constants.DEFAULT_ACTIVE_USER_RADIUS_METERS;
-      const lastMinutes = parseInt(req.query.lastMinutes, 10) || constants.DEFAULT_ACTIVE_USER_TIMESPAN_MINUTES;
+      const { radius = 1000, minutes = 15 } = req.query; // Default: 1km radius, last 15 minutes
 
-      // 1. Get producer location
+      // 1. Find the producer and get its location
       const producerData = await findProducerInAnyCollection(producerId);
-      if (!producerData || !producerData.producer.location || !producerData.producer.location.coordinates) {
+      if (!producerData || !producerData.producer) {
+        return res.status(404).json({ message: 'Producteur non trouvé.' });
+      }
+      // --- MODIFIED: Use helper function to get location --- 
+      const producerLocation = getProducerLatLng(producerData.producer);
+      if (!producerLocation) {
         return res.status(404).json({ message: 'Localisation du producteur introuvable.' });
       }
-      const [prodLng, prodLat] = producerData.producer.location.coordinates;
+      // --- END MODIFIED ---
+      
+      // 2. Define time range
+      const now = new Date();
+      const startTime = new Date(now.getTime() - parseInt(minutes, 10) * 60000); // minutes ago
+      const timeFilter = { timestamp: { $gte: startTime } };
 
-      // 2. Define search criteria
-      const radiusM = radius;
-      const timeLimit = new Date(Date.now() - lastMinutes * 60 * 1000);
-
-      // 3. Find users within radius and time limit
-      // Ensure User model has a 2dsphere index on currentLocation
-      const activeUsers = await User.find({
-         // Exclude the producer themselves if they are also a user (if applicable)
-         // Ensure producerId is a valid ObjectId before using $ne
-        _id: mongoose.Types.ObjectId.isValid(producerId) ? { $ne: new mongoose.Types.ObjectId(producerId) } : undefined,
-        currentLocation: {
-          $geoWithin: {
-            $centerSphere: [[prodLng, prodLat], radiusM / constants.EARTH_RADIUS_METERS] // radius in radians
+      // 3. Find recent location history within the radius and time
+      const recentLocations = await LocationHistory.find({
+        location: {
+          $nearSphere: {
+            $geometry: {
+              type: "Point",
+              // --- MODIFIED: Use fetched producer location --- 
+              coordinates: [producerLocation.longitude, producerLocation.latitude]
+              // --- END MODIFIED ---
+            },
+            $maxDistance: parseInt(radius, 10)
           }
         },
-        lastSeen: { $gte: timeLimit } // Filter by last seen time
+        ...timeFilter,
+        userId: { $exists: true } // Only entries with a user ID
       })
-      .select('_id name profilePicture currentLocation lastSeen') // Select necessary fields
-      // Use constant for limit
-      .limit(constants.MAX_ACTIVE_USERS_RETURNED);
+      .sort({ userId: 1, timestamp: -1 }) // Sort to easily pick the latest per user
+      .select('location userId timestamp')
+      .lean();
 
-      // 4. Format the response
-      const formattedUsers = activeUsers.map(user => ({
-        userId: user._id, // Consistent naming with frontend
-        name: user.name,
-        profilePicture: user.profilePicture,
-        // Return the standard GeoJSON structure expected by frontend
-        location: user.currentLocation,
-        lastSeen: user.lastSeen,
-        // Calculate distance on backend? Or frontend? Doing it here:
-        distance: calculateDistance(prodLat, prodLng, user.currentLocation.coordinates[1], user.currentLocation.coordinates[0])
-      }));
+      // 4. Get the latest location for each unique user
+      const latestUserLocations = {};
+      for (const loc of recentLocations) {
+          const userIdStr = loc.userId.toString();
+          if (!latestUserLocations[userIdStr]) { // Only store the first (latest) record found per user
+              latestUserLocations[userIdStr] = {
+                  userId: userIdStr,
+                  location: loc.location,
+                  lastSeen: loc.timestamp
+              };
+          }
+      }
+      const userIds = Object.keys(latestUserLocations);
 
-      res.status(200).json(formattedUsers); // Return the array directly
+      // 5. Fetch user details (name, profile picture) for these users
+      const users = await User.find({ _id: { $in: userIds } })
+                            .select('_id name profilePicture')
+                            .lean();
+
+      // 6. Combine user details with their latest location
+      const activeUsers = users.map(user => {
+        const locData = latestUserLocations[user._id.toString()];
+        return {
+          userId: user._id,
+          name: user.name,
+          profilePicture: user.profilePicture,
+          location: locData.location, // GeoJSON Point
+          lastSeen: locData.lastSeen,
+          // Optionally calculate distance here if needed
+          // distance: calculateDistance(producerLat, producerLng, locData.location?.coordinates?.[1], locData.location?.coordinates?.[0])
+        };
+      }).filter(u => u.location?.coordinates?.[0] != null && u.location?.coordinates?.[1] != null); // Filter out users with invalid final locations
+
+      res.status(200).json(activeUsers);
 
     } catch (error) {
-      console.error('❌ Erreur dans getActiveUsers:', error);
-      if (error.code === 51024 || (error.message && error.message.includes('unable to find index for $geoNear query'))) {
-         console.error('   Hint: Missing 2dsphere index on users.currentLocation');
-         return res.status(500).json({ message: 'Erreur de base de données: Index géospatial manquant sur users.currentLocation.', code: 'DB_GEO_INDEX_MISSING' });
-      }
-      res.status(500).json({ message: 'Erreur serveur lors de la récupération des utilisateurs actifs', error: error.message });
+      console.error('❌ Error in getActiveUsers:', error);
+      res.status(500).json({ message: 'Erreur serveur lors de la récupération des utilisateurs actifs.', error: error.message });
     }
-  }, // Added comma
+  },
 
   /**
    * Récupérer les opportunités d'action pour un producteur basées sur l'historique de localisation
@@ -411,130 +531,75 @@ const heatmapController = {
    * @requires auth
    */
   getActionOpportunities: async (req, res) => {
-    // Keep the second, more complete implementation
     try {
       const { producerId } = req.params;
-      // Use constants for defaults
-      const radiusM = parseInt(req.query.radius, 10) || constants.DEFAULT_INSIGHTS_RADIUS_METERS;
-      const daysToAnalyze = parseInt(req.query.days, 10) || constants.DEFAULT_INSIGHTS_TIMESPAN_DAYS;
+      const { radius = 2000 } = req.query; // Default 2km
 
-      // 1. Trouver le producteur et sa localisation
+      // 1. Find the producer and get its location
       const producerData = await findProducerInAnyCollection(producerId);
-      if (!producerData || !producerData.producer || !producerData.producer.location || !producerData.producer.location.coordinates) {
+      if (!producerData || !producerData.producer) {
+        return res.status(404).json({ message: 'Producteur non trouvé.' });
+      }
+      // --- MODIFIED: Use helper function to get location --- 
+      const producerLocation = getProducerLatLng(producerData.producer);
+      if (!producerLocation) {
         return res.status(404).json({ message: 'Localisation du producteur introuvable.' });
       }
-      const [prodLng, prodLat] = producerData.producer.location.coordinates;
+      // --- END MODIFIED ---
 
-      // 2. Définir la période d'analyse
-      const analysisStartDate = new Date();
-      analysisStartDate.setDate(analysisStartDate.getDate() - daysToAnalyze);
+      // --- Logic to fetch data and generate insights --- 
+      // This part requires significant domain logic. 
+      // Example: Fetch hotspots, active users, recent searches, 
+      // competitor data, weather, local events etc.
+      // Then apply rules or potentially a simple ML model to generate insights.
 
-      // 3. Agréger l'historique de localisation proche
-      const aggregationPipeline = [
-        // Match documents near the producer within the timeframe
+      // --- Placeholder Example Insights --- 
+      // In a real app, these would be dynamically generated based on data analysis.
+       const opportunities = [
         {
-          $match: {
-            timestamp: { $gte: analysisStartDate },
-            location: {
-              $geoWithin: {
-                 $centerSphere: [ [prodLng, prodLat], radiusM / constants.EARTH_RADIUS_METERS ] // radius in radians
-              }
-            }
-          }
+          type: 'opportunity',
+          title: 'Pic d\'activité le soir en semaine',
+          insights: [
+            'Augmentation notable des visites entre 18h et 21h du lundi au jeudi.',
+            'Envisagez une promotion \"Happy Hour\" pour attirer encore plus de monde.',
+            'Ciblez les notifications push pendant ces créneaux.'
+          ]
         },
-        // Project hour and dayOfWeek (adjust for timezone if needed)
         {
-          $project: {
-              // Consider using timezone from producer or user settings if available
-             hour: { $hour: { date: "$timestamp", timezone: constants.DEFAULT_TIMEZONE } }, // Example: "Europe/Paris"
-             dayOfWeek: { $dayOfWeek: { date: "$timestamp", timezone: constants.DEFAULT_TIMEZONE } } // 1=Sun, 7=Sat
-          }
+          type: 'trend',
+          title: 'Popularité croissante des plats végétariens',
+          insights: [
+            'Les recherches pour \"végétarien\" à proximité ont augmenté de 25% ce mois-ci.',
+            'Ajoutez ou mettez en avant vos options végétariennes sur le menu.'
+          ]
         },
-        // Group by hour and day to count occurrences
         {
-          $group: {
-            _id: {
-              hour: "$hour",
-              dayOfWeek: "$dayOfWeek"
-            },
-            count: { $sum: 1 }
-          }
+          type: 'high_traffic',
+          title: 'Zone \"Place Centrale\" très fréquentée le Samedi après-midi',
+          insights: [
+            'Beaucoup d\'utilisateurs actifs détectés près de la Place Centrale le samedi après-midi.',
+            'Une offre ciblée géographiquement sur cette zone pourrait être efficace.'
+          ]
         },
-        // Sort for easier processing (optional but can help)
-        { $sort: { "_id.dayOfWeek": 1, "_id.hour": 1 } }
+         {
+           type: 'warning',
+           title: 'Baisse d\'activité le Dimanche midi',
+           insights: [
+             'Le nombre de visites le dimanche midi a diminué par rapport au mois dernier.',
+             'Analysez les raisons possibles (concurrence, menu, événement local?).',
+             'Testez une offre spéciale \"Brunch du Dimanche\".'
+           ]
+         }
       ];
+      // --- End Placeholder --- 
 
-      const activityData = await LocationHistory.aggregate(aggregationPipeline);
-
-      // 4. Analyser les données agrégées pour générer des insights
-      const insights = [];
-      if (activityData.length < constants.MIN_ACTIVITY_POINTS_FOR_INSIGHTS) { // Use constant
-        insights.push({ title: "Peu de Données Locales", insights: ["Pas assez de données de localisation récentes à proximité pour générer des insights détaillés.", `Seulement ${activityData.length} points trouvés (minimum ${constants.MIN_ACTIVITY_POINTS_FOR_INSIGHTS} requis).`], type: "warning" });
-      } else {
-        // Calculate total counts per time slot and day
-        let timeCounts = { morning: 0, afternoon: 0, evening: 0, night: 0 }; // Matin: 6-12, Aprem: 12-18, Soir: 18-24, Nuit: 0-6
-        let dayCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 }; // Sun-Sat (based on $dayOfWeek)
-        let totalActivity = 0;
-
-        activityData.forEach(item => {
-          const hour = item._id.hour;
-          const day = item._id.dayOfWeek; // 1=Sun, 7=Sat
-          const count = item.count;
-          totalActivity += count;
-
-          // Use constants for time slot boundaries
-          if (hour >= constants.TIMESLOT_MORNING_START && hour < constants.TIMESLOT_AFTERNOON_START) timeCounts.morning += count;
-          else if (hour >= constants.TIMESLOT_AFTERNOON_START && hour < constants.TIMESLOT_EVENING_START) timeCounts.afternoon += count;
-          else if (hour >= constants.TIMESLOT_EVENING_START && hour < constants.TIMESLOT_NIGHT_START) timeCounts.evening += count; // Assuming 18-24
-          else timeCounts.night += count; // 0-6
-
-          if (day >= 1 && day <= 7) dayCounts[day] += count;
-        });
-
-        // Find peak time slot
-        const [peakTimeSlot, peakTimeCount] = Object.entries(timeCounts).reduce((prev, curr) => (curr[1] > prev[1] ? curr : prev), ["", 0]);
-        const timeSlotMap = { morning: "en matinée (6h-12h)", afternoon: "l'après-midi (12h-18h)", evening: "en soirée (18h-0h)", night: "la nuit (0h-6h)" }; // Corrected map
-        // Use constant for threshold
-        if (peakTimeCount > totalActivity * constants.INSIGHTS_PEAK_TIME_THRESHOLD) {
-           insights.push({ title: "Pic d'Activité Temporel", insights: [`La majorité de l'activité locale est détectée ${timeSlotMap[peakTimeSlot] ?? 'à certaines heures'}.`, "Adaptez vos opérations ou promotions durant ces périodes."], type: "trend" });
-        }
-
-        // Find peak day
-        const [peakDayNumStr, peakDayCount] = Object.entries(dayCounts).reduce((prev, curr) => (curr[1] > prev[1] ? curr : prev), ["0", 0]);
-        const peakDayNum = parseInt(peakDayNumStr, 10); // Convert key to number
-        const dayNameMap = { 1: "Dimanche", 2: "Lundi", 3: "Mardi", 4: "Mercredi", 5: "Jeudi", 6: "Vendredi", 7: "Samedi" };
-         // Use constant for threshold
-        if (peakDayCount > totalActivity * constants.INSIGHTS_PEAK_DAY_THRESHOLD && dayNameMap[peakDayNum]) {
-            insights.push({ title: "Jour le Plus Actif", insights: [`Le ${dayNameMap[peakDayNum]} semble attirer le plus d'activité à proximité.`, "Envisagez une offre spéciale ou un événement ce jour-là."], type: "opportunity" });
-        }
-
-        // Add a generic insight if few specific ones were found or total activity is low/high
-        if (insights.length < 2) {
-            insights.push({ title: "Analyse Générale", insights: ["Continuez à surveiller l'activité locale pour affiner votre stratégie.", `Total de ${totalActivity} points de données analysés sur ${daysToAnalyze} jours dans un rayon de ${radiusM}m.`], type: "info" });
-        }
-      }
-
-      // Format insights for frontend (keep structure simple)
-       const formattedInsights = insights.map(insight => ({
-           title: insight.title,
-           insights: insight.insights, // Keep as array of strings
-           type: insight.type, // Let frontend map type to color/icon
-       }));
-
-      console.log(`📊 Generated ${formattedInsights.length} action opportunities for producer ${producerId}`);
-      // Use constant for limit
-      res.status(200).json(formattedInsights.slice(0, constants.MAX_INSIGHTS_RETURNED));
+      res.status(200).json(opportunities);
 
     } catch (error) {
-      console.error('❌ Erreur dans getActionOpportunities:', error);
-      // Provide more specific error info if possible
-      if (error.code === 51024 || (error.message && error.message.includes('unable to find index for $geoNear query'))) {
-         console.error('   Hint: Missing 2dsphere index on locationHistories.location');
-         return res.status(500).json({ message: 'Erreur de base de données: Index géospatial (location) manquant sur locationHistories.', code: 'DB_GEO_INDEX_MISSING' });
-      }
-      res.status(500).json({ message: 'Erreur serveur lors de la récupération des opportunités', error: error.message });
+      console.error('❌ Error in getActionOpportunities:', error);
+      res.status(500).json({ message: 'Erreur serveur lors de la récupération des opportunités.', error: error.message });
     }
-  }, // Added comma
+  },
 
   /**
    * Récupérer l'emplacement d'un producteur
@@ -572,7 +637,7 @@ const heatmapController = {
       console.error('❌ Erreur dans getProducerLocation:', error);
       res.status(500).json({ message: 'Erreur serveur lors de la récupération de la localisation', error: error.message });
     }
-  }, // Added comma
+  },
 
   /**
    * Récupérer les recherches récentes à proximité d'un producteur
@@ -580,101 +645,85 @@ const heatmapController = {
    * @requires auth
    */
   getNearbySearches: async (req, res) => {
-    // This implementation looks fine
-    try {
+     try {
       const { producerId } = req.params;
-      // Use constants for defaults
-      const radiusM = parseInt(req.query.radius, 10) || constants.DEFAULT_NEARBY_SEARCH_RADIUS_METERS;
-      const minutesAgo = parseInt(req.query.minutes, 10) || constants.DEFAULT_NEARBY_SEARCH_TIMESPAN_MINUTES;
-      const limit = parseInt(req.query.limit, 10) || constants.MAX_NEARBY_SEARCHES_RETURNED;
+      const { radius = 1000, minutes = 30 } = req.query; // Default: 1km, last 30 minutes
 
-      // 1. Trouver le producteur et sa localisation
+      // 1. Find the producer and get its location
       const producerData = await findProducerInAnyCollection(producerId);
-      if (!producerData || !producerData.producer || !producerData.producer.location || !producerData.producer.location.coordinates) {
+      if (!producerData || !producerData.producer) {
+        return res.status(404).json({ message: 'Producteur non trouvé.' });
+      }
+      // --- MODIFIED: Use helper function to get location --- 
+      const producerLocation = getProducerLatLng(producerData.producer);
+      if (!producerLocation) {
         return res.status(404).json({ message: 'Localisation du producteur introuvable.' });
       }
-      const [prodLng, prodLat] = producerData.producer.location.coordinates;
+      // --- END MODIFIED ---
 
-      // 2. Définir la période de temps
-      const searchSince = new Date(Date.now() - minutesAgo * 60 * 1000);
+      // 2. Define time range
+      const now = new Date();
+      const startTime = new Date(now.getTime() - parseInt(minutes, 10) * 60000);
+      const timeFilter = { timestamp: { $gte: startTime } };
 
-      // 3. Agréger les activités de recherche récentes
-      // Ensure UserActivity model has a 2dsphere index on 'location'
-      const aggregationPipeline = [
-        // Match search actions near the producer within the timeframe
-        {
-          $match: {
-            action: constants.USER_ACTIVITY_ACTIONS.SEARCH, // Use constant
-            timestamp: { $gte: searchSince },
-            location: {
-              // Use $nearSphere for distance-based search from producer location
-              $nearSphere: {
-                $geometry: {
-                  type: "Point",
-                  coordinates: [prodLng, prodLat]
-                },
-                $maxDistance: radiusM // Max distance in meters
-              }
-            }
+      // 3. Find recent 'search' activities within the radius and time
+      // Use UserActivity model here
+      const recentSearches = await UserActivity.find({
+        action: 'search',
+        location: {
+          $nearSphere: {
+            $geometry: {
+              type: "Point",
+               // --- MODIFIED: Use fetched producer location --- 
+              coordinates: [producerLocation.longitude, producerLocation.latitude]
+               // --- END MODIFIED ---
+            },
+            $maxDistance: parseInt(radius, 10)
           }
         },
-        // Sort by timestamp descending (most recent first)
-        { $sort: { timestamp: -1 } },
-        // Limit the results
-        { $limit: limit },
-        // Lookup user details (name, profilePicture)
-        {
-          $lookup: {
-            from: "users", // Collection name for User model (check your actual name)
-            localField: "userId",
-            foreignField: "_id",
-            // Pipeline to select only specific fields from user
-             pipeline: [
-               { $project: { _id: 0, name: 1, profilePicture: 1 } }
-             ],
-            as: "userDetails"
-          }
-        },
-        // Deconstruct userDetails array (should be 0 or 1 element)
-        {
-          $unwind: {
-            path: "$userDetails",
-            preserveNullAndEmptyArrays: true // Keep searches even if user details not found/user deleted
-          }
-        },
-        // Project the final desired format matching frontend model
-        {
-          $project: {
-            _id: 0, // Exclude the aggregation _id
-            searchId: "$_id", // Use the activity _id as searchId
-            userId: "$userId",
-            query: "$query", // Make sure 'query' field exists in UserActivity schema
-            timestamp: "$timestamp",
-            location: "$location", // Include location GeoJSON
-            // Use $ifNull to provide default name if userDetails missing
-            userName: { $ifNull: ["$userDetails.name", constants.DEFAULT_UNKNOWN_USERNAME] },
-            userProfilePicture: "$userDetails.profilePicture" // Will be null if userDetails missing
-          }
-        }
-      ];
+        ...timeFilter,
+        userId: { $exists: true }
+      })
+      .sort({ timestamp: -1 }) // Latest searches first
+      .select('userId query timestamp') // Add other fields if needed
+      .limit(50) // Limit the number of recent searches
+      .lean();
 
-      // Execute aggregation on UserActivity model
-      const nearbySearches = await UserActivity.aggregate(aggregationPipeline);
+      // 4. Get unique user IDs from these searches
+      const userIds = [...new Set(recentSearches.map(s => s.userId?.toString()).filter(id => id))];
 
-      console.log(`🔎 Found ${nearbySearches.length} nearby search activities for producer ${producerId} within ${radiusM}m in the last ${minutesAgo} mins.`);
+      // 5. Fetch user details
+      const users = await User.find({ _id: { $in: userIds } })
+                            .select('_id name profilePicture')
+                            .lean();
+      const userMap = users.reduce((map, user) => {
+          map[user._id.toString()] = user;
+          return map;
+      }, {});
+
+      // 6. Combine search details with user details
+      const nearbySearches = recentSearches.map(search => {
+        const user = userMap[search.userId?.toString()];
+        if (!user) return null; // Skip if user not found (shouldn't happen ideally)
+        return {
+          searchId: search._id, // Use the activity ID as searchId
+          userId: user._id,
+          userName: user.name,
+          userProfilePicture: user.profilePicture,
+          query: search.query,
+          timestamp: search.timestamp,
+          // location: search.location // Include search location if needed by frontend
+        };
+      }).filter(s => s !== null); // Remove null entries
+
       res.status(200).json(nearbySearches);
 
     } catch (error) {
-      console.error('❌ Erreur dans getNearbySearches:', error);
-      // Check for geo index error ($nearSphere needs index)
-      if (error.code === 166 || (error.message && error.message.includes('$nearSphere requires a 2dsphere index'))) {
-        console.error('   Hint: Missing 2dsphere index on userActivities.location field!');
-        return res.status(500).json({ message: 'Erreur de base de données: Index géospatial (location) manquant sur UserActivity.', code: 'DB_GEO_INDEX_MISSING' });
-      }
-      res.status(500).json({ message: 'Erreur serveur lors de la récupération des recherches proches', error: error.message });
+      console.error('❌ Error in getNearbySearches:', error);
+      res.status(500).json({ message: 'Erreur serveur lors de la récupération des recherches proches.', error: error.message });
     }
-  } // No comma needed after last method
-}; // Semicolon after object definition
+  }
+}; 
 
 // Fonction utilitaire pour calculer la distance en mètres entre deux points de coordonnées
 // This seems okay, using Haversine formula

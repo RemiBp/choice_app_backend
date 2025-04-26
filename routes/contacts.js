@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const { choiceAppDb } = require('../index');
-const auth = require('../middleware/auth');
+const { requireAuth } = require('../middleware/authMiddleware');
 
 // Contact model
 const ContactSchema = new mongoose.Schema({
@@ -47,7 +47,7 @@ const ContactSchema = new mongoose.Schema({
 const Contact = choiceAppDb.model('Contact', ContactSchema);
 
 // GET user's contacts
-router.get('/', auth, async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const contacts = await Contact.find({ userId: req.user.id })
       .sort({ name: 1 });
@@ -77,7 +77,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // GET contacts by tag
-router.get('/tag/:tag', auth, async (req, res) => {
+router.get('/tag/:tag', requireAuth, async (req, res) => {
   try {
     const tag = req.params.tag;
     if (!tag) {
@@ -97,7 +97,7 @@ router.get('/tag/:tag', auth, async (req, res) => {
 });
 
 // GET single contact
-router.get('/:contactId', auth, async (req, res) => {
+router.get('/:contactId', requireAuth, async (req, res) => {
   try {
     const contact = await Contact.findOne({
       _id: req.params.contactId,
@@ -129,7 +129,7 @@ router.get('/:contactId', auth, async (req, res) => {
 });
 
 // POST create contact
-router.post('/', auth, async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const { name, email, phone, avatar, tags, notes, relatedUserId } = req.body;
 
@@ -169,7 +169,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // PUT update contact
-router.put('/:contactId', auth, async (req, res) => {
+router.put('/:contactId', requireAuth, async (req, res) => {
   try {
     const { name, email, phone, avatar, tags, notes, relatedUserId } = req.body;
     
@@ -208,7 +208,7 @@ router.put('/:contactId', auth, async (req, res) => {
 });
 
 // DELETE contact
-router.delete('/:contactId', auth, async (req, res) => {
+router.delete('/:contactId', requireAuth, async (req, res) => {
   try {
     const contact = await Contact.findOne({
       _id: req.params.contactId,
@@ -228,7 +228,7 @@ router.delete('/:contactId', auth, async (req, res) => {
 });
 
 // POST add tag to contact
-router.post('/:contactId/tag', auth, async (req, res) => {
+router.post('/:contactId/tag', requireAuth, async (req, res) => {
   try {
     const { tag } = req.body;
     
@@ -259,7 +259,7 @@ router.post('/:contactId/tag', auth, async (req, res) => {
 });
 
 // DELETE remove tag from contact
-router.delete('/:contactId/tag/:tag', auth, async (req, res) => {
+router.delete('/:contactId/tag/:tag', requireAuth, async (req, res) => {
   try {
     const contact = await Contact.findOne({
       _id: req.params.contactId,
@@ -285,7 +285,7 @@ router.delete('/:contactId/tag/:tag', auth, async (req, res) => {
 });
 
 // GET all tags for a user
-router.get('/tags/all', auth, async (req, res) => {
+router.get('/tags/all', requireAuth, async (req, res) => {
   try {
     const contacts = await Contact.find({ userId: req.user.id });
     
@@ -305,7 +305,7 @@ router.get('/tags/all', auth, async (req, res) => {
 });
 
 // Search contacts
-router.get('/search/:query', auth, async (req, res) => {
+router.get('/search/:query', requireAuth, async (req, res) => {
   try {
     const searchQuery = req.params.query;
     
@@ -333,7 +333,7 @@ router.get('/search/:query', auth, async (req, res) => {
 });
 
 // Import contacts from another source (e.g., phone, Google)
-router.post('/import', auth, async (req, res) => {
+router.post('/import', requireAuth, async (req, res) => {
   try {
     const { contacts } = req.body;
     

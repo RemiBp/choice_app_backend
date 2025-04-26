@@ -1354,11 +1354,11 @@ async function processUserQuery(query, userId = null, options = {}) {
              if (foundPlace) {
                  mongoQueryResult = [foundPlace];
                  console.log(`🏠 Found specific place "${entities.place_name}" in ${TargetModel.modelName}`);
-             } else {
+        } else {
                  console.log(`🏠 Could not find specific place "${entities.place_name}"`);
                  mongoQueryResult = [];
              }
-       } else {
+      } else {
            // Determine model based on intent for broader searches
            if (intent?.includes('event')) { TargetModel = Event; modelType = 'event'; }
            else if (intent?.includes('leisure')) { TargetModel = LeisureProducer; modelType = 'leisureProducer'; }
@@ -1378,29 +1378,57 @@ async function processUserQuery(query, userId = null, options = {}) {
            const baseQueryConditions = buildMongoQuery(queryAnalysis, { coordinates: userCoordinates });
 
            // --- Execute Query (Geo or Standard) ---
+           // Determine the correct location field name based on the target model
+           let locationField = 'location'; // Default for Event, Wellness, Beauty
+           if (modelType === 'restaurant' || modelType === 'leisureProducer') {
+                // Producer and LeisureProducer models use 'gps_coordinates' based on schema review
+                locationField = 'gps_coordinates';
+           } else if (TargetModel.schema.path('location.coordinates')) { 
+               // Fallback check if schema has nested location.coordinates
+               locationField = 'location'; 
+           } else if (TargetModel.schema.path('gps_coordinates.coordinates')) {
+                locationField = 'gps_coordinates';
+           } else {
+               console.warn(`⚠️ Could not determine primary location field for ${modelType}, defaulting to 'location'. Check schema.`);
+           }
+
            if (location_context?.nearby && userCoordinates && userCoordinates.longitude && userCoordinates.latitude) {
-               console.log(`🌍 Executing geospatial query near [${userCoordinates.longitude}, ${userCoordinates.latitude}] for ${modelType}`);
-               const geoPipeline = [
-                 {
-                   $geoNear: {
-                     near: { type: "Point", coordinates: [userCoordinates.longitude, userCoordinates.latitude] },
-                     distanceField: "distance", // Output distance in meters
-                     maxDistance: options.maxDistance || 20000, // Default 20km
-                     query: baseQueryConditions, // Apply other filters HERE
-                     spherical: true
+               console.log(`🌍 Executing geospatial query near [${userCoordinates.longitude}, ${userCoordinates.latitude}] for ${modelType} using field '${locationField}'`);
+               
+               // Ensure the chosen location field exists and has a 2dsphere index before querying
+               const indexes = await TargetModel.collection.getIndexes();
+               const hasGeoIndex = indexes[`${locationField}_2dsphere`] !== undefined;
+               if (!hasGeoIndex) {
+                    console.error(`‼️‼️‼️ GEO INDEX MISSING on '${locationField}' for ${TargetModel.modelName}. Cannot perform geo query.`);
+                    // Fallback to standard query or return error?
+                    // Let's try a standard query as fallback
+                    mongoQueryResult = await TargetModel.find(baseQueryConditions).limit(options.limit || 20).lean();
+                    console.log(`⚠️ Geo query skipped due to missing index. Standard query returned ${mongoQueryResult.length} results.`);
+               } else {
+                   // Index exists, proceed with geoNear
+                   const geoPipeline = [
+                     {
+                       $geoNear: {
+                         near: { type: "Point", coordinates: [userCoordinates.longitude, userCoordinates.latitude] },
+                         distanceField: "distance", // Output distance in meters
+                         key: locationField, // Specify the indexed field to use
+                         maxDistance: options.maxDistance || 20000, // Default 20km
+                         query: baseQueryConditions, // Apply other filters HERE
+                         spherical: true
+                       }
+                     },
+                     // Optional: Add $match stage here if more filtering needed *after* $geoNear
+                     { $limit: options.limit || 20 } // Limit results
+                   ];
+                   try {
+                       mongoQueryResult = await TargetModel.aggregate(geoPipeline);
+                       console.log(`🌍 GeoNear query returned ${mongoQueryResult.length} results.`);
+                       // Add distance to results if needed by frontend
+                       mongoQueryResult.forEach(r => r.distance = r.distance); // Keep distance field
+                   } catch (aggError) {
+                       console.error(`❌ Error executing GeoNear aggregation for ${modelType}:`, aggError);
+                       mongoQueryResult = [];
                    }
-                 },
-                 // Optional: Add $match stage here if more filtering needed *after* $geoNear
-                 { $limit: options.limit || 20 } // Limit results
-               ];
-               try {
-                   mongoQueryResult = await TargetModel.aggregate(geoPipeline);
-                   console.log(`🌍 GeoNear query returned ${mongoQueryResult.length} results.`);
-                   // Add distance to results if needed by frontend
-                   mongoQueryResult.forEach(r => r.distance = r.distance); // Keep distance field
-               } catch (aggError) {
-                   console.error(`❌ Error executing GeoNear aggregation for ${modelType}:`, aggError);
-                   mongoQueryResult = [];
                }
            } else {
                // Execute standard query
@@ -4036,6 +4064,18 @@ async function handleCheckFriendsChoiceQuery(query, userId, queryAnalysis, optio
   }
 }
 
+/**
+ * Logs user queries for analytics and debugging purposes
+ * @param {string} userId - User ID making the query
+ * @param {string} query - The query text
+ * @param {object} result - The result object with response and profiles
+ */
+function logUserQuery(userId, query, result) {
+  // Simple console log for debugging
+  console.log(`📝 [Query Log] User ${userId || 'anonymous'} asked: "${query}". Found ${result.profiles?.length || 0} results.`);
+  // In the future, this could log to database or analytics service
+}
+
 module.exports = {
   processUserQuery,
   processProducerQuery,
@@ -4059,5 +4099,6 @@ module.exports = {
   formatDate,
   // Export new handlers for social intents
   handleFriendChoicesQuery,
-  handleCheckFriendsChoiceQuery
+  handleCheckFriendsChoiceQuery,
+  // No need to export logUserQuery as it's used internally
 };

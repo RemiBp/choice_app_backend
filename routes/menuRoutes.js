@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const auth = require('../middleware/auth');
+const { requireAuth } = require('../middleware/authMiddleware');
 const { restaurationDb } = require('../index');
 
 // Définir le schéma une seule fois au début du fichier
@@ -27,7 +27,7 @@ try {
  * @desc Get pending menu changes for a producer
  * @access Private
  */
-router.get('/producers/:producerId/menu/pending', auth, async (req, res) => {
+router.get('/producers/:producerId/menu/pending', requireAuth, async (req, res) => {
   try {
     const { producerId } = req.params;
     
@@ -58,7 +58,7 @@ router.get('/producers/:producerId/menu/pending', auth, async (req, res) => {
  * @desc Update menu for a producer
  * @access Private
  */
-router.post('/producers/:producerId/menu', auth, async (req, res) => {
+router.post('/producers/:producerId/menu', requireAuth, async (req, res) => {
   try {
     const { producerId } = req.params;
     const { menus, pending_approval, last_modified, modifications_history } = req.body;
@@ -149,7 +149,7 @@ router.get('/producers/:producerId/menu', async (req, res) => {
  * @desc Approve pending menu changes (admin only)
  * @access Private/Admin
  */
-router.post('/producers/:producerId/menu/approve', auth, async (req, res) => {
+router.post('/producers/:producerId/menu/approve', requireAuth, async (req, res) => {
   try {
     // Check if user is admin
     if (!req.user.isAdmin) {
@@ -200,7 +200,7 @@ router.post('/producers/:producerId/menu/approve', auth, async (req, res) => {
  * @desc Reject pending menu changes (admin only)
  * @access Private/Admin
  */
-router.post('/producers/:producerId/menu/reject', auth, async (req, res) => {
+router.post('/producers/:producerId/menu/reject', requireAuth, async (req, res) => {
   try {
     // Check if user is admin
     if (!req.user.isAdmin) {

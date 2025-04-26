@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const auth = require('../middleware/auth');
+const { requireAuth } = require('../middleware/authMiddleware');
 const { io } = require('../index'); // Socket.IO pour les notifications en temps réel
 const Call = require('../models/call');
 const { createModel, databases } = require('../utils/modelCreator');
@@ -46,7 +46,7 @@ try {
  * @desc Initier un appel audio ou vidéo
  * @access Private
  */
-router.post('/initiate', auth, async (req, res) => {
+router.post('/initiate', requireAuth, async (req, res) => {
   try {
     const { 
       conversationId, 
@@ -299,7 +299,7 @@ router.post('/initiate', auth, async (req, res) => {
  * @desc Rejoindre un appel existant
  * @access Private
  */
-router.post('/join', auth, async (req, res) => {
+router.post('/join', requireAuth, async (req, res) => {
   try {
     const { callId, deviceInfo } = req.body;
     const userId = req.user.id;
@@ -432,7 +432,7 @@ router.post('/join', auth, async (req, res) => {
  * @desc Refuser un appel
  * @access Private
  */
-router.post('/decline', auth, async (req, res) => {
+router.post('/decline', requireAuth, async (req, res) => {
   try {
     const { callId, reason = 'declined' } = req.body;
     const userId = req.user.id;
@@ -506,7 +506,7 @@ router.post('/decline', auth, async (req, res) => {
  * @desc Terminer un appel
  * @access Private
  */
-router.post('/end', auth, async (req, res) => {
+router.post('/end', requireAuth, async (req, res) => {
   try {
     const { callId } = req.body;
     const userId = req.user.id;
@@ -599,7 +599,7 @@ router.post('/end', auth, async (req, res) => {
  * @desc Récupérer l'historique des appels d'un utilisateur
  * @access Private
  */
-router.get('/history', auth, async (req, res) => {
+router.get('/history', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { limit = 20, skip = 0 } = req.query;
@@ -698,7 +698,7 @@ router.get('/history', auth, async (req, res) => {
  * @desc Récupérer les détails d'un appel
  * @access Private
  */
-router.get('/:callId', auth, async (req, res) => {
+router.get('/:callId', requireAuth, async (req, res) => {
   try {
     const { callId } = req.params;
     const userId = req.user.id;

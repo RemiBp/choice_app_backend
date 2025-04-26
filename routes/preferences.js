@@ -3,9 +3,8 @@ const router = express.Router();
 const User = require('../models/User');
 const Producer = require('../models/Producer');
 const LeisureProducer = require('../models/leisureProducer');
-const BeautyProducer = require('../models/beautyProducer');
-const Event = require('../models/event');
 const WellnessPlace = require('../models/WellnessPlace');
+const Event = require('../models/event');
 
 // Middleware d'authentification
 const auth = async (req, res, next) => {
@@ -100,7 +99,7 @@ router.get('/choices', auth, async (req, res) => {
           results = await getItemsByIds(LeisureProducer, choices);
           break;
         case 'beauty':
-          results = await getItemsByIds(BeautyProducer, choices);
+          results = await getItemsByIds(WellnessPlace, choices);
           break;
         case 'wellness':
           results = await getItemsByIds(WellnessPlace, choices);
@@ -147,7 +146,7 @@ router.post('/choices/:itemId', auth, async (req, res) => {
         itemModel = LeisureProducer;
         break;
       case 'beauty':
-        itemModel = BeautyProducer;
+        itemModel = WellnessPlace;
         break;
       case 'wellness':
         itemModel = WellnessPlace;
@@ -160,7 +159,6 @@ router.post('/choices/:itemId', auth, async (req, res) => {
         itemExists = 
           (await Producer.exists({ _id: itemId })) ||
           (await LeisureProducer.exists({ _id: itemId })) ||
-          (await BeautyProducer.exists({ _id: itemId })) ||
           (await WellnessPlace.exists({ _id: itemId })) ||
           (await Event.exists({ _id: itemId }));
         break;
@@ -244,7 +242,10 @@ router.delete('/choices/:itemId', auth, async (req, res) => {
         itemModel = LeisureProducer;
         break;
       case 'beauty':
-        itemModel = BeautyProducer;
+        itemModel = WellnessPlace;
+        break;
+      case 'wellness':
+        itemModel = WellnessPlace;
         break;
       case 'event':
         itemModel = Event;

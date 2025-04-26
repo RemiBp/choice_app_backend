@@ -57,8 +57,7 @@ module.exports = (connection) => {
     price_level: Number,
     structured_data: mongoose.Schema.Types.Mixed,
     conversations: [String],
-    posts: [String],
-    followers: [String],
+    posts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Post' }],
     business_status: String,
     formatted_phone_number: String,
     international_phone_number: String,
@@ -124,7 +123,20 @@ module.exports = (connection) => {
     stripe_customer_id: String,
     created_at: { type: Date, default: Date.now },
     updated_at: { type: Date, default: Date.now },
-    // --- ADDED: Fields related to user choices ---
+    // --- ADJUSTED: Fields for relations ---
+    followers: {
+      count: { type: Number, default: 0 },
+      users: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+    },
+    following: {
+      count: { type: Number, default: 0 },
+      users: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+    },
+    interestedUsers: {
+      count: { type: Number, default: 0 },
+      users: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+    },
+    // --- EXISTING: Fields related to user choices ---
     choiceUsers: [ChoiceUserSchema],
     choiceCount: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 }, // Count of users who provided ratings

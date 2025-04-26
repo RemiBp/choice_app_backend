@@ -26,9 +26,70 @@ const initialize = (connections) => {
       models.User = UserModels.User || UserModels;
     }
     
-    // Importation des modèles avec la nouvelle structure - vérifier si ce sont des fonctions
-    const PostModel = require('./Post');
-    models.Post = typeof PostModel === 'function' ? PostModel(db.choiceAppDb) : PostModel;
+    // Importation des modèles avec la nouvelle structure - Appel de la fonction exportée
+    try {
+      const PostModelFactory = require('./Post'); // Récupère la fonction exportée
+      if (typeof PostModelFactory !== 'function') {
+        throw new Error('models/Post.js does not export a function.');
+      }
+      // Appelle la fonction avec la connexion pour obtenir le modèle enregistré
+      models.Post = PostModelFactory(db.choiceAppDb); 
+      console.log('✅ Modèle Post enregistré via sa fonction factory sur choiceAppDb.');
+    } catch (e) {
+       console.error('❌ Erreur lors du chargement ou enregistrement du modèle Post:', e);
+       // Fallback
+       models.Post = db.choiceAppDb.model(
+         'Post',
+         new mongoose.Schema({}, { strict: false }),
+         'posts'
+       );
+    }
+    
+    // AJOUT : Enregistrer le modèle ProfileView
+    try {
+      const ProfileViewSchema = require('./ProfileView'); // Import the schema directly
+      // Register the model using the schema
+      models.ProfileView = db.choiceAppDb.model('ProfileView', ProfileViewSchema, 'profile_views'); 
+      console.log('✅ Modèle ProfileView enregistré.');
+    } catch (e) {
+      console.error('❌ Erreur lors du chargement ou enregistrement du modèle ProfileView:', e);
+      // Create a placeholder if loading fails
+      models.ProfileView = db.choiceAppDb.model(
+        'ProfileView',
+        new mongoose.Schema({}, { strict: false }),
+        'profile_views' 
+      );
+    }
+    
+    // AJOUT : Enregistrer le modèle Follow
+    try {
+      const FollowModel = require('./Follow'); // Assurez-vous que le fichier './Follow.js' existe
+      models.Follow = typeof FollowModel === 'function' ? FollowModel(db.choiceAppDb) : FollowModel;
+      console.log('✅ Modèle Follow enregistré.');
+    } catch (e) {
+      console.error('❌ Erreur lors du chargement du modèle Follow:', e);
+      // Créer un modèle vide pour éviter les crashs, mais signaler le problème
+      models.Follow = db.choiceAppDb.model(
+        'Follow',
+        new mongoose.Schema({}, { strict: false }),
+        'follows' // Collection name
+      );
+    }
+
+    // AJOUT : Enregistrer le modèle Subscription
+    try {
+      const SubscriptionModel = require('./Subscription'); // Assurez-vous que le fichier './Subscription.js' existe
+      models.Subscription = typeof SubscriptionModel === 'function' ? SubscriptionModel(db.choiceAppDb) : SubscriptionModel;
+      console.log('✅ Modèle Subscription enregistré.');
+    } catch (e) {
+      console.error('❌ Erreur lors du chargement du modèle Subscription:', e);
+      // Créer un modèle vide pour éviter les crashs, mais signaler le problème
+      models.Subscription = db.choiceAppDb.model(
+        'Subscription',
+        new mongoose.Schema({}, { strict: false }),
+        'subscriptions' // Collection name
+      );
+    }
     
     const ProducerModel = require('./Producer');
     models.Producer = typeof ProducerModel === 'function' ? ProducerModel(db.restaurationDb) : ProducerModel;
@@ -37,17 +98,9 @@ const initialize = (connections) => {
     models.LeisureProducer = typeof LeisureProducerModel === 'function' ? 
       LeisureProducerModel(db.loisirDb) : LeisureProducerModel;
     
-    const BeautyProducerModel = require('./beautyProducer');
-    models.BeautyProducer = typeof BeautyProducerModel === 'function' ? 
-      BeautyProducerModel(db.beautyWellnessDb) : BeautyProducerModel;
-    
     const WellnessPlaceModel = require('./WellnessPlace');
     models.WellnessPlace = typeof WellnessPlaceModel === 'function' ? 
       WellnessPlaceModel(db.beautyWellnessDb) : WellnessPlaceModel;
-    
-    const BeautyPlaceModel = require('./BeautyPlace');
-    models.BeautyPlace = typeof BeautyPlaceModel === 'function' ? 
-      BeautyPlaceModel(db.beautyWellnessDb) : BeautyPlaceModel;
     
     // Event model - correctement géré pour éviter les conflits de compilation
     const eventModelFunction = require('./event');
