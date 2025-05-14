@@ -121,7 +121,7 @@ module.exports = (connection) => {
       type: String,
       trim: true
     }, 
-    ratings_by_criteria: { // Object (Si analyse AI effectuée)
+    criteria_ratings: { // Object (Si analyse AI effectuée)
       type: Map,
       of: mongoose.Schema.Types.Mixed // Allow varied structures (numbers and average_score)
     },

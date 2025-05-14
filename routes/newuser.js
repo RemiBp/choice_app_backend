@@ -319,9 +319,10 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid password' });
         }
 
-        // Générer un token JWT
-        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'your_jwt_secret', {
-            expiresIn: '1d',
+        // Signaler la réussite et générer le token JWT
+        // Assurez-vous que le payload du token inclut toutes les informations nécessaires
+        const token = jwt.sign({ id: user._id, accountType: user.accountType }, process.env.JWT_SECRET || 'your_jwt_secret', {
+            expiresIn: '7d'
         });
 
         // Vérifier si l'utilisateur a complété l'onboarding

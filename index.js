@@ -23,11 +23,13 @@ const morgan = require('morgan');
 const helmet = require('helmet');
 const path = require('path');
 const mongoose = require('mongoose');
-const dbConfig = require('./db/config');
+const dbConfig = require('./config/db'); // Corrected path for db config
 const http = require('http');
 const { Server } = require("socket.io");
 const InteractionModelFactory = require('./models/Interaction'); // Import the factory
 const producerController = require('./controllers/producerController'); // <-- ADD THIS IMPORT
+const WellnessPlaceModelFactory = require('./models/WellnessPlace'); // Import the WellnessPlace factory
+const models = require('./models'); // Import the central models index
 
 // Chargement des variables d'environnement
 require('dotenv').config();
@@ -129,36 +131,53 @@ async function startServer() {
 
     // 2. Connect to MongoDB
     console.log("🔌 Connexion à MongoDB...");
-    await dbConfig.connectToMongoDB();
+    await dbConfig.connectDB(); // Ensure connections are established
     console.log("✅ Connexion MongoDB établie.");
 
-    // 3. Initialize Database Models (CRUCIAL: MUST COMPLETE BEFORE ROUTES)
-    console.log("🧱 Initialisation des modèles Mongoose...");
-    const modelsInitialized = await dbConfig.initializeModels();
-    if (!modelsInitialized) {
-      console.error("❌ Échec critique de l'initialisation des modèles. Arrêt.");
-      process.exit(1); // Stop if models fail
+    // 3. Initialize Centralized Models via models/index.js
+    console.log("🧱 Initialisation des modèles Mongoose centralisés...");
+    const connections = {
+      choiceAppDb: dbConfig.getChoiceAppDbSync(),
+      restaurationDb: dbConfig.getRestoDbSync(),
+      loisirsDb: dbConfig.getLoisirsDbSync(),
+      beautyWellnessDb: dbConfig.getBeautyDbSync()
+    };
+    // Call the initialize function from models/index.js
+    const initializedModels = models.initialize(connections); 
+    if (!initializedModels || !initializedModels.models) {
+      console.error("❌ Échec critique de l'initialisation des modèles via models/index.js. Arrêt.");
+      process.exit(1); // Stop if central initialization fails
     }
-    console.log('✅ Modèles Mongoose initialisés.');
-
-    // 4. Register Interaction Model (Depends on choiceAppDb being ready from initializeModels)
-    console.log("💬 Enregistrement du modèle Interaction...");
+    console.log('✅ Modèles Mongoose centralisés initialisés.');
+    
+    // --- REMOVED: Manual registration of Interaction & WellnessPlace --- 
+    // (Now handled within models.initialize)
+    /*
+    console.log("💬 Enregistrement des modèles spécifiques...");
     const choiceAppDbConnection = dbConfig.getChoiceAppConnection();
+    const beautyWellnessDbConnection = dbConfig.getBeautyConnection();
+
     if (choiceAppDbConnection) {
       InteractionModelFactory(choiceAppDbConnection);
       console.log('✅ Modèle Interaction enregistré sur choiceAppDb.');
     } else {
       console.error('❌ Connexion choiceAppDb non disponible. Le modèle Interaction ne peut pas être enregistré.');
-      // Decide if this is critical enough to stop the server
-      // process.exit(1);
     }
+
+    if (beautyWellnessDbConnection) {
+      WellnessPlaceModelFactory(beautyWellnessDbConnection);
+      console.log('✅ Modèle WellnessPlace enregistré sur beautyWellnessDb.');
+    } else {
+      console.error('❌ Connexion beautyWellnessDb non disponible. Le modèle WellnessPlace ne peut pas être enregistré.');
+    }
+    console.log("✅ Modèles spécifiques enregistrés.");
+    */
 
     // --- Configure Express Middlewares AFTER DB/Models Init ---
     console.log("⚙️ Configuration des middlewares Express...");
     app.use(cors());
     app.use(helmet());
     app.use(morgan('dev'));
-    // Increase payload limits if necessary
     app.use(express.json({ limit: '50mb' }));
     app.use(express.urlencoded({ limit: '50mb', extended: true }));
     console.log("✅ Middlewares Express configurés.");
@@ -199,6 +218,34 @@ async function startServer() {
     const heatmapRoutes = require('./routes/heatmap');
     console.log('✅ Définitions de routes API chargées.');
 
+    // --- Initialize routes that require connections ---
+    console.log('🔌 Initialisation des routes API qui nécessitent des connexions...');
+    // Initialize routes that need database connections
+    if (choicesRoutes && typeof choicesRoutes.initialize === 'function') {
+      choicesRoutes.initialize(connections);
+      console.log('✅ Routes de choices initialisées avec les connexions.');
+    } else {
+      console.warn('⚠️ La fonction initialize n\'est pas disponible pour choicesRoutes.');
+    }
+
+    // Initialize other routes that need connections (if any)
+    if (interactionsRoutes && typeof interactionsRoutes.initialize === 'function') {
+      interactionsRoutes.initialize(connections);
+      console.log('✅ Routes d\'interactions initialisées avec les connexions.');
+    }
+    
+    // Initialize eventsRoutes with loisirsDb connection
+    if (eventsRoutes && typeof eventsRoutes.initialize === 'function') {
+      eventsRoutes.initialize(connections.loisirsDb);
+      console.log('✅ Routes d\'événements initialisées avec la connexion loisirsDb.');
+    }
+
+    // Initialize leisureProducersRoutes with loisirsDb connection
+    if (leisureProducersRoutes && typeof leisureProducersRoutes.initialize === 'function') {
+      leisureProducersRoutes.initialize(connections.loisirsDb);
+      console.log('✅ Routes de producteurs de loisirs initialisées avec la connexion loisirsDb.');
+    }
+
     // --- Mount Routes AFTER DB/Models Init ---
     console.log('🚀 Montage des routes API sur les endpoints...');
     app.use('/api/users', usersRoutes);
@@ -208,7 +255,6 @@ async function startServer() {
     app.use('/api/preferences', preferencesRoutes);
     app.use('/api/payments', paymentsRoutes);
     app.use('/api/posts', postsRoutes);
-    // Use router property if exported that way
     if (choicesRoutes && typeof choicesRoutes.router === 'function') {
         app.use('/api/choices', choicesRoutes.router);
     } else if (typeof choicesRoutes === 'function') {
@@ -225,8 +271,9 @@ async function startServer() {
         app.use('/api/ai', aiRoutes);
     } else { console.error('❌ Invalid aiRoutes type'); }
 
-    app.use('/api/leisure-producers', leisureProducersRoutes); // Note: Changed endpoint for clarity
-    app.use('/api/wellness', wellnessRoutes); // <-- ADDED WELLNESS ROUTE USAGE
+    app.use('/api/leisure-producers', leisureProducersRoutes); 
+    app.use('/api/leisureProducers', leisureProducersRoutes); // Alias en camelCase pour la compatibilité frontend
+    app.use('/api/wellness', wellnessRoutes); 
     app.use('/api/finder', finderRoutes);
     app.use('/api/location-history', locationHistoryRoutes);
 
@@ -246,9 +293,10 @@ async function startServer() {
     app.use('/api/premium-features', premiumFeaturesRoutes);
     app.use('/api/tags', tagsRoutes);
     app.use('/api/search', searchRoutes);
-    app.use('/stripe-webhooks', stripeWebhooksRoutes); // No /api prefix for webhooks typically
+    app.use('/stripe-webhooks', stripeWebhooksRoutes); 
     app.use('/api/offers', offerRoutes);
     app.use('/api/heatmap', heatmapRoutes);
+    app.use('/api/notifications', require('./routes/notifications'));
     console.log('✅ Routes API montées.');
 
     // --- Static files serving (Optional) ---

@@ -73,7 +73,14 @@ const wellnessController = {
         return res.status(404).json({ message: 'Producteur wellness non trouvé' });
       }
 
-      res.status(200).json(producer);
+      let producerData = producer.toObject();
+      if (producerData.ratings_by_criteria && !producerData.criteria_ratings) {
+        console.log(`⚠️ Compatibilité: Renommage de ratings_by_criteria en criteria_ratings pour ${id}`);
+        producerData.criteria_ratings = producerData.ratings_by_criteria;
+        delete producerData.ratings_by_criteria;
+      }
+
+      res.status(200).json(producerData);
     } catch (error) {
       console.error('❌ Erreur dans getWellnessProducerById:', error);
       

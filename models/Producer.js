@@ -8,7 +8,14 @@ module.exports = (connection) => {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     ratings: { type: Map, of: Number }, // Contains ratings like service, lieu, etc.
     comment: { type: String, default: '' },
-    menuItems: { type: Array, default: [] }, // Specific to restaurant choices
+    // UPDATED: Store detailed consumed items instead of just names
+    consumedItems: [{ // Array of consumed items/menus
+      itemId: { type: Schema.Types.ObjectId }, // ID of the item/menu from structured_data
+      name: { type: String, required: true }, // Name for display
+      type: { type: String, enum: ['item', 'menu'], required: true }, // Type (independent item or global menu)
+      category: { type: String }, // Category if it's an independent item
+      rating: { type: Number, min: 1, max: 5 } // Optional rating for this specific item
+    }],
     // Note: emotions are usually linked to events/wellness, maybe not directly stored here? Check choices.js if needed.
     createdAt: { type: Date, default: Date.now }
   }, { _id: false });

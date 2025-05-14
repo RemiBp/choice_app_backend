@@ -265,47 +265,91 @@ async function getEngagementMetrics(producerId, period) {
  * Get follower metrics for a producer
  */
 async function getFollowerMetrics(producerId, period) {
-  // This would typically query follower data from the database
-  // For now, we'll generate mock data
-  
   // Get date from period days ago
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - period);
-  
+
   try {
-    // Get total followers
-    const Follow = choiceAppDb.model('Follow');
-    const totalFollowers = await Follow.countDocuments({
-      followedId: producerId
-    });
-    
-    const newFollowers = await Follow.countDocuments({
-      followedId: producerId,
-      createdAt: { $gte: startDate }
-    });
-    
+    // --- START REAL DATA IMPLEMENTATION ---
+    const producerType = await getProducerType(producerId); // Need producer type to get the right model
+    if (!producerType) {
+      throw new Error(`Producer type not found for ID: ${producerId}`);
+    }
+
+    let ProducerModel;
+    switch (producerType) {
+      case 'restaurant':
+        ProducerModel = restaurationDb.model('restaurants'); // Assuming model name matches collection
+        break;
+      case 'leisure':
+        ProducerModel = loisirDb.model('leisure_producers');
+        break;
+      case 'wellness':
+        ProducerModel = beautyWellnessDb.model('wellness_producers');
+        break;
+      default:
+        throw new Error(`Invalid producer type: ${producerType}`);
+    }
+
+    // Find the specific producer document
+    const producer = await ProducerModel.findById(producerId).select('followers'); // Only select followers field
+
+    if (!producer || !producer.followers || !Array.isArray(producer.followers.users)) {
+      console.warn(`Producer or followers field not found/invalid for ${producerId}`);
+      return { total: 0, new: 0, growth_rate: 0 };
+    }
+
+    const totalFollowers = producer.followers.count || producer.followers.users.length; // Use count if available, else length
+
+    // To get *new* followers, we need a way to track follow date.
+    // The current Producer schema only stores the *list* of users.
+    // Option 1: Assume a separate 'Follow' collection with timestamps (IDEAL)
+    // Option 2: For now, we can't accurately calculate *new* followers from the Producer schema alone.
+    // Let's assume Option 1 exists or will exist.
+    // Placeholder: If Follow model exists in choiceAppDb:
+    let newFollowers = 0;
+    try {
+       const FollowModel = choiceAppDb.model('Follow'); // Assuming 'Follow' model exists
+       newFollowers = await FollowModel.countDocuments({
+         followedId: producerId,
+         // Assuming 'followedType' field exists if Follow model handles multiple types
+         // followedType: producerType, 
+         createdAt: { $gte: startDate }
+       });
+    } catch(followModelError) {
+       console.warn(`Could not query Follow model for new followers for ${producerId}. Defaulting to 0. Error: ${followModelError.message}`);
+       // If Follow model doesn't exist or fails, newFollowers remains 0
+    }
+
+
     // Calculate growth rate
-    const growthRate = totalFollowers > 0 
-      ? (newFollowers / totalFollowers * 100).toFixed(1)
-      : 0;
-    
+    // Avoid division by zero if totalFollowers was 0 before the period
+    const previousFollowers = totalFollowers - newFollowers;
+    const growthRate = previousFollowers > 0
+      ? parseFloat((newFollowers / previousFollowers * 100).toFixed(1))
+      : (newFollowers > 0 ? Infinity : 0); // Growth is infinite if starting from 0
+
     return {
       total: totalFollowers,
       new: newFollowers,
-      growth_rate: parseFloat(growthRate)
+      growth_rate: growthRate === Infinity ? 100.0 : growthRate // Cap infinite growth for display maybe? Or handle on frontend
     };
+    // --- END REAL DATA IMPLEMENTATION ---
+
   } catch (error) {
     console.error(`Error getting follower metrics for ${producerId}:`, error);
     
-    // Return mock data in case of error
+    // Return mock data only as a last resort if real data fetching fails critically
+    console.warn(`Falling back to mock data for follower metrics for ${producerId}`);
     const total = Math.floor(Math.random() * 150) + 50;
     const newFollowers = Math.floor(Math.random() * 20) + 5;
-    const growthRate = (newFollowers / total * 100).toFixed(1);
+    // Adjust mock growth rate calculation slightly
+    const growthRate = total > newFollowers ? parseFloat((newFollowers / (total - newFollowers) * 100).toFixed(1)) : 100.0;
     
     return {
       total,
       new: newFollowers,
-      growth_rate: parseFloat(growthRate)
+      growth_rate: growthRate
     };
   }
 }

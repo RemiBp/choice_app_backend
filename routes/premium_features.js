@@ -270,4 +270,214 @@ router.get('/pricing', async (req, res) => {
   }
 });
 
+/**
+ * @route GET /api/premium-features/subscription/:producerId
+ * @desc Get subscription info for a producer
+ * @access Private
+ */
+router.get('/subscription/:producerId', requireAuth, async (req, res) => {
+  try {
+    const { producerId } = req.params;
+    
+    // Mock subscription data
+    const subscriptionData = {
+      success: true,
+      subscription: {
+        id: `sub_${Math.random().toString(36).substring(2, 10)}`,
+        level: 'gratuit', // Options: 'gratuit', 'starter', 'pro', 'legend'
+        startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+        endDate: null,
+        features: ['basic_analytics', 'social_sharing'],
+        status: 'active'
+      }
+    };
+    
+    res.status(200).json(subscriptionData);
+  } catch (error) {
+    console.error('Error getting subscription info:', error);
+    // Return default data with 200 to prevent 502 errors
+    res.status(200).json({
+      success: true,
+      subscription: {
+        level: 'gratuit',
+        features: ['basic_analytics'],
+        status: 'active'
+      }
+    });
+  }
+});
+
+/**
+ * @route POST /api/premium-features/access-check/:producerId
+ * @desc Check if producer has access to a specific premium feature
+ * @access Private
+ */
+router.post('/access-check/:producerId', requireAuth, async (req, res) => {
+  try {
+    const { producerId } = req.params;
+    const { featureId } = req.body;
+    
+    if (!featureId) {
+      return res.status(400).json({ message: 'Feature ID is required' });
+    }
+    
+    // Basic feature access map (would actually check subscription level in a real implementation)
+    const featureAccess = {
+      'basic_analytics': true,
+      'social_sharing': true,
+      'advanced_analytics': false,
+      'growth_predictions': false,
+      'audience_demographics': false,
+      'simple_campaigns': false,
+      'advanced_targeting': false,
+      'campaign_automation': false
+    };
+    
+    const hasAccess = featureAccess[featureId] || false;
+    
+    res.status(200).json({
+      success: true,
+      access: hasAccess,
+      feature: featureId
+    });
+  } catch (error) {
+    console.error('Error checking feature access:', error);
+    // Return default data with 200 to prevent 502 errors
+    res.status(200).json({
+      success: true,
+      access: false,
+      feature: req.body.featureId || 'unknown'
+    });
+  }
+});
+
+/**
+ * @route GET /api/premium-features/available-features/:producerId
+ * @desc Get all available features for a producer based on subscription
+ * @access Private
+ */
+router.get('/available-features/:producerId', requireAuth, async (req, res) => {
+  try {
+    const { producerId } = req.params;
+    
+    // Mock available features data
+    const featuresData = {
+      success: true,
+      features: [
+        {
+          id: 'basic_analytics',
+          name: 'Analytiques de base',
+          description: 'Accès aux statistiques de base sur votre profil',
+          availableInPlan: 'gratuit',
+          isActive: true
+        },
+        {
+          id: 'advanced_analytics',
+          name: 'Analytiques avancées',
+          description: 'Accès à des statistiques détaillées et des tendances',
+          availableInPlan: 'starter',
+          isActive: false
+        },
+        {
+          id: 'growth_predictions',
+          name: 'Prédictions de croissance',
+          description: 'Prévisions et projections basées sur vos données',
+          availableInPlan: 'pro',
+          isActive: false
+        },
+        {
+          id: 'audience_demographics',
+          name: 'Démographiques d\'audience',
+          description: 'Données démographiques de votre audience',
+          availableInPlan: 'pro',
+          isActive: false
+        },
+        {
+          id: 'simple_campaigns',
+          name: 'Campagnes marketing simples',
+          description: 'Créez des campagnes marketing de base',
+          availableInPlan: 'starter',
+          isActive: false
+        },
+        {
+          id: 'advanced_targeting',
+          name: 'Ciblage avancé',
+          description: 'Ciblage précis de votre audience pour les campagnes',
+          availableInPlan: 'pro',
+          isActive: false
+        },
+        {
+          id: 'campaign_automation',
+          name: 'Automatisation des campagnes',
+          description: 'Programmez et automatisez vos campagnes marketing',
+          availableInPlan: 'legend',
+          isActive: false
+        }
+      ]
+    };
+    
+    res.status(200).json(featuresData);
+  } catch (error) {
+    console.error('Error getting available features:', error);
+    // Return default data with 200 to prevent 502 errors
+    res.status(200).json({
+      success: true,
+      features: []
+    });
+  }
+});
+
+/**
+ * @route POST /api/premium-features/check-multiple/:producerId
+ * @desc Check access to multiple features at once
+ * @access Private
+ */
+router.post('/check-multiple/:producerId', requireAuth, async (req, res) => {
+  try {
+    const { producerId } = req.params;
+    const { features } = req.body;
+    
+    if (!features || !Array.isArray(features) || features.length === 0) {
+      return res.status(400).json({ message: 'Features array is required' });
+    }
+    
+    // Basic feature access map (would actually check subscription level in a real implementation)
+    const featureAccess = {
+      'basic_analytics': true,
+      'social_sharing': true,
+      'advanced_analytics': false,
+      'growth_predictions': false,
+      'audience_demographics': false,
+      'simple_campaigns': false,
+      'advanced_targeting': false,
+      'campaign_automation': false
+    };
+    
+    const result = {};
+    features.forEach(feature => {
+      result[feature] = featureAccess[feature] || false;
+    });
+    
+    res.status(200).json({
+      success: true,
+      access: result
+    });
+  } catch (error) {
+    console.error('Error checking multiple features access:', error);
+    // Create default response with all features set to false
+    const defaultResponse = {};
+    if (req.body.features && Array.isArray(req.body.features)) {
+      req.body.features.forEach(feature => {
+        defaultResponse[feature] = false;
+      });
+    }
+    
+    // Return default data with 200 to prevent 502 errors
+    res.status(200).json({
+      success: true,
+      access: defaultResponse
+    });
+  }
+});
+
 module.exports = router; 

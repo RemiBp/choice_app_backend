@@ -2,24 +2,51 @@
 
 // Helper function to get the correct database model based on type
 const getModelForProducerType = (producerType, connections) => {
-    // IMPORTANT: This requires models to be registered on the connection objects
-    // e.g., connections.restaurationDb.model('Producer')
-    switch (producerType) {
-        case 'restaurant':
-            // Assumes model name 'Producer' is registered on restaurationDb
-            return connections.restaurationDb?.model('Producer');
-        case 'leisureProducer':
-            // Assumes model name 'LeisureProducer' is registered on loisirsDb
-            return connections.loisirsDb?.model('LeisureProducer');
-        case 'wellnessProducer':
-             // Assumes model name 'WellnessProducer' is registered on beautyWellnessDb
-            return connections.beautyWellnessDb?.model('WellnessProducer');
-        case 'beautyPlace':
-             // Assumes model name 'BeautyPlace' is registered on beautyWellnessDb
-            return connections.beautyWellnessDb?.model('BeautyPlace'); 
-        default:
-            console.error(`Unsupported producer type for model fetching: ${producerType}`);
+    try {
+        if (!connections) {
+            console.error("Database connections object is undefined");
             return null;
+        }
+
+        let model = null;
+        
+        if (producerType === 'restaurant') {
+            if (!connections.restaurationDb) {
+                console.error("Restaurant database connection is undefined");
+                return null;
+            }
+            model = connections.restaurationDb.model('Producer');
+            console.log("Loaded Restaurant Producer model from restaurationDb");
+        } else if (producerType === 'leisureProducer') {
+            if (!connections.loisirsDb) {
+                console.error("Leisure database connection is undefined");
+                return null;
+            }
+            model = connections.loisirsDb.model('LeisureProducer');
+            console.log("Loaded Leisure Producer model from loisirsDb");
+        } else if (producerType === 'wellnessProducer') {
+            if (!connections.beautyWellnessDb) {
+                console.error("Wellness database connection is undefined");
+                return null;
+            }
+            model = connections.beautyWellnessDb.model('WellnessPlace');
+            console.log("Loaded Wellness Producer model from beautyWellnessDb");
+        } else if (producerType === 'beautyPlace') {
+            if (!connections.beautyWellnessDb) {
+                console.error("Beauty database connection is undefined");
+                return null;
+            }
+            model = connections.beautyWellnessDb.model('BeautyPlace');
+            console.log("Loaded Beauty Producer model from beautyWellnessDb");
+        } else {
+            console.error(`Unknown producer type: ${producerType}`);
+            return null;
+        }
+        
+        return model;
+    } catch (error) {
+        console.error(`Error getting model for producer type ${producerType}:`, error);
+        return null;
     }
 };
 
@@ -38,26 +65,107 @@ const calculatePercentageChange = (currentValue, previousValue) => {
     return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
 };
 
-/** Log an interaction */
-async function logInteraction(connections, userId, producerId, producerType, interactionType, metadata = {}) {
-  try {
-    const InteractionModel = connections.choiceAppDb?.model('Interaction');
-    if (InteractionModel && userId) { // Only log if model exists and userId is known
-      await InteractionModel.create({
-        userId,
-        producerId,
-        producerType,
-        type: interactionType,
-        metadata
-      });
-       // console.log(`Interaction logged: ${userId} -> ${interactionType} @ ${producerType}/${producerId}`);
-    } else if (!userId) {
-       // console.warn(`Cannot log interaction: userId is missing for ${interactionType} @ ${producerType}/${producerId}`);
+/**
+ * Checks the status of database connections
+ * @param {Object} connections - Database connection object containing different DB connections
+ * @returns {Object} Status report with connection status and diagnostics
+ */
+const checkDatabaseStatus = async (connections) => {
+    try {
+        if (!connections) {
+            return {
+                success: false,
+                error: 'Database connections object is undefined',
+                connectionStatus: {
+                    choiceAppDb: false,
+                    restaurationDb: false,
+                    loisirsDb: false,
+                    beautyWellnessDb: false
+                }
+            };
+        }
+
+        const statusReport = {
+            success: true,
+            error: null,
+            connectionStatus: {
+                choiceAppDb: !!connections.choiceAppDb,
+                restaurationDb: !!connections.restaurationDb,
+                loisirsDb: !!connections.loisirsDb,
+                beautyWellnessDb: !!connections.beautyWellnessDb
+            },
+            diagnostics: {}
+        };
+
+        // Add detailed diagnostics for specific connections
+        if (connections.restaurationDb) {
+            try {
+                const Producer = connections.restaurationDb.model('Producer');
+                const count = await Producer.countDocuments({}).exec();
+                statusReport.diagnostics.restaurationDb = {
+                    producers: {
+                        count
+                    }
+                };
+            } catch (error) {
+                statusReport.diagnostics.restaurationDb = {
+                    error: error.message
+                };
+            }
+        }
+
+        // Check if any required connection is missing
+        if (!connections.choiceAppDb || 
+            !connections.restaurationDb || 
+            !connections.loisirsDb || 
+            !connections.beautyWellnessDb) {
+            statusReport.success = false;
+            statusReport.error = 'One or more required database connections are missing';
+        }
+
+        return statusReport;
+    } catch (error) {
+        return {
+            success: false,
+            error: `Error checking database status: ${error.message}`,
+            connectionStatus: {
+                choiceAppDb: !!connections?.choiceAppDb,
+                restaurationDb: !!connections?.restaurationDb,
+                loisirsDb: !!connections?.loisirsDb,
+                beautyWellnessDb: !!connections?.beautyWellnessDb
+            }
+        };
     }
-  } catch (error) {
-    console.error(`Error logging interaction (${interactionType}):`, error);
-  }
-}
+};
+
+/**
+ * Logs an interaction between a user and producer.
+ * @param {Object} params - Parameters for logging interaction
+ * @param {string} params.userId - User ID
+ * @param {string} params.producerId - Producer ID
+ * @param {string} params.producerType - Type of producer (restaurant, leisureProducer, etc.)
+ * @param {string} params.interactionType - Type of interaction (view, like, etc.)
+ * @param {Object} connections - MongoDB connections
+ * @returns {Promise<Object>} Result of the operation
+ */
+const logInteraction = async ({ userId, producerId, producerType, interactionType }, connections) => {
+    try {
+        const InteractionModel = connections.choiceAppDb?.model('Interaction');
+        if (InteractionModel && userId) { // Only log if model exists and userId is known
+            await InteractionModel.create({
+                userId,
+                producerId,
+                producerType,
+                type: interactionType,
+                metadata: {}
+            });
+        } else if (!userId) {
+            console.warn(`Cannot log interaction: userId is missing for ${interactionType} @ ${producerType}/${producerId}`);
+        }
+    } catch (error) {
+        console.error(`Error logging interaction (${interactionType}):`, error);
+    }
+};
 
 /**
  * Fetches Key Performance Indicators (KPIs) for a given producer.
@@ -66,7 +174,7 @@ async function logInteraction(connections, userId, producerId, producerType, int
  * @param {object} connections - Object containing DB connections (choiceAppDb, etc.)
  * @returns {Promise<Array<object>>} - A promise resolving to an array of KPI objects.
  */
-exports.fetchKpisForProducer = async (producerId, producerType, connections) => {
+async function fetchKpisForProducer(producerId, producerType, connections) {
     console.log(`Fetching KPIs for ${producerType} ID: ${producerId}`);
     const ProducerModel = getModelForProducerType(producerType, connections);
     const InteractionModel = connections.choiceAppDb?.model('Interaction'); // Assuming an Interaction model
@@ -148,7 +256,7 @@ exports.fetchKpisForProducer = async (producerId, producerType, connections) => 
         // Optionally, return default/empty KPIs or re-throw specific errors
         return []; // Return empty array on error to avoid breaking frontend
     }
-};
+}
 
 /**
  * Fetches trend data for a given producer over a specified period.
@@ -158,7 +266,7 @@ exports.fetchKpisForProducer = async (producerId, producerType, connections) => 
  * @param {object} connections - Object containing DB connections.
  * @returns {Promise<Array<object>>} - A promise resolving to an array of trend data points (e.g., { day: 'Mon', sales: 50, lastWeek: 45 }).
  */
-exports.fetchTrendsForProducer = async (producerId, producerType, period, connections) => {
+async function fetchTrendsForProducer(producerId, producerType, period, connections) {
     console.log(`Fetching ${period} trends for ${producerType} ID: ${producerId}`);
     const InteractionModel = connections.choiceAppDb?.model('Interaction'); // Assuming interactions hold relevant data
 
@@ -264,7 +372,7 @@ exports.fetchTrendsForProducer = async (producerId, producerType, period, connec
         console.error(`Error fetching trends for producer ${producerId}:`, error);
         return []; // Return empty array on error
     }
-};
+}
 
 /**
  * Fetches competitor data for a given producer.
@@ -273,7 +381,7 @@ exports.fetchTrendsForProducer = async (producerId, producerType, period, connec
  * @param {object} connections - Object containing DB connections.
  * @returns {Promise<Array<object>>} - A promise resolving to an array of competitor profile objects.
  */
-exports.fetchCompetitorsForProducer = async (producerId, producerType, connections) => {
+async function fetchCompetitorsForProducer(producerId, producerType, connections) {
     console.log(`[analyticsService] Fetching competitors for ${producerType} ID: ${producerId}`);
     const ProducerModel = getModelForProducerType(producerType, connections);
 
@@ -319,10 +427,11 @@ exports.fetchCompetitorsForProducer = async (producerId, producerType, connectio
         // Log the final query
         console.log(`[analyticsService] Competitor query: ${JSON.stringify(competitorQuery)}`);
 
+        // Get up to 10 nearby competitors (increased from previous limit)
         const nearByCompetitors = await ProducerModel.find(competitorQuery)
             // Select fields based on Producer.js and LeisureProducer.js
-            .select('name photo photos address rating priceLevel category types gps_coordinates.address')
-            .limit(10)
+            .select('name photo photos address rating priceLevel category types gps_coordinates.address choice_count interest_count favorite_count structured_data')
+            .limit(10) // Keep the limit at 10 for raw data
             .lean();
 
         // Log raw competitor data
@@ -331,30 +440,76 @@ exports.fetchCompetitorsForProducer = async (producerId, producerType, connectio
             console.log(`[analyticsService] Raw data for first competitor: ${JSON.stringify(nearByCompetitors[0])}`);
         }
 
-        // 3. Format the data
+        // 3. Format the data and calculate relevance score
         const formattedCompetitors = nearByCompetitors.map(comp => {
             const imageUrl = comp.photos?.[0] || comp.photo; // Get the potential image URL
-            // Log the image URL selected for each competitor
-            console.log(`[analyticsService] Competitor ${comp.name || comp._id}: selected image URL = ${imageUrl}`);
+            
+            // Calculate a relevance score based on multiple factors
+            let relevanceScore = 0;
+            
+            // Factor 1: Category/type match (0-3 points)
+            const categoryOverlap = relevantTags.filter(tag => 
+                (comp.category || []).includes(tag) || (comp.types || []).includes(tag)
+            ).length;
+            relevanceScore += Math.min(categoryOverlap, 3);
+            
+            // Factor 2: Rating similarity or better (0-2 points)
+            const ratingScore = comp.rating && producer.rating ? 
+                (comp.rating >= producer.rating ? 2 : 1) : 0;
+            relevanceScore += ratingScore;
+            
+            // Factor 3: User engagement metrics (0-3 points)
+            const choiceCount = comp.choice_count || 0;
+            const interestCount = comp.interest_count || 0;
+            const favoriteCount = comp.favorite_count || 0;
+            
+            if (choiceCount > 50) relevanceScore += 1;
+            if (interestCount > 20) relevanceScore += 1;
+            if (favoriteCount > 10) relevanceScore += 1;
+            
+            // Factor 4: Menu complexity (0-2 points for restaurants)
+            if (producerType === 'restaurant' && comp.structured_data) {
+                const menuItems = comp.structured_data['Items Indépendants'] || [];
+                if (menuItems.length > 0) relevanceScore += menuItems.length > 10 ? 2 : 1;
+            }
+            
             return {
                 id: comp._id.toString(),
                 type: producerType,
-                name: comp.name || 'Nom Inconnu', // Use 'name' field
-                image: imageUrl, // Assign the determined image URL
-                // Use address field directly, fallback to potential address within gps_coordinates
+                name: comp.name || 'Nom Inconnu',
+                image: imageUrl,
                 address: comp.address || comp.gps_coordinates?.address || 'Adresse inconnue',
                 rating: comp.rating,
                 priceLevel: comp.priceLevel,
-                category: [...new Set([...(comp.category || []), ...(comp.types || [])])], // Combine category and types
+                category: [...new Set([...(comp.category || []), ...(comp.types || [])])],
+                relevanceScore: relevanceScore, // Add the calculated relevance score
+                // Keep choice metrics if available
+                choiceCount: comp.choice_count,
+                interestCount: comp.interest_count,
+                favoriteCount: comp.favorite_count
             };
         });
 
+        // Sort competitors by relevance score (highest first)
+        formattedCompetitors.sort((a, b) => b.relevanceScore - a.relevanceScore);
+
         // Log count of formatted competitors
-        console.log(`[analyticsService] Returning ${formattedCompetitors.length} formatted competitors (limited to 5).`);
-        return formattedCompetitors.slice(0, 5);
+        console.log(`[analyticsService] Returning ${formattedCompetitors.length} formatted competitors sorted by relevance.`);
+        return formattedCompetitors; // Return all competitors sorted by relevance (no arbitrary limit)
 
     } catch (error) {
         console.error(`Error fetching competitors for producer ${producerId}:`, error);
         return [];
     }
+}
+
+// Assign functions directly to module.exports
+module.exports = {
+    getModelForProducerType,
+    calculatePercentageChange,
+    checkDatabaseStatus,
+    logInteraction,
+    fetchKpisForProducer,
+    fetchTrendsForProducer,
+    fetchCompetitorsForProducer
 }; 

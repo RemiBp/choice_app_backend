@@ -46,23 +46,37 @@ if (!aiController.handleGetInsights) {
 }
 
 // --- Correct Model Loading ---
-let User, Restaurant, LeisureProducer, Event, WellnessPlace, BeautyPlace;
+let User, Restaurant, LeisureProducer, Event, WellnessPlace;
 
 async function initializeModels() {
-  const usersDb = db.getChoiceAppDb();
-  const restaurationDb = db.getRestaurationDb();
-  const loisirsDb = db.getLoisirsDb();
-  const beautyWellnessDb = db.getBeautyWellnessDb();
+  try {
+    // S'assurer que les connexions MongoDB sont disponibles
+    const isConnected = await db.ensureConnected();
+    if (!isConnected) {
+      throw new Error('Cannot establish MongoDB connections. DB might be down.');
+    }
+    
+    // Utiliser les fonctions de connexion synchrones pour la compatibilité
+    const usersDb = db.getChoiceAppConnection();
+    const restaurationDb = db.getRestoConnection();
+    const loisirsDb = db.getLoisirsConnection();
+    const beautyWellnessDb = db.getBeautyConnection();
+    
   if (!usersDb || !restaurationDb || !loisirsDb || !beautyWellnessDb) {
     throw new Error('One or more DB connections are undefined! Make sure connectDB() has completed.');
   }
+    
   User = require('../models/User')(usersDb);
   Restaurant = require('../models/Restaurant')(restaurationDb);
   LeisureProducer = require('../models/leisureProducer')(loisirsDb);
   Event = require('../models/event')(loisirsDb);
   WellnessPlace = require('../models/WellnessPlace')(beautyWellnessDb);
-  BeautyPlace = require('../models/BeautyPlace')(beautyWellnessDb);
+    // BeautyPlace is the same as WellnessPlace
   console.log('✅ Models loaded successfully.');
+  } catch (error) {
+    console.error('❌ Error initializing models:', error.message);
+    throw error; // Re-throw to be handled by the caller
+  }
 }
 
 // Middleware to check AI service availability (e.g., OpenAI key)
@@ -227,7 +241,7 @@ router.post('/social/query', async (req, res) => {
  */
 router.post('/geo/query', async (req, res) => {
   // Check if models are loaded before proceeding
-  if (!User || !Restaurant || !LeisureProducer || !WellnessPlace || !BeautyPlace) {
+  if (!User || !Restaurant || !LeisureProducer || !WellnessPlace) {
       console.error("‼️ Geo query cannot proceed: One or more models failed to load.");
       return res.status(500).json({ error: "Server configuration error: Models not available." });
   }
@@ -273,7 +287,7 @@ router.post('/geo/query', async (req, res) => {
       const wellnessTerms = ['massage', 'spa', 'bien-être', 'relaxation', 'détente', 'yoga', 'meditation'];
       const isWellness = wellnessTerms.some(term => query.toLowerCase().includes(term));
       if (isWellness) { TargetModel = WellnessPlace; producerType = 'wellnessProducer'; locationField = 'location'; }
-      else { TargetModel = BeautyPlace; producerType = 'beautyPlace'; locationField = 'location'; }
+      else { TargetModel = WellnessPlace; producerType = 'beautyPlace'; locationField = 'location'; }
     } else if (isLeisureQuery) {
       TargetModel = LeisureProducer; producerType = 'leisureProducer'; locationField = 'gps_coordinates';
     } else {
@@ -285,9 +299,19 @@ router.post('/geo/query', async (req, res) => {
     console.log(`🎯 Type de producteur détecté: ${producerType}, Modèle: ${TargetModel.modelName}, Champ de localisation: ${locationField}`);
 
     // --- Build and execute query ---
-    const geoQuery = {
-      [locationField]: { $near: { $geometry: { type: "Point", coordinates: [userCoordinates.longitude, userCoordinates.latitude] }, $maxDistance: 5000 } }
-    };
+    const geoQuery = {};
+    // Utiliser soit location, soit gps_coordinates selon ce qui est disponible
+    if (locationField === 'location') {
+      geoQuery.$or = [
+        { location: { $near: { $geometry: { type: "Point", coordinates: [userCoordinates.longitude, userCoordinates.latitude] }, $maxDistance: 5000 } } },
+        { gps_coordinates: { $near: { $geometry: { type: "Point", coordinates: [userCoordinates.longitude, userCoordinates.latitude] }, $maxDistance: 5000 } } }
+      ];
+    } else {
+      geoQuery.$or = [
+        { gps_coordinates: { $near: { $geometry: { type: "Point", coordinates: [userCoordinates.longitude, userCoordinates.latitude] }, $maxDistance: 5000 } } },
+        { location: { $near: { $geometry: { type: "Point", coordinates: [userCoordinates.longitude, userCoordinates.latitude] }, $maxDistance: 5000 } } }
+      ];
+    }
     const keywordFilters = extractEntities(query);
     let combinedQuery = { ...geoQuery };
 
@@ -409,31 +433,92 @@ router.post('/user/query', async (req, res) => {
 
 /** @route POST /api/ai/producer-query */
 router.post('/producer-query', requireAuth, checkProducerAccess, checkAIService, async (req, res) => {
+  // --- Add unmistakable log --- 
+  console.log("✅✅✅ EXECUTING LATEST /api/ai/producer-query HANDLER! ✅✅✅"); 
   try {
-    const { producerId, query, producerType } = req.body;
+    // Utiliser l'ID du token (req.user.id) en priorité, sinon prendre celui du corps (req.body.producerId)
+    const producerId = req.user?.id || req.body.producerId;
+    // Extract query and optional producerType from req.body
+    const { message, producerType } = req.body;
 
-    if (!producerId || !query) {
-      return res.status(400).json({ success: false, message: 'Les paramètres producerId et query sont requis' });
+    // --- Log req.user and extracted ID ---
+    console.log('[Route /producer-query] req.user object:', JSON.stringify(req.user)); // Added log
+    console.log('[Route /producer-query] Extracted producerId:', producerId); // Added log
+    console.log('[Route /producer-query] User account type:', req.user?.accountType); // Added log
+
+    // Validate that producerId and message exist
+    if (!producerId) {
+      console.error(`❌ [Route /producer-query] Missing producerId (not in token or body)`);
+      return res.status(400).json({ success: false, message: `Le paramètre producerId est requis` });
+    }
+    
+    if (!message) {
+      console.error(`❌ [Route /producer-query] Missing message from body`);
+      return res.status(400).json({ success: false, message: `Le paramètre message est requis` });
     }
 
-    console.log(`🔍 [Route] Traitement requête producteur: "${query}" (ID: ${producerId}, Type: ${producerType || 'auto'})`);
+    console.log(`🔍 [Route] Traitement requête producteur: "${message}" (ID: ${producerId}, Type: ${producerType || 'auto'})`);
 
-    // --- MODIFIED: Appel à aiService.processProducerQuery --- 
-    // Note: Assuming aiService has the connections passed during initialization or globally accessible
-    // If not, you might need to pass db connections here or refactor service initialization.
-    const connections = { // Assuming global db connections are available
-        restaurationDb: db.getRestaurationDb(),
-        loisirsDb: db.getLoisirsDb(),
-        beautyWellnessDb: db.getBeautyWellnessDb()
+    // --- S'assurer que les connexions MongoDB sont disponibles ---
+    const isConnected = await db.ensureConnected();
+    if (!isConnected) {
+      console.error('❌ [Route /producer-query] Impossible d\'établir les connexions MongoDB');
+      return res.status(503).json({ 
+        success: false, 
+        error: "Database connection error", 
+        response: "Le service est temporairement indisponible. Veuillez réessayer ultérieurement." 
+      });
+    }
+
+    // --- Prepare les connections nécessaires pour TOUS les types de producteurs ---
+    const connections = {
+        choiceAppDb: db.getChoiceAppConnection(),
+        restaurationDb: db.getRestoConnection(),
+        loisirsDb: db.getLoisirsConnection(),
+        beautyWellnessDb: db.getBeautyConnection()
     };
-    const result = await aiService.processProducerQuery(producerId, producerType, query, connections);
+    
+    // Check database connection status for detailed diagnostics
+    try {
+        const dbStatus = await aiService.checkDatabaseStatus(connections);
+        console.log(`[Route /producer-query] Database connection status: ${dbStatus.success ? '✅ OK' : '❌ Issues detected'}`);
+        
+        // Log actual database names for debugging
+        console.log(`[Route /producer-query] Restaurant DB: ${dbStatus.connections.restaurationDb?.name || 'unknown'} (actual: ${dbStatus.connections.restaurationDb?.actualName || 'unknown'})`);
+        console.log(`[Route /producer-query] Leisure DB: ${dbStatus.connections.loisirsDb?.name || 'unknown'} (actual: ${dbStatus.connections.loisirsDb?.actualName || 'unknown'})`);
+        console.log(`[Route /producer-query] Beauty DB: ${dbStatus.connections.beautyWellnessDb?.name || 'unknown'} (actual: ${dbStatus.connections.beautyWellnessDb?.actualName || 'unknown'})`);
+    } catch (statusError) {
+        console.error(`[Route /producer-query] Error checking database status:`, statusError);
+    }
+    
+    // Vérification que toutes les connexions sont disponibles
+    const missingConnections = [];
+    if (!connections.choiceAppDb) missingConnections.push('choiceAppDb');
+    if (!connections.restaurationDb) missingConnections.push('restaurationDb');
+    if (!connections.loisirsDb) missingConnections.push('loisirsDb');
+    if (!connections.beautyWellnessDb) missingConnections.push('beautyWellnessDb');
+    
+    if (missingConnections.length > 0) {
+      console.error(`❌ [Route /producer-query] Missing connections: ${missingConnections.join(', ')}`);
+      return res.status(500).json({ 
+        success: false, 
+        error: "Server configuration error", 
+        response: "Impossible de traiter la requête (connexions manquantes)." 
+      });
+    }
+    
+    console.log('[Route /producer-query] Connections established successfully');
+    
+    // Appel avec message au lieu de query pour être cohérent avec le frontend
+    const result = await aiService.processProducerQuery(producerId, message, producerType, connections);
 
     console.log(`📊 [Route] Résultats requête producteur - ${result.profiles?.length || 0} profils extraits (Intent: ${result.intent || 'N/A'})`);
+    console.log(`⏱️ [Route] Temps d'exécution: ${result.executionTimeMs || 0}ms`);
 
     // Return the structured response from the service
     return res.json({
       success: true,
-      query: result.query, // Use query from the result if modified
+      query: result.query, // Use query from the result
       intent: result.intent,
       entities: result.entities,
       resultCount: result.profiles?.length || 0, // Base result count on profiles
@@ -450,20 +535,21 @@ router.post('/producer-query', requireAuth, checkProducerAccess, checkAIService,
     let errorMessage = "Erreur lors du traitement de la requête producteur.";
     if (error.name && (error.name.includes('TimeoutError') || error.name.includes('MongoServerSelectionError'))) {
         statusCode = 503; errorMessage = "Service indisponible (DB).";
-    } else if (error.code === 'invalid_api_key' || error.message.includes('Incorrect API key')) {
+    } else if (error.code === 'invalid_api_key' || (error.message && error.message.includes('Incorrect API key'))) {
         statusCode = 503; errorMessage = "Erreur configuration AI (Clé API?).";
         console.error("❗ Possible OpenAI API Key issue.");
-    } else if (error.message.includes("Producteur non trouvé")) {
+    } else if (error.message && error.message.includes("Producteur non trouvé")) {
         statusCode = 404; // Not Found
         errorMessage = error.message;
-    } else if (error.message.includes("Type de producteur non supporté")) {
+    } else if (error.message && error.message.includes("Type de producteur non supporté")) {
         statusCode = 400; // Bad Request
         errorMessage = error.message;
     }
+    
     // Respond with structured error
     return res.status(statusCode).json({ 
       success: false, 
-      query: req.body.query,
+      query: req.body.message,
       error: errorMessage, 
       response: "Désolé, une erreur technique est survenue lors du traitement de votre demande.", 
       profiles: [] 
@@ -491,7 +577,7 @@ router.get('/insights/user/:userId', async (req, res) => {
 
 /** @route GET /api/ai/insights/producer/:producerId */
 router.get('/insights/producer/:producerId', async (req, res) => {
-   if (!Restaurant || !LeisureProducer || !WellnessPlace || !BeautyPlace) {
+   if (!Restaurant || !LeisureProducer || !WellnessPlace) {
     console.error("‼️ Producer insights cannot proceed: One or more producer models failed to load.");
     return res.status(500).json({ error: "Server configuration error: Producer models not available." });
   }
@@ -533,7 +619,7 @@ router.get('/social/friends-choices/:userId', async (req, res) => {
 /** @route GET /api/ai/popular/places */
 router.get('/popular/places', async (req, res) => {
   // Check models needed by getPlacesWithMostChoices are loaded
-   if (!Restaurant || !LeisureProducer || !WellnessPlace || !BeautyPlace /* or Choice model if used */) {
+   if (!Restaurant || !LeisureProducer || !WellnessPlace) {
     console.error("‼️ Popular places cannot proceed: One or more models failed to load.");
     return res.status(500).json({ error: "Server configuration error: Models not available." });
   }
@@ -587,12 +673,39 @@ router.get('/detect-producer-type/:id', async (req, res) => {
 
     console.log(`🔍 Détection du type pour l'ID: ${id}`);
 
-    // Assurez-vous que les connexions DB sont disponibles
+    // --- S'assurer que les connexions MongoDB sont disponibles ---
+    const isConnected = await db.ensureConnected();
+    if (!isConnected) {
+      console.error('❌ [Route /detect-producer-type] Impossible d\'établir les connexions MongoDB');
+      return res.status(503).json({ 
+        success: false, 
+        error: "Database connection error", 
+        response: "Le service est temporairement indisponible. Veuillez réessayer ultérieurement." 
+      });
+    }
+
+    // Assurez-vous que les connexions DB sont disponibles (en utilisant les bonnes fonctions)
     const connections = {
-      restaurationDb: db.getRestaurationDb(),
-      loisirsDb: db.getLoisirsDb(),
-      beautyWellnessDb: db.getBeautyWellnessDb()
+      choiceAppDb: db.getChoiceAppConnection(),
+      restaurationDb: db.getRestoConnection(),
+      loisirsDb: db.getLoisirsConnection(),
+      beautyWellnessDb: db.getBeautyConnection()
     };
+    
+    // Check database connection status for detailed diagnostics
+    try {
+        const dbStatus = await aiService.checkDatabaseStatus(connections);
+        console.log(`[Route /detect-producer-type] Database connection status: ${dbStatus.success ? '✅ OK' : '❌ Issues detected'}`);
+        
+        // Log actual database names for debugging
+        console.log(`[Route /detect-producer-type] Restaurant DB: ${dbStatus.connections.restaurationDb?.name || 'unknown'} (actual: ${dbStatus.connections.restaurationDb?.actualName || 'unknown'})`);
+        console.log(`[Route /detect-producer-type] Restaurant collection count: ${dbStatus.connections.restaurationDb?.producersCount || 'unknown'}`);
+        console.log(`[Route /detect-producer-type] Leisure DB: ${dbStatus.connections.loisirsDb?.name || 'unknown'} (actual: ${dbStatus.connections.loisirsDb?.actualName || 'unknown'})`);
+        console.log(`[Route /detect-producer-type] Beauty DB: ${dbStatus.connections.beautyWellnessDb?.name || 'unknown'} (actual: ${dbStatus.connections.beautyWellnessDb?.actualName || 'unknown'})`);
+    } catch (statusError) {
+        console.error(`[Route /detect-producer-type] Error checking database status:`, statusError);
+    }
+    
     if (!connections.restaurationDb || !connections.loisirsDb || !connections.beautyWellnessDb) {
          console.error("❌ Connexions DB manquantes pour detectProducerType route.");
          return res.status(500).json({ success: false, message: "Erreur interne du serveur (DB)." });

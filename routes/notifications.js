@@ -794,6 +794,116 @@ router.post('/send/user', notificationController.sendToUser);
  */
 router.post('/send/area', notificationController.sendToArea);
 
+/**
+ * @route POST /api/notifications/send-targeted
+ * @desc Send a targeted push notification to users in a specific area or to specific users
+ * @access Private (authentication required)
+ */
+router.post('/send-targeted', async (req, res) => {
+  try {
+    const { producerId, title, body, targetZoneId, targetCoordinates, data = {}, offerDetails = {} } = req.body;
+    
+    if (!title || !body) {
+      return res.status(400).json({ message: 'Title and body are required' });
+    }
+    
+    if (!producerId) {
+      return res.status(400).json({ message: 'Producer ID is required' });
+    }
+    
+    // Create notification data with additional details
+    const notificationData = {
+      ...data,
+      offerDetails,
+      producerId,
+      senderId: producerId,
+      type: 'producer_notification',
+      sentAt: new Date().toISOString()
+    };
+    
+    let result;
+    
+    // Target users based on zone ID or coordinates
+    if (targetZoneId) {
+      console.log(`📱 Sending targeted notification to zone ${targetZoneId}`);
+      // Logic to determine users in the specific zone
+      // This would need to query your database for users in the zone
+      
+      // For now, use the area notification method with default coordinates if available
+      if (!admin.messaging) {
+        return res.status(503).json({ error: 'Push notification service is not available' });
+      }
+      
+      // Get zone coordinates (would need actual implementation)
+      const zoneDetails = { latitude: 0, longitude: 0, radiusKm: 2 }; // Default values
+      
+      result = await pushNotificationService.sendNotificationToArea(
+        zoneDetails.latitude,
+        zoneDetails.longitude,
+        zoneDetails.radiusKm * 1000, // Convert to meters
+        title,
+        body,
+        notificationData,
+        true // Get detailed response
+      );
+      
+    } else if (targetCoordinates) {
+      console.log(`📱 Sending targeted notification to area at [${targetCoordinates.latitude}, ${targetCoordinates.longitude}]`);
+      
+      if (!admin.messaging) {
+        return res.status(503).json({ error: 'Push notification service is not available' });
+      }
+      
+      // Use coordinates directly
+      const { latitude, longitude, radiusKm = 2 } = targetCoordinates;
+      
+      result = await pushNotificationService.sendNotificationToArea(
+        latitude,
+        longitude,
+        radiusKm * 1000, // Convert to meters
+        title,
+        body,
+        notificationData,
+        true // Get detailed response
+      );
+    } else {
+      return res.status(400).json({ message: 'Either targetZoneId or targetCoordinates must be provided' });
+    }
+    
+    // Store the notification in the DB
+    try {
+      // Store notification for analytics/history
+      const notification = new Notification({
+        type: 'zone_notification',
+        targetType: targetZoneId ? 'zone' : 'area',
+        targetId: targetZoneId || `${targetCoordinates.latitude},${targetCoordinates.longitude}`,
+        senderId: producerId,
+        title,
+        body,
+        data: notificationData,
+        createdAt: new Date()
+      });
+      
+      await notification.save();
+    } catch (dbError) {
+      console.error('❌ Error storing notification in database:', dbError);
+      // Continue even if DB storage fails
+    }
+    
+    res.status(200).json({
+      message: 'Targeted notification sent successfully',
+      result
+    });
+    
+  } catch (error) {
+    console.error('❌ Error sending targeted notification:', error);
+    res.status(500).json({ 
+      message: 'Failed to send targeted notification',
+      error: error.message 
+    });
+  }
+});
+
 // Exporter la fonction d'initialisation pour pouvoir l'appeler depuis index.js
 module.exports = router;
 module.exports.initialize = function(db) {

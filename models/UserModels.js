@@ -15,7 +15,7 @@ module.exports = (connection) => {
     following: [{ type: String }],
     interests: [{ type: mongoose.Schema.Types.Mixed }],
     liked_tags: [{ type: String }],
-    choices: [{ type: String }],
+    choices: [{ type: mongoose.Schema.Types.Mixed }],
     choiceCount: { type: Number, default: 0 },
     verified: { type: Boolean, default: false },
     posts: [{ type: String }],

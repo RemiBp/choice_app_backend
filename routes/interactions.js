@@ -47,8 +47,8 @@ let LeisureEvent, LeisureProducer, Producer, WellnessPlace;
 
 const initialize = (connections) => {
     const { choiceAppDb, restaurationDb, loisirsDb, beautyWellnessDb } = connections;
-    // Initialisation des modèles (User, LeisureEvent, Producer, etc.)
-    if (choiceAppDb) User = choiceAppDb.model('User');
+    // Initialisation des modèles (LeisureEvent, Producer, etc.) - User déjà importé ligne 4
+    // if (choiceAppDb) User = choiceAppDb.model('User'); // User déjà importé, ne pas réassigner
     if (loisirsDb) {
        try { LeisureEvent = loisirsDb.model('Event'); } catch(e) { console.warn("Modèle Event (Loisir) non trouvé lors init interactions"); }
        try { LeisureProducer = loisirsDb.model('LeisureProducer'); } catch(e) { console.warn("Modèle LeisureProducer non trouvé lors init interactions"); }

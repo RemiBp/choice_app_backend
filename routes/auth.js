@@ -175,7 +175,7 @@ router.post('/register', async (req, res) => {
     
     // Génération du token JWT
     const token = jwt.sign(
-      { id: savedUser._id },
+      { id: savedUser._id, accountType: 'user' },
       process.env.JWT_SECRET || 'default_jwt_secret',
       { expiresIn: '30d' }
     );

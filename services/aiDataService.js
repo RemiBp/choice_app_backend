@@ -435,23 +435,24 @@ Sois particulièrement attentif aux requêtes complexes comme "restaurant puis s
 function buildMongoQuery(queryAnalysis, options = {}) {
   const { intent, entities, social_context, location_context } = queryAnalysis;
   const mongoQuery = {};
-  const conditions = []; // Use $and for combining conditions
+  let conditions = []; // Use let as we might reassign it
 
   // --- Location Filtering --- 
+  // *** MODIFICATION START: Ne pas ajouter de filtres de localisation texte si une requête geo est prévue ***
+  let isGeoQueryHandledUpstream = false;
   if (location_context?.nearby && options.coordinates) {
-    // Use $geoNear for nearby searches - Note: $geoNear is typically the first stage in an aggregation pipeline
-    // This function primarily builds the $match part. GeoNear logic will be handled elsewhere (e.g., in processUserQuery)
-    console.log("📍 Nearby location detected, geo-query will be handled upstream.");
-    // We might add a basic location text search as a fallback or supplement if needed
-    if (entities?.location) {
-       conditions.push({
-        $or: [
-          { address: { $regex: new RegExp(entities.location, "i") } },
-          { vicinity: { $regex: new RegExp(entities.location, "i") } },
-          { city: { $regex: new RegExp(entities.location, "i") } }
-        ]
-      });
-    }
+    // This function primarily builds the $match part for non-geo queries, 
+    // or the secondary filters for $geoNear's 'query' option.
+    console.log("📍 Nearby location detected. Base query excludes text location search.");
+    isGeoQueryHandledUpstream = true; 
+    // GeoNear logic will be handled in processUserQuery
+    
+    // Keep potential text location if provided explicitly *with* nearby intent?
+    // Example: "restaurants italiens près de moi à Montmartre"
+    // For now, we prioritize geoNear and skip text location filters here
+    // if (entities?.location) { ... }
+
+  // *** MODIFICATION END ***
   } else if (location_context?.specific_location) {
     // Search within specific address fields for the named location
     const locRegex = new RegExp(location_context.specific_location, "i");
@@ -465,7 +466,7 @@ function buildMongoQuery(queryAnalysis, options = {}) {
         { "plus_code.compound_code": locRegex }
       ]
     });
-  } else if (entities?.location) {
+  } else if (entities?.location && !isGeoQueryHandledUpstream) { // Only add text location if not a geo query
     // General location text search if location mentioned but not specifically 'nearby'
     const locRegex = new RegExp(entities.location, "i");
      conditions.push({
@@ -487,12 +488,19 @@ function buildMongoQuery(queryAnalysis, options = {}) {
   if (intent?.includes('leisure')) { typeField = 'category'; typeValue = entities?.activity_type || entities?.category; }
   if (intent?.includes('wellness') || intent?.includes('beauty')) { typeField = 'category'; typeValue = entities?.category; }
   
+  // *** MODIFICATION START: Check if typeValue is defined before creating regex ***
   if (typeValue) {
-    conditions.push({ [typeField]: { $regex: new RegExp(typeValue, "i") } });
-    // Also check general 'category' and 'tags' fields
-    conditions.push({ category: { $regex: new RegExp(typeValue, "i") } }); 
-    conditions.push({ tags: { $regex: new RegExp(typeValue, "i") } });
+    const typeRegex = new RegExp(typeValue, "i");
+    conditions.push({ 
+      $or: [
+        { [typeField]: typeRegex },
+        // Also check general 'category' and 'tags' fields as fallbacks
+        { category: typeRegex }, 
+        { tags: typeRegex },
+      ]
+    });
   }
+  // *** MODIFICATION END ***
   
   // Rating
   if (entities?.rating_descriptor) {
@@ -1398,20 +1406,29 @@ async function processUserQuery(query, userId = null, options = {}) {
                // Ensure the chosen location field exists and has a 2dsphere index before querying
                const indexes = await TargetModel.collection.getIndexes();
                const hasGeoIndex = indexes[`${locationField}_2dsphere`] !== undefined;
-               if (!hasGeoIndex) {
-                    console.error(`‼️‼️‼️ GEO INDEX MISSING on '${locationField}' for ${TargetModel.modelName}. Cannot perform geo query.`);
-                    // Fallback to standard query or return error?
-                    // Let's try a standard query as fallback
+               const hasAlternativeGeoIndex = locationField === 'location' 
+                                            ? indexes['gps_coordinates_2dsphere'] !== undefined 
+                                            : indexes['location_2dsphere'] !== undefined;
+               
+               const alternativeLocationField = locationField === 'location' ? 'gps_coordinates' : 'location';
+               
+               if (!hasGeoIndex && !hasAlternativeGeoIndex) {
+                    console.error(`‼️‼️‼️ GEO INDEX MISSING on '${locationField}' and '${alternativeLocationField}' for ${TargetModel.modelName}. Cannot perform geo query.`);
+                    // Fallback to standard query
                     mongoQueryResult = await TargetModel.find(baseQueryConditions).limit(options.limit || 20).lean();
                     console.log(`⚠️ Geo query skipped due to missing index. Standard query returned ${mongoQueryResult.length} results.`);
                } else {
-                   // Index exists, proceed with geoNear
+                   // Au moins un index existe, proceed with geoNear
+                   // Utiliser le champ qui a un index
+                   const geoField = hasGeoIndex ? locationField : alternativeLocationField;
+                   console.log(`🌍 Using ${geoField} field for geospatial query since it has a valid index`);
+                   
                    const geoPipeline = [
                      {
                        $geoNear: {
                          near: { type: "Point", coordinates: [userCoordinates.longitude, userCoordinates.latitude] },
                          distanceField: "distance", // Output distance in meters
-                         key: locationField, // Specify the indexed field to use
+                         key: geoField, // Specify the indexed field to use
                          maxDistance: options.maxDistance || 20000, // Default 20km
                          query: baseQueryConditions, // Apply other filters HERE
                          spherical: true
@@ -1883,7 +1900,7 @@ Réponds avec une analyse professionnelle, concise et des recommandations préci
     const profiles = [
       // Ajouter le profil du producteur lui-même
       {
-        id: producerId,
+        id: producer.id,
         type: producerType,
         name: producer.name || producer.lieu || producer.title || 'Sans nom',
         address: producer.address || producer.adresse || 'Adresse non spécifiée',
@@ -2556,19 +2573,37 @@ function formatPerformanceAnalysis(performanceData, producer) {
 function extractProfiles(results) {
   if (!results || !Array.isArray(results)) return [];
   
+  console.log(`📊 Extraction de profils à partir de ${results.length} résultats...`);
+  
   // Map pour éviter les doublons (par ID producteur)
   const uniqueProfiles = new Map();
   
-  results.forEach(result => {
+  results.forEach((result, index) => {
     // Déterminer si c'est un choice/interest (avec producer) ou un lieu direct
     const isActivity = result.producer_id && (result.user_id || result.isChoice || result.isInterest);
     const producer = isActivity ? result.producer : result;
     
-    if (!producer || !producer.id) return; // Ignorer les résultats sans producteur valide
+    if (!producer) {
+      console.log(`⚠️ Résultat #${index} sans producteur valide:`, JSON.stringify(result).substring(0, 100) + '...');
+      return; // Ignorer les résultats sans producteur valide
+    }
+    
+    // Extraire l'ID, en considérant toutes les possibilités MongoDB
+    const producerId = producer.id || (producer._id ? (typeof producer._id === 'object' ? producer._id.toString() : producer._id) : null);
+    
+    if (!producerId) {
+      console.log(`⚠️ Résultat #${index} sans ID:`, JSON.stringify(producer).substring(0, 100) + '...');
+      return; // Ignorer si ni id ni _id n'est disponible
+    }
+    
+    // Logging de débogage
+    if (index < 2) { // Limiter pour éviter le flood des logs
+      console.log(`🔍 Traitement du résultat #${index}: Type=${isActivity ? 'activity' : 'place'}, ID=${producerId}`);
+    } 
     
     // Si le producteur existe déjà, on met à jour uniquement certaines informations
-    if (uniqueProfiles.has(producer.id)) {
-      const existingProfile = uniqueProfiles.get(producer.id);
+    if (uniqueProfiles.has(producerId)) {
+      const existingProfile = uniqueProfiles.get(producerId);
       
       // Conserver les informations d'activité les plus pertinentes
       if (isActivity) {
@@ -2620,19 +2655,21 @@ function extractProfiles(results) {
       profileType = producer.type;
     } else if (result.type) {
       profileType = result.type;
+    } else if (producer.schema_type === 'Event' || producer.eventDate || producer.event_date) {
+      profileType = 'event';
     } else {
       // Deviner le type en fonction des propriétés
-      if (result.menu_items || result.cuisine_type || producer.menu_items || producer.cuisine_type) {
+      if (producer.menu_items || producer.cuisine_type) {
         profileType = 'restaurant';
-      } else if (result.event_date || result.performances || producer.event_date || producer.performances) {
+      } else if (producer.event_date || producer.performances || producer.eventDate) {
         profileType = 'event';
-      } else if (result.activities || producer.activities) {
+      } else if (producer.activities) {
         profileType = 'leisureProducer';
-      } else if (result.wellness_services || producer.wellness_services || 
+      } else if (producer.wellness_services || 
                  (producer.category && Array.isArray(producer.category) && 
                   producer.category.some(c => /spa|massage|bien-être/i.test(c)))) {
         profileType = 'wellnessProducer';
-      } else if (result.beauty_services || producer.beauty_services || 
+      } else if (producer.beauty_services || 
                  (producer.category && Array.isArray(producer.category) && 
                   producer.category.some(c => /beauté|coiffure|manucure/i.test(c)))) {
         profileType = 'beautyPlace';
@@ -2649,23 +2686,41 @@ function extractProfiles(results) {
       categories = Array.isArray(producer.cuisine_type) 
         ? producer.cuisine_type 
         : (typeof producer.cuisine_type === 'string' ? [producer.cuisine_type] : []);
+    } else if (producer.event_type || producer.eventType) {
+      const eventType = producer.event_type || producer.eventType;
+      categories = Array.isArray(eventType) 
+        ? eventType 
+        : (typeof eventType === 'string' ? [eventType] : []);
+    } else if (producer.tags) {
+      categories = Array.isArray(producer.tags) 
+        ? producer.tags 
+        : (typeof producer.tags === 'string' ? [producer.tags] : []);
+    }
+    
+    // Pour les événements, ajouter la date si disponible
+    let eventDate = null;
+    if (profileType === 'event') {
+      eventDate = producer.event_date || producer.eventDate || producer.date || null;
     }
     
     // Créer un profil normalisé pour l'UI
     const profile = {
-      id: producer.id,
+      id: producerId,
       type: profileType,
-      name: producer.name || producer.lieu || producer.intitulé || 'Sans nom',
-      address: producer.address || producer.adresse || null,
+      name: producer.name || producer.lieu || producer.title || producer.intitulé || 'Sans nom',
+      address: producer.address || producer.adresse || producer.location_name || null,
       description: producer.description || producer.présentation || null,
       rating: producer.rating ? parseFloat(producer.rating) : null,
-      image: producer.image || producer.photo || (producer.photos && producer.photos.length > 0 ? producer.photos[0] : null),
+      image: producer.image || producer.photo || producer.thumbnail || (producer.photos && producer.photos.length > 0 ? producer.photos[0] : null),
       category: categories,
       priceLevel: producer.price_level || null,
+      // Informations spécifiques aux événements
+      eventDate: eventDate,
+      venue: producer.venue || producer.lieu || null,
       // Structuration des données UI pour faciliter le rendu
       ui: {
-        primaryLabel: producer.name || producer.lieu || producer.intitulé || 'Sans nom',
-        secondaryLabel: producer.address || producer.adresse || null,
+        primaryLabel: producer.name || producer.lieu || producer.title || producer.intitulé || 'Sans nom',
+        secondaryLabel: producer.address || producer.adresse || producer.location_name || null,
         rating: producer.rating ? {
           value: parseFloat(producer.rating),
           count: producer.user_ratings_total || producer.avis_total || 0
@@ -2697,11 +2752,14 @@ function extractProfiles(results) {
     }
     
     // Ajouter le profil à la map
-    uniqueProfiles.set(producer.id, profile);
+    uniqueProfiles.set(producerId, profile);
   });
   
   // Convertir la map en array
-  return Array.from(uniqueProfiles.values());
+  const extractedProfiles = Array.from(uniqueProfiles.values());
+  console.log(`✅ Extraction terminée: ${extractedProfiles.length} profils uniques extraits sur ${results.length} résultats.`);
+  
+  return extractedProfiles;
 }
 
 /**

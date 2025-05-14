@@ -3,20 +3,115 @@ const jwt = require('jsonwebtoken');
 const { getUserModel, getModel } = require('../models/index'); 
 const { ObjectId } = require('mongodb');
 const User = require('../models/User'); // Adjust path as needed
+const db = require('../config/db'); // Import db config to get connections
 
-// Helper function to get producer model (simplified)
+// Helper function to get the correct database connection and model
 const getProducerModelForType = (accountType) => {
+  let connection;
+  let modelName;
+  let collectionName;
+
+  console.log(`[getProducerModelForType] Attempting to get model for accountType: ${accountType}`); // Added Log
+
   switch (accountType) {
     case 'RestaurantProducer':
-      return getModel('Producer'); 
+      connection = db.getRestoConnection(); 
+      modelName = 'Producer'; 
+      collectionName = 'producers'; 
+      break;
     case 'LeisureProducer':
-      return getModel('LeisureProducer');
-    case 'WellnessProducer': // Traiter wellness
-      return getModel('WellnessPlace');
-    // Supprimer les cas wellnessProducer et beautyPlace redondants
+      connection = db.getLoisirsConnection();
+      modelName = 'LeisureProducer';
+      collectionName = 'Loisir_Paris_Producers';
+      break;
+    case 'WellnessProducer':
+      connection = db.getBeautyConnection();
+      modelName = 'WellnessPlace'; 
+      collectionName = 'BeautyPlaces';
+      break;
     default:
-      console.warn(`Unknown producer account type: ${accountType}, falling back to Producer`);
-      return getModel('Producer');
+      console.warn(`[getProducerModelForType] Unknown producer account type: ${accountType}`);
+      return null; 
+  }
+
+  // --- ADDED: Explicit Connection Check --- 
+  if (!connection) {
+    console.error(`❌ [getProducerModelForType] Failed to get connection for ${accountType}. Connection object is undefined.`);
+    return null;
+  } else {
+    // Check readyState (1 = connected, 2 = connecting, 3 = disconnecting, 0 = disconnected)
+    const readyState = connection.readyState;
+    console.log(`[getProducerModelForType] Connection obtained for ${accountType}. Name: ${connection.name}, ReadyState: ${readyState}`);
+    if (readyState !== 1) {
+        console.error(`❌ [getProducerModelForType] Connection for ${accountType} is not ready (State: ${readyState}).`);
+        // Optionally return null here, or let the model lookup fail below
+        // return null; 
+    }
+  }
+  // --- END ADDED CHECK --- 
+  
+  // Attempt to get the model from the specific connection
+  try {
+      // Check if model already exists on the connection's model registry
+      if (connection.models && connection.models[modelName]) {
+          console.log(`[getProducerModelForType] ✅ Found existing model '${modelName}' in connection cache.`);
+          return connection.models[modelName];
+      }
+      
+      console.warn(`[getProducerModelForType] Model '${modelName}' not in cache for ${connection.name}. Attempting dynamic registration...`);
+      
+      // Dynamically require the model factory function based on modelName
+      // Ensure the path and filename convention matches (`../models/Producer.js`, `../models/LeisureProducer.js`, etc.)
+      let SchemaFactory;
+      try {
+          SchemaFactory = require(`../models/${modelName}`);
+      } catch (requireError) {
+           console.error(`❌ [getProducerModelForType] Failed to require schema factory '../models/${modelName}.js':`, requireError);
+           throw new Error(`Schema factory not found for ${modelName}`); // Re-throw to be caught below
+      }
+
+      if (typeof SchemaFactory !== 'function') {
+           console.error(`❌ [getProducerModelForType] Required file '../models/${modelName}.js' does not export a function.`);
+           throw new Error(`Schema factory is not a function for ${modelName}`);
+      }
+      
+      // Register model on the fly using the factory
+      const RegisteredModel = SchemaFactory(connection);
+      console.log(`[getProducerModelForType] ✅ Dynamically registered model '${RegisteredModel.modelName}'.`);
+      return RegisteredModel; 
+
+  } catch (error) {
+      console.error(`❌ [getProducerModelForType] Error getting/registering model '${modelName}' for ${accountType}:`, error.message);
+      
+       // Fallback: Create a minimal schema if dynamic load fails
+       // This is less ideal as it loses schema validation but prevents crashes
+       try {
+           console.warn(`[getProducerModelForType] Attempting fallback minimal model creation for '${modelName}'.`);
+           const mongoose = require('mongoose');
+           const Schema = mongoose.Schema;
+           const minimalSchema = new Schema({}, { collection: collectionName, strict: false });
+           
+           // Use connection.model, handle potential overwrite error
+           try {
+               // Check if already defined (e.g., by another request concurrently)
+               return connection.model(modelName);
+           } catch (modelError) {
+               // If not defined or different error, try defining it
+               if (modelError.name === 'MissingSchemaError') {
+                   return connection.model(modelName, minimalSchema);
+               }
+               // If it IS already defined (OverwriteModelError), just return it
+               if (modelError.name === 'OverwriteModelError') {
+                  console.warn(`[getProducerModelForType] Fallback: Model '${modelName}' was already defined.`);
+                  return connection.model(modelName);
+               }
+               // Re-throw other errors during model creation
+               throw modelError; 
+           }
+       } catch (fallbackError) {
+            console.error(`❌ [getProducerModelForType] Critical: Fallback model creation failed for '${modelName}':`, fallbackError);
+            return null;
+       }
   }
 };
 
@@ -39,34 +134,45 @@ const requireAuth = async (req, res, next) => {
   const token = authorization.split(' ')[1];
 
   try {
-    // Utiliser 'id' au lieu de '_id' lors de la vérification
-    const { id, accountType } = jwt.verify(token, process.env.JWT_SECRET);
+    // Verify token and extract payload 
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // DEBUG: Log decoded token info
-    console.log(`[requireAuth] RAW Decoded Payload:`, JSON.stringify({ id, accountType })); // Log ajusté
-    console.log(`[requireAuth] Token verified: id=${id}, accountType=${accountType}`); // Log ajusté
+    // Extract id and accountType from decoded token
+    // If accountType is missing, default to 'user'
+    const id = decoded.id;
+    const accountType = decoded.accountType || 'user';
 
-    // Attach user/producer info to request for later use
+    console.log(`[requireAuth] RAW Decoded Payload:`, JSON.stringify(decoded));
+    console.log(`[requireAuth] Token verified: id=${id}, accountType=${accountType} (${accountType === decoded.accountType ? 'from token' : 'defaulted'})`);
+
     let userOrProducerData = null;
     if (accountType === 'user') {
-      const User = getUserModel();
-      if (!User) throw new Error('User model not available');
-      // Utiliser l'ID extrait pour la recherche, mais le champ dans MongoDB est toujours _id
-      userOrProducerData = await User.findOne({ _id: id }).select('_id email'); 
+      const User = getUserModel(); // getUserModel seems okay as it uses models/index.js which uses choiceAppDb
+      if (!User) {
+          console.error("Auth.js: User model not available via getUserModel");
+          throw new Error('User model not available');
+      }
+      userOrProducerData = await User.findOne({ _id: new ObjectId(id) }).select('_id email'); 
       if (!userOrProducerData) throw new Error('User not found');
-      req.user = { id: id, accountType: 'user' }; // Utiliser l'ID extrait
+      req.user = { id: id, accountType: 'user' }; 
       req.userData = userOrProducerData; 
     } else if (['RestaurantProducer', 'LeisureProducer', 'WellnessProducer'].includes(accountType)) { 
-      const ProducerModel = getProducerModelForType(accountType);
-      if (!ProducerModel) throw new Error(`Producer model not available for type: ${accountType}`);
-      // Utiliser l'ID extrait pour la recherche, mais le champ dans MongoDB est toujours _id
-      userOrProducerData = await ProducerModel.findOne({ _id: id }).select('_id name lieu businessName type photo'); 
-      if (!userOrProducerData) throw new Error('Producer not found');
-      req.user = { id: id, accountType: accountType }; // Utiliser l'ID extrait
+      const ProducerModel = getProducerModelForType(accountType); // Use the updated helper
+      if (!ProducerModel) {
+          console.error(`Auth.js: Producer model not available for type: ${accountType}`);
+          throw new Error(`Producer model not available for type: ${accountType}`);
+      }
+      userOrProducerData = await ProducerModel.findOne({ _id: new ObjectId(id) }).select('_id name lieu businessName type photo'); 
+      if (!userOrProducerData) {
+          // Log the specific model and ID that failed
+          console.error(`Auth.js: Producer ${id} not found using model ${ProducerModel.modelName} for type ${accountType}`);
+          throw new Error('Producer not found');
+      }
+      req.user = { id: id, accountType: accountType }; 
       req.producerData = userOrProducerData; 
-      req.accountType = accountType; 
+      req.accountType = accountType;
     } else {
-      throw new Error('Invalid account type in token');
+      throw new Error(`Invalid account type in token: ${accountType}`);
     }
     
     console.log(`[requireAuth] Attaching req.user:`, JSON.stringify(req.user));
@@ -74,8 +180,6 @@ const requireAuth = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Auth Error:', error.message);
-    // Log the token causing the error for debugging (be careful in production)
-    // console.error('Token causing error:', token);
     res.status(401).json({ error: 'Request is not authorized' });
   }
 };
@@ -153,20 +257,26 @@ const checkProducerAccess = async (req, res, next) => {
     }
     
     // Pour les producteurs, vérifier le producerId
-    const { producerId } = req.params || req.body;
+    // Le producerId peut être dans req.params, req.body, ou dans req.query
+    const producerId = req.params.producerId || req.body.producerId || req.query.producerId;
     
     if (!producerId) {
-      return res.status(400).json({ message: 'Producer ID is required' });
+      console.log('[checkProducerAccess] Producer request without producerId, using authenticated user ID');
+      // Si aucun producerId n'est fourni, on assume que l'utilisateur veut accéder à son propre profil
+      req.body.producerId = req.user.id; // Ajouter l'ID au body pour les routes qui en ont besoin
+      return next();
     }
     
     // Allow access if the user is the producer
-    // Correction: Utiliser req.user.id au lieu de req.user._id
+    // Compare les IDs en tant que strings pour éviter les problèmes de type
     if (req.user.id.toString() === producerId.toString()) {
       return next();
     }
     
-    // This could be expanded to check for admin roles, team members, etc.
+    // Log l'accès refusé
+    console.warn(`⚠️ [checkProducerAccess] Access denied: User ${req.user.id} (${req.user.accountType}) tried to access producer ${producerId}`);
     
+    // This could be expanded to check for admin roles, team members, etc.
     return res.status(403).json({ message: 'Access denied: You do not have permission to access this producer' });
   } catch (error) {
     console.error('❌ Error in checkProducerAccess middleware:', error);

@@ -96,7 +96,7 @@ const initialize = (connections) => {
     
     const LeisureProducerModel = require('./leisureProducer');
     models.LeisureProducer = typeof LeisureProducerModel === 'function' ? 
-      LeisureProducerModel(db.loisirDb) : LeisureProducerModel;
+      LeisureProducerModel(db.loisirsDb) : LeisureProducerModel;
     
     const WellnessPlaceModel = require('./WellnessPlace');
     models.WellnessPlace = typeof WellnessPlaceModel === 'function' ? 
